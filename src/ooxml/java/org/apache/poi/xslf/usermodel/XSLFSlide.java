@@ -66,7 +66,7 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
      *
      * @param part the package part holding the slide data,
      * the content type must be <code>application/vnd.openxmlformats-officedocument.slide+xml</code>
-     * 
+     *
      * @since POI 3.14-Beta1
      */
     XSLFSlide(PackagePart part) throws IOException, XmlException {
@@ -85,8 +85,8 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
     XSLFSlide(PackagePart part, PackageRelationship rel) throws IOException, XmlException {
         this(part);
     }
-    
-    
+
+
     private static CTSlide prototype(){
         CTSlide ctSlide = CTSlide.Factory.newInstance();
         CTCommonSlideData cSld = ctSlide.addNewCSld();
@@ -179,6 +179,13 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
           return null;
        }
        return _notes;
+    }
+
+    public void unsetNotes(){
+        XSLFNotes notes = getNotes();
+        if(notes == null) return;
+        removeRelation(notes, true);
+        this._notes = null;
     }
 
     @Override

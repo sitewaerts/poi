@@ -66,19 +66,19 @@ public class POIXMLDocumentPart {
     public static class RelationPart {
         private final PackageRelationship relationship;
         private final POIXMLDocumentPart documentPart;
-        
+
         RelationPart(PackageRelationship relationship, POIXMLDocumentPart documentPart) {
             this.relationship = relationship;
             this.documentPart = documentPart;
         }
-        
+
         /**
-         * @return the cached relationship, which uniquely identifies this child document part within the parent 
+         * @return the cached relationship, which uniquely identifies this child document part within the parent
          */
         public PackageRelationship getRelationship() {
             return relationship;
         }
-        
+
         /**
          * @return the child document part
          */
@@ -122,7 +122,7 @@ public class POIXMLDocumentPart {
         this(getPartFromOPCPackage(pkg, coreDocumentRel));
         this.coreDocumentRel = coreDocumentRel;
     }
-    
+
     /**
      * Creates new POIXMLDocumentPart   - called by client code to create new parts from scratch.
      *
@@ -166,7 +166,7 @@ public class POIXMLDocumentPart {
      * @param part - The package part that holds xml data representing this sheet.
      * @param rel - the relationship of the given package part
      * @see #read(POIXMLFactory, java.util.Map)
-     * 
+     *
      * @deprecated in POI 3.14, scheduled for removal in POI 3.16
      */
     @Deprecated
@@ -308,7 +308,7 @@ public class POIXMLDocumentPart {
      * Add a new child POIXMLDocumentPart
      *
      * @param part the child to add
-     * 
+     *
      * @deprecated in POI 3.14, scheduled for removal in POI 3.16
      */
     @Deprecated
@@ -371,6 +371,14 @@ public class POIXMLDocumentPart {
     }
 
     /**
+     * Remove the relation from the specified part (from) to the specified part (to) and remove the
+     * part (to), if it is no longer needed.
+     */
+    protected final boolean removeRelation(POIXMLDocumentPart from, POIXMLDocumentPart to, boolean removeUnusedParts){
+        return from.removeRelation(to, removeUnusedParts);
+    }
+
+    /**
      * Remove the relation to the specified part in this package and remove the
      * part, if it is no longer needed.
      */
@@ -381,7 +389,7 @@ public class POIXMLDocumentPart {
     /**
      * Remove the relation to the specified part in this package and remove the
      * part, if it is no longer needed and flag is set to true.
-     *
+     * 
      * @param part
      *            The related part, to which the relation shall be removed.
      * @param removeUnusedParts
@@ -400,6 +408,10 @@ public class POIXMLDocumentPart {
         getPackagePart().removeRelationship(id);
         /* remove POIXMLDocument from relations */
         relations.remove(id);
+
+        /* remove circular relationship */
+        if(part.getRelations().contains(this))
+            part.removeRelation(this, true);
 
         if (removeUnusedParts) {
             /* if last relation to target part was removed, delete according target part */
@@ -660,7 +672,7 @@ public class POIXMLDocumentPart {
 
     /**
      * Retrieves the core document part
-     * 
+     *
      * @since POI 3.14-Beta1
      */
     private static PackagePart getPartFromOPCPackage(OPCPackage pkg, String coreDocumentRel) {
@@ -673,7 +685,7 @@ public class POIXMLDocumentPart {
             }
             return pp;
         }
-        
+
         coreRel = pkg.getRelationshipsByType(PackageRelationshipTypes.STRICT_CORE_DOCUMENT).getRelationship(0);
         if (coreRel != null) {
             throw new POIXMLException("Strict OOXML isn't currently supported, please see bug #57699");
