@@ -1,0 +1,5 @@
+*.iml
+lib
+ooxml-lib
+compile-lib
+build
