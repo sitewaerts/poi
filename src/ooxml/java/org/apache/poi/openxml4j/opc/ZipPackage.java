@@ -262,6 +262,13 @@ public final class ZipPackage extends Package {
 					ContentTypeManager.CONTENT_TYPES_PART_NAME)) {
 				return null;
 			}
+			// We get an error when we parse [trash]/*
+			// because it's not a valid URI.
+			if (entry.getName().toLowerCase().startsWith(
+					ContentTypeManager.TRASH_FOLDER_NAME
+            )) {
+				return null;
+			}
 			return PackagingURIHelper.createPartName(ZipHelper
 					.getOPCNameFromZipItemName(entry.getName()));
 		} catch (Exception e) {

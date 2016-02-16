@@ -52,6 +52,11 @@ public abstract class ContentTypeManager {
 	public static final String CONTENT_TYPES_PART_NAME = "[Content_Types].xml";
 
 	/**
+	 * Trash Folder name.
+	 */
+	public static final String TRASH_FOLDER_NAME = "[trash]";
+
+	/**
 	 * Content type namespace
 	 */
 	public static final String TYPES_NAMESPACE_URI = "http://schemas.openxmlformats.org/package/2006/content-types";
