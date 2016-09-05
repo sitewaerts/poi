@@ -590,8 +590,9 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
         if (spaceBefore == null && !_p.isSetPPr()) return;
         CTTextParagraphProperties pr = _p.isSetPPr() ? _p.getPPr() : _p.addNewPPr();
         CTTextSpacing spc = CTTextSpacing.Factory.newInstance();
-        if(spaceBefore >= 0) spc.addNewSpcPct().setVal((int)(spaceBefore*1000));
-        else spc.addNewSpcPts().setVal((int)(-spaceBefore*100));
+        double sb = spaceBefore == null ? 0 : spaceBefore;
+        if(sb >= 0) spc.addNewSpcPct().setVal((int)(sb*1000));
+        else spc.addNewSpcPts().setVal((int)(-sb*100));
         pr.setSpcBef(spc);
     }
 
@@ -618,8 +619,9 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
     public void setSpaceAfter(Double spaceAfter){
         CTTextParagraphProperties pr = _p.isSetPPr() ? _p.getPPr() : _p.addNewPPr();
         CTTextSpacing spc = CTTextSpacing.Factory.newInstance();
-        if(spaceAfter >= 0) spc.addNewSpcPct().setVal((int)(spaceAfter*1000));
-        else spc.addNewSpcPts().setVal((int)(-spaceAfter*100));
+        double sa = spaceAfter == null ? 0 : spaceAfter;
+        if(sa >= 0) spc.addNewSpcPct().setVal((int)(sa*1000));
+        else spc.addNewSpcPts().setVal((int)(-sa*100));
         pr.setSpcAft(spc);
     }
 

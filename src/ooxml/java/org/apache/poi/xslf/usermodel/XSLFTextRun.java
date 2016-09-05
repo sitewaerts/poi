@@ -504,8 +504,8 @@ public class XSLFTextRun implements TextRun {
             setFontColor(srcFontColor);
         }
 
-        double srcFontSize = r.getFontSize();
-        if(srcFontSize  != getFontSize()){
+        Double srcFontSize = r.getFontSize();
+        if(!doubleEquals(srcFontSize, getFontSize())){
             setFontSize(srcFontSize);
         }
 
@@ -521,4 +521,10 @@ public class XSLFTextRun implements TextRun {
         boolean strike = r.isStrikethrough();
         if(strike != isStrikethrough()) setStrikethrough(strike);
     }
+
+    private static boolean doubleEquals(Double d1, Double d2) {
+        return (d1 == d2 || (d1 != null && d1.equals(d2)));
+    }
+
+
 }

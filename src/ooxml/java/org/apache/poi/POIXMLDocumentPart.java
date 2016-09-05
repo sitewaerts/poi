@@ -586,7 +586,7 @@ public class POIXMLDocumentPart {
 
         if (!pp.hasRelationships()) return;
 
-        PackageRelationshipCollection rels = packagePart.getRelationships();
+        PackageRelationshipCollection rels = pp.getRelationships();
         List<POIXMLDocumentPart> readLater = new ArrayList<POIXMLDocumentPart>();
 
         // scan breadth-first, so parent-relations are hopefully the shallowest element
@@ -602,7 +602,7 @@ public class POIXMLDocumentPart {
                     relName = PackagingURIHelper.createPartName(uri);
                 }
 
-                final PackagePart p = packagePart.getPackage().getPart(relName);
+                final PackagePart p = pp.getPackage().getPart(relName);
                 if (p == null) {
                     logger.log(POILogger.ERROR, "Skipped invalid entry " + rel.getTargetURI());
                     continue;
