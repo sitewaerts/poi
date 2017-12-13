@@ -23,6 +23,10 @@ import java.io.OutputStream;
 import org.apache.poi.util.*;
 
 public class TextSpecInfoRun {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 1_000_000;
+
     /**
      * A enum that specifies the spelling status of a run of text.
      */
@@ -74,10 +78,10 @@ public class TextSpecInfoRun {
     private static final BitField grammarErrorFld = new BitField(0X80000000);
     
     //Length of special info run.
-    protected int length;
+    private int length;
 
     //Special info mask of this run;
-    protected int mask;
+    private int mask;
 
     // info fields as indicated by the mask.
     // -1 means the bit is not set
@@ -92,7 +96,7 @@ public class TextSpecInfoRun {
      * grammar (1 bit): A bit that specifies whether the text has a grammar error.<br>
      * reserved (13 bits): MUST be zero and MUST be ignored.
      */
-    protected short spellInfo = -1;
+    private short spellInfo = -1;
     
     /**
      * An optional TxLCID that specifies the language identifier of this text.
@@ -103,13 +107,13 @@ public class TextSpecInfoRun {
      * 0x0400 = No proofing is performed on the text.<br>
      * &gt; 0x0400 = A valid LCID as specified by [MS-LCID].
      */
-    protected short langId = -1;
+    private short langId = -1;
     
     /**
      * An optional TxLCID that specifies the alternate language identifier of this text.
      * It MUST exist if and only if altLang is TRUE.
      */
-    protected short altLangId = -1;
+    private short altLangId = -1;
     
     /**
      * An optional signed integer that specifies whether the text contains bidirectional
@@ -117,10 +121,10 @@ public class TextSpecInfoRun {
      * 0x0000 = Contains no bidirectional characters,
      * 0x0001 = Contains bidirectional characters.
      */
-    protected short bidi = -1;
+    private short bidi = -1;
     
-    protected int pp10extMask = -1;
-    protected byte[] smartTagsBytes = null;
+    private int pp10extMask = -1;
+    private byte[] smartTagsBytes;
 
     /**
      * Inits a TextSpecInfoRun with default values
@@ -153,7 +157,7 @@ public class TextSpecInfoRun {
         if (smartTagFld.isSet(mask)) {
             // An unsigned integer specifies the count of items in rgSmartTagIndex.
             int count = source.readInt();
-            smartTagsBytes = new byte[4+count*4];
+            smartTagsBytes = IOUtils.safelyAllocate(4+count*4, MAX_RECORD_LENGTH);
             LittleEndian.putInt(smartTagsBytes, 0, count);
             // An array of SmartTagIndex that specifies the indices.
             // The count of items in the array is specified by count.

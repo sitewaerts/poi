@@ -17,8 +17,10 @@
 
 package org.apache.poi.xssf.usermodel;
 
+import static org.apache.poi.xssf.usermodel.XSSFRelation.NS_SPREADSHEETML;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
@@ -52,9 +54,6 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRPrElt;
 
 import com.microsoft.schemas.vml.CTShape;
 
-/**
- * @author Yegor Kozlov
- */
 public final class TestXSSFComment extends BaseTestCellComment  {
 
     private static final String TEST_RICHTEXTSTRING = "test richtextstring";
@@ -146,7 +145,7 @@ public final class TestXSSFComment extends BaseTestCellComment  {
 
         CTComment ctComment = comment.getCTComment();
         XmlObject[] obj = ctComment.selectPath(
-                "declare namespace w='http://schemas.openxmlformats.org/spreadsheetml/2006/main' .//w:text");
+                "declare namespace w='"+NS_SPREADSHEETML+"' .//w:text");
         assertEquals(1, obj.length);
         assertEquals(TEST_RICHTEXTSTRING, comment.getString().getString());
 
@@ -164,7 +163,7 @@ public final class TestXSSFComment extends BaseTestCellComment  {
         //check the low-level stuff
         comment.setString(richText);
         obj = ctComment.selectPath(
-                "declare namespace w='http://schemas.openxmlformats.org/spreadsheetml/2006/main' .//w:text");
+                "declare namespace w='"+NS_SPREADSHEETML+"' .//w:text");
         assertEquals(1, obj.length);
         assertSame(comment.getString(), richText);
         //check that the rich text is set in the comment
@@ -278,7 +277,7 @@ public final class TestXSSFComment extends BaseTestCellComment  {
 
             cell.setCellValue("F4");
 
-            Drawing drawing = sheet.createDrawingPatriarch();
+            Drawing<?> drawing = sheet.createDrawingPatriarch();
 
             CreationHelper factory = wb.getCreationHelper();
 
@@ -312,5 +311,62 @@ public final class TestXSSFComment extends BaseTestCellComment  {
         } finally {
             wb.close();
         }
+    }
+
+    @Test
+    public void testBug55814() throws IOException {
+		try (Workbook wb = XSSFTestDataSamples.openSampleWorkbook("55814.xlsx")) {
+
+            int oldsheetIndex = wb.getSheetIndex("example");
+            Sheet oldsheet = wb.getSheetAt(oldsheetIndex);
+
+            Comment comment = oldsheet.getRow(0).getCell(0).getCellComment();
+            assertEquals("Comment Here\n", comment.getString().getString());
+
+            Sheet newsheet = wb.cloneSheet(oldsheetIndex);
+
+            wb.removeSheetAt(oldsheetIndex);
+
+            //wb.write(new FileOutputStream("/tmp/outnocomment.xlsx"));
+
+            comment = newsheet.getRow(0).getCell(0).getCellComment();
+            assertNotNull("Should have a comment on A1 in the new sheet", comment);
+            assertEquals("Comment Here\n", comment.getString().getString());
+
+            Workbook wbBack = XSSFTestDataSamples.writeOutAndReadBack(wb);
+            assertNotNull(wbBack);
+            wbBack.close();
+        }
+
+        try (Workbook wb = XSSFTestDataSamples.openSampleWorkbook("55814.xlsx")) {
+            int oldsheetIndex = wb.getSheetIndex("example");
+            Sheet newsheet = wb.getSheetAt(oldsheetIndex);
+            Comment comment = newsheet.getRow(0).getCell(0).getCellComment();
+            assertEquals("Comment Here\n", comment.getString().getString());
+        }
+    }
+
+    @Test
+    public void bug57838DeleteRowsWthCommentsBug() throws IOException {
+        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("57838.xlsx");
+        Sheet sheet=wb.getSheetAt(0);
+        Comment comment1 = sheet.getCellComment(new CellAddress(2, 1));
+        assertNotNull(comment1);
+        Comment comment2 = sheet.getCellComment(new CellAddress(2, 2));
+        assertNotNull(comment2);
+        Row row=sheet.getRow(2);
+        assertNotNull(row);
+
+        sheet.removeRow(row); // Remove row from index 2
+
+        row=sheet.getRow(2);
+        assertNull(row); // Row is null since we deleted it.
+
+        comment1 = sheet.getCellComment(new CellAddress(2, 1));
+        assertNull(comment1); // comment should be null but will fail due to bug
+        comment2 = sheet.getCellComment(new CellAddress(2, 2));
+        assertNull(comment2); // comment should be null but will fail due to bug
+
+        wb.close();
     }
 }

@@ -42,6 +42,7 @@ import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Line2D;
+import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.BufferedImageOp;
@@ -60,18 +61,17 @@ import org.apache.poi.hslf.usermodel.HSLFTextRun;
 import org.apache.poi.sl.draw.DrawPaint;
 import org.apache.poi.sl.usermodel.StrokeStyle;
 import org.apache.poi.sl.usermodel.VerticalAlignment;
+import org.apache.poi.util.NotImplemented;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 import org.apache.poi.util.SuppressForbidden;
 
 /**
  * Translates Graphics2D calls into PowerPoint.
- *
- * @author Yegor Kozlov
  */
 public final class PPGraphics2D extends Graphics2D implements Cloneable {
 
-    protected POILogger log = POILogFactory.getLogger(this.getClass());
+    private static final POILogger LOG = POILogFactory.getLogger(PPGraphics2D.class);
 
     //The ppt object to write into.
     private HSLFGroupShape _group;
@@ -138,7 +138,7 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see       java.awt.Color
      * @see       java.awt.Graphics#setColor
      */
-     public Color getColor(){
+    public Color getColor(){
         return _foreground;
     }
 
@@ -196,7 +196,7 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * color during the rendering process, or <code>null</code>
      * @see java.awt.Graphics#setColor
      */
-     public void setPaint(Paint paint){
+    public void setPaint(Paint paint){
         if(paint == null) return;
 
         this._paint = paint;
@@ -244,7 +244,7 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see #setComposite
      */
     public void draw(Shape shape){
-        GeneralPath path = new GeneralPath(_transform.createTransformedShape(shape));
+        Path2D.Double path = new Path2D.Double(_transform.createTransformedShape(shape));
         HSLFFreeformShape p = new HSLFFreeformShape(_group);
         p.setPath(path);
         p.getFill().setForegroundColor(null);
@@ -346,7 +346,7 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see #setClip
      */
     public void fill(Shape shape){
-        GeneralPath path = new GeneralPath(_transform.createTransformedShape(shape));
+        Path2D.Double path = new Path2D.Double(_transform.createTransformedShape(shape));
         HSLFFreeformShape p = new HSLFFreeformShape(_group);
         p.setPath(path);
         applyPaint(p);
@@ -388,9 +388,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      *          <code>Clip</code>.  If <code>s</code> is <code>null</code>,
      *          this method clears the current <code>Clip</code>.
      */
+    @NotImplemented
     public void clip(Shape s){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 
@@ -410,9 +411,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see         java.awt.Graphics#setClip(Shape)
      * @since       JDK1.1
      */
+    @NotImplemented
     public Shape getClip(){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
         return null;
     }
@@ -678,11 +680,12 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see      java.awt.image.ImageObserver
      * @see      java.awt.image.ImageObserver#imageUpdate(java.awt.Image, int, int, int, int, int)
      */
+    @NotImplemented
     public boolean drawImage(Image img, int x, int y,
                              Color bgcolor,
                              ImageObserver observer){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
 
         return false;
@@ -726,12 +729,13 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see      java.awt.image.ImageObserver
      * @see      java.awt.image.ImageObserver#imageUpdate(java.awt.Image, int, int, int, int, int)
      */
+    @NotImplemented
     public boolean drawImage(Image img, int x, int y,
                              int width, int height,
                              Color bgcolor,
                              ImageObserver observer){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
 
         return false;
@@ -785,12 +789,13 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see         java.awt.image.ImageObserver#imageUpdate(java.awt.Image, int, int, int, int, int)
      * @since       JDK1.1
      */
+    @NotImplemented
     public boolean drawImage(Image img,
                              int dx1, int dy1, int dx2, int dy2,
                              int sx1, int sy1, int sx2, int sy2,
                              ImageObserver observer){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
         return false;
     }
@@ -848,13 +853,14 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see         java.awt.image.ImageObserver#imageUpdate(java.awt.Image, int, int, int, int, int)
      * @since       JDK1.1
      */
+    @NotImplemented
     public boolean drawImage(Image img,
                              int dx1, int dy1, int dx2, int dy2,
                              int sx1, int sy1, int sx2, int sy2,
                              Color bgcolor,
                              ImageObserver observer){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
         return false;
     }
@@ -891,10 +897,11 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see      java.awt.image.ImageObserver
      * @see      java.awt.image.ImageObserver#imageUpdate(java.awt.Image, int, int, int, int, int)
      */
+    @NotImplemented
     public boolean drawImage(Image img, int x, int y,
                              ImageObserver observer) {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
         return false;
     }
@@ -927,7 +934,6 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see         java.awt.Graphics#create
      */
     public void dispose() {
-        ;
     }
 
     /**
@@ -1079,9 +1085,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see         java.awt.Graphics#setClip(int, int, int, int)
      * @since       JDK1.1
      */
+    @NotImplemented
     public void setClip(Shape clip) {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 
@@ -1154,7 +1161,6 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
     }
 
     public void copyArea(int x, int y, int width, int height, int dx, int dy) {
-        ;
     }
 
     /**
@@ -1379,9 +1385,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see java.awt.Graphics#setPaintMode
      * @see java.awt.AlphaComposite
      */
+    @NotImplemented
     public void setComposite(Composite comp){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 
@@ -1392,9 +1399,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      *              which defines a compositing style.
      * @see #setComposite
      */
+    @NotImplemented
     public Composite getComposite(){
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
         return null;
     }
@@ -1535,9 +1543,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see #setComposite
      * @see #setClip
      */
+    @NotImplemented
     public void drawString(AttributedCharacterIterator iterator, float x, float y) {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 
@@ -1641,9 +1650,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see #clip
      * @see #setClip(Shape)
      */
-     public boolean drawImage(Image img, AffineTransform xform, ImageObserver obs) {
-         if (log.check(POILogger.WARN)) {
-             log.log(POILogger.WARN, "Not implemented");
+    @NotImplemented
+    public boolean drawImage(Image img, AffineTransform xform, ImageObserver obs) {
+         if (LOG.check(POILogger.WARN)) {
+             LOG.log(POILogger.WARN, "Not implemented");
          }
         return false;
     }
@@ -1684,11 +1694,12 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see      java.awt.image.ImageObserver
      * @see      java.awt.image.ImageObserver#imageUpdate(java.awt.Image, int, int, int, int, int)
      */
+    @NotImplemented
     public boolean drawImage(Image img, int x, int y,
                              int width, int height,
                              ImageObserver observer) {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
         return false;
     }
@@ -1736,9 +1747,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * drawn twice, then all pixels are restored to their original values.
      * @param     c1 the XOR alternation color
      */
+    @NotImplemented
     public void setXORMode(Color c1) {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 
@@ -1749,9 +1761,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * overwrite mode.  All subsequent rendering operations will
      * overwrite the destination with the current color.
      */
+    @NotImplemented
     public void setPaintMode() {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 
@@ -1786,10 +1799,11 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see #setClip
      * @see #drawRenderedImage
      */
-     public void drawRenderedImage(RenderedImage img, AffineTransform xform) {
-         if (log.check(POILogger.WARN)) {
-             log.log(POILogger.WARN, "Not implemented");
-         }
+    @NotImplemented
+    public void drawRenderedImage(RenderedImage img, AffineTransform xform) {
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
+        }
     }
 
     /**
@@ -1813,9 +1827,10 @@ public final class PPGraphics2D extends Graphics2D implements Cloneable {
      * @see #clip
      * @see #setClip
      */
+    @NotImplemented
     public void drawRenderableImage(RenderableImage img, AffineTransform xform) {
-        if (log.check(POILogger.WARN)) {
-            log.log(POILogger.WARN, "Not implemented");
+        if (LOG.check(POILogger.WARN)) {
+            LOG.log(POILogger.WARN, "Not implemented");
         }
     }
 

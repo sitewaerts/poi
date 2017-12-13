@@ -17,6 +17,8 @@
 
 package org.apache.poi.ss.formula.eval;
 
+//import org.checkerframework.checker.nullness.qual.NonNull;
+
 import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.ptg.StringPtg;
 
@@ -27,6 +29,7 @@ public final class StringEval implements StringValueEval {
 
 	public static final StringEval EMPTY_INSTANCE = new StringEval("");
 
+	//@NotNull
 	private final String _value;
 
 	public StringEval(Ptg ptg) {
@@ -45,10 +48,8 @@ public final class StringEval implements StringValueEval {
 	}
 
 	public String toString() {
-		StringBuilder sb = new StringBuilder(64);
-		sb.append(getClass().getName()).append(" [");
-		sb.append(_value);
-		sb.append("]");
-		return sb.toString();
+		return getClass().getName() + " [" +
+				_value +
+				"]";
 	}
 }

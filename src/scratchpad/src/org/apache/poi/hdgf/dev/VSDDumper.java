@@ -37,8 +37,8 @@ import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 public final class VSDDumper {
     final static String tabs = "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t";
     
-    final PrintStream ps;
-    final HDGFDiagram hdgf;
+    private final PrintStream ps;
+    private final HDGFDiagram hdgf;
     VSDDumper(PrintStream ps, HDGFDiagram hdgf) {
         this.ps = ps;
         this.hdgf = hdgf;
@@ -52,14 +52,16 @@ public final class VSDDumper {
 		}
 
 		NPOIFSFileSystem poifs = new NPOIFSFileSystem(new File(args[0]));
-		HDGFDiagram hdgf = new HDGFDiagram(poifs);
+		try {
+			HDGFDiagram hdgf = new HDGFDiagram(poifs);
 
-		PrintStream ps = System.out;
-		ps.println("Opened " + args[0]);
-		VSDDumper vd = new VSDDumper(ps, hdgf);
-		vd.dumpFile();
-		
-		poifs.close();
+			PrintStream ps = System.out;
+			ps.println("Opened " + args[0]);
+			VSDDumper vd = new VSDDumper(ps, hdgf);
+			vd.dumpFile();
+		} finally {
+			poifs.close();
+		}
 	}
 
 	public void dumpFile() {

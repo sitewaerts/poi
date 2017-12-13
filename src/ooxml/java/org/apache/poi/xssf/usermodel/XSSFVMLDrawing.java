@@ -22,6 +22,7 @@ import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringReader;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,12 +33,15 @@ import javax.xml.namespace.QName;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
-import org.apache.poi.xssf.util.EvilUnclosedBRFixingInputStream;
+import org.apache.poi.util.DocumentHelper;
+import org.apache.poi.util.ReplacingInputStream;
 import org.apache.xmlbeans.XmlCursor;
 import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
+import org.w3c.dom.Document;
 import org.w3c.dom.Node;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import com.microsoft.schemas.office.excel.CTClientData;
 import com.microsoft.schemas.office.excel.STObjectType;
@@ -88,8 +92,8 @@ public final class XSSFVMLDrawing extends POIXMLDocumentPart {
      */
     private static final Pattern ptrn_shapeId = Pattern.compile("_x0000_s(\\d+)");
 
-    private List<QName> _qnames = new ArrayList<QName>();
-    private List<XmlObject> _items = new ArrayList<XmlObject>();
+    private List<QName> _qnames = new ArrayList<>();
+    private List<XmlObject> _items = new ArrayList<>();
     private String _shapeTypeId;
     private int _shapeId = 1024;
 
@@ -116,21 +120,23 @@ public final class XSSFVMLDrawing extends POIXMLDocumentPart {
         read(getPackagePart().getInputStream());
     }
 
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    protected XSSFVMLDrawing(PackagePart part, PackageRelationship rel) throws IOException, XmlException {
-        this(part);
-    }
-
     protected void read(InputStream is) throws IOException, XmlException {
-        XmlObject root = XmlObject.Factory.parse(
-              new EvilUnclosedBRFixingInputStream(is), DEFAULT_XML_OPTIONS
-        );
+        Document doc;
+        try {
+            /*
+             * This is a seriously sick fix for the fact that some .xlsx files contain raw bits
+             * of HTML, without being escaped or properly turned into XML.
+             * The result is that they contain things like &gt;br&lt;, which breaks the XML parsing.
+             * This very sick InputStream wrapper attempts to spot these go past, and fix them.
+             */
+            doc = DocumentHelper.readDocument(new ReplacingInputStream(is, "<br>", "<br/>"));
+        } catch (SAXException e) {
+            throw new XmlException(e.getMessage(), e);
+        }
+        XmlObject root = XmlObject.Factory.parse(doc, DEFAULT_XML_OPTIONS);
 
-        _qnames = new ArrayList<QName>();
-        _items = new ArrayList<XmlObject>();
+        _qnames = new ArrayList<>();
+        _items = new ArrayList<>();
         for(XmlObject obj : root.selectPath("$this/xml/*")) {
             Node nd = obj.getDomNode();
             QName qname = new QName(nd.getNamespaceURI(), nd.getLocalName());
@@ -145,11 +151,21 @@ public final class XSSFVMLDrawing extends POIXMLDocumentPart {
                 String id = shape.getId();
                 if(id != null) {
                     Matcher m = ptrn_shapeId.matcher(id);
-                    if(m.find()) _shapeId = Math.max(_shapeId, Integer.parseInt(m.group(1)));
+                    if(m.find()) {
+                        _shapeId = Math.max(_shapeId, Integer.parseInt(m.group(1)));
+                    }
                 }
                 _items.add(shape);
             } else {
-                _items.add(XmlObject.Factory.parse(obj.xmlText(), DEFAULT_XML_OPTIONS));
+                Document doc2;
+                try {
+                    InputSource is2 = new InputSource(new StringReader(obj.xmlText()));
+                    doc2 = DocumentHelper.readDocument(is2);
+                } catch (SAXException e) {
+                    throw new XmlException(e.getMessage(), e);
+                }
+                
+                _items.add(XmlObject.Factory.parse(doc2, DEFAULT_XML_OPTIONS));
             }
             _qnames.add(qname);
         }

@@ -34,16 +34,27 @@ public class HSLFTestDataSamples {
 	public static InputStream openSampleFileStream(String sampleFileName) {
 		return _inst.openResourceAsStream(sampleFileName);
 	}
+	
 	public static File getSampleFile(String sampleFileName) {
 	   return _inst.getFile(sampleFileName);
 	}
+	
 	public static byte[] getTestDataFileContent(String fileName) {
 		return _inst.readFile(fileName);
+	}
+	
+	public static HSLFSlideShow getSlideShow(String fileName) throws IOException {
+	    InputStream is = openSampleFileStream(fileName);
+	    try {
+	        return new HSLFSlideShow(is);
+	    } finally {
+	        is.close();
+	    }
 	}
 
 	/**
 	 * Writes a slideshow to a <tt>ByteArrayOutputStream</tt> and reads it back
-	 * from a <tt>ByteArrayInputStream</tt>.<p/>
+	 * from a <tt>ByteArrayInputStream</tt>.<p>
 	 * Useful for verifying that the serialisation round trip
 	 */
 	public static HSLFSlideShowImpl writeOutAndReadBack(HSLFSlideShowImpl original) {
@@ -59,7 +70,7 @@ public class HSLFTestDataSamples {
 
 	/**
 	 * Writes a slideshow to a <tt>ByteArrayOutputStream</tt> and reads it back
-	 * from a <tt>ByteArrayInputStream</tt>.<p/>
+	 * from a <tt>ByteArrayInputStream</tt>.<p>
 	 * Useful for verifying that the serialisation round trip
 	 */
 	public static HSLFSlideShow writeOutAndReadBack(HSLFSlideShow original) {

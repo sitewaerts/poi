@@ -17,20 +17,17 @@
 package org.apache.poi.hssf.record;
 
 import java.io.InputStream;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.hssf.eventusermodel.HSSFEventFactory;
 import org.apache.poi.hssf.eventusermodel.HSSFListener;
-import org.apache.poi.hssf.record.FilePassRecord.Rc4KeyData;
-import org.apache.poi.hssf.record.FilePassRecord.XorKeyData;
 import org.apache.poi.hssf.record.crypto.Biff8EncryptionKey;
-import org.apache.poi.hssf.record.crypto.Biff8RC4Key;
-import org.apache.poi.hssf.record.crypto.Biff8XORKey;
 import org.apache.poi.poifs.crypt.Decryptor;
-import org.apache.poi.util.POILogFactory;
-import org.apache.poi.util.POILogger;
+import org.apache.poi.poifs.crypt.EncryptionInfo;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * A stream based way to get at complete records, with
@@ -82,20 +79,16 @@ public final class RecordFactoryInputStream {
 	               outputRecs.add(rec);
 					}
 					
-					// If it's a FILEPASS, track it specifically but
-					//  don't include it in the main stream
+					// If it's a FILEPASS, track it specifically
 					if (rec instanceof FilePassRecord) {
 						fpr = (FilePassRecord) rec;
-						outputRecs.remove(outputRecs.size()-1);
-						// TODO - add fpr not added to outputRecs
-						rec = outputRecs.get(0);
-					} else {
-						// workbook not encrypted (typical case)
-						if (rec instanceof EOFRecord) {
-							// A workbook stream is never empty, so crash instead
-							// of trying to keep track of nesting level
-							throw new IllegalStateException("Nothing between BOF and EOF");
-						}
+					}
+
+					// workbook not encrypted (typical case)
+					if (rec instanceof EOFRecord) {
+						// A workbook stream is never empty, so crash instead
+						// of trying to keep track of nesting level
+						throw new IllegalStateException("Nothing between BOF and EOF");
 					}
 				}
 			} else {
@@ -110,37 +103,23 @@ public final class RecordFactoryInputStream {
 		}
 
 		public RecordInputStream createDecryptingStream(InputStream original) {
-			FilePassRecord fpr = _filePassRec;
-			String userPassword = Biff8EncryptionKey.getCurrentUserPassword();
+            String userPassword = Biff8EncryptionKey.getCurrentUserPassword();
 			if (userPassword == null) {
 			    userPassword = Decryptor.DEFAULT_PASSWORD;
 			}
 
-			Biff8EncryptionKey key;
-			if (fpr.getRc4KeyData() != null) {
-			    Rc4KeyData rc4 = fpr.getRc4KeyData();
-			    Biff8RC4Key rc4key = Biff8RC4Key.create(userPassword, rc4.getSalt());
-			    key = rc4key;
-			    if (!rc4key.validate(rc4.getEncryptedVerifier(), rc4.getEncryptedVerifierHash())) {
-	                throw new EncryptedDocumentException(
-                        (Decryptor.DEFAULT_PASSWORD.equals(userPassword) ? "Default" : "Supplied")
-                        + " password is invalid for salt/verifier/verifierHash");
-			    }
-			} else if (fpr.getXorKeyData() != null) {
-			    XorKeyData xor = fpr.getXorKeyData();
-			    Biff8XORKey xorKey = Biff8XORKey.create(userPassword, xor.getKey());
-			    key = xorKey;
-			    
-			    if (!xorKey.validate(userPassword, xor.getVerifier())) {
+			EncryptionInfo info = _filePassRec.getEncryptionInfo();
+            try {
+                if (!info.getDecryptor().verifyPassword(userPassword)) {
                     throw new EncryptedDocumentException(
-		                (Decryptor.DEFAULT_PASSWORD.equals(userPassword) ? "Default" : "Supplied")
-		                + " password is invalid for key/verifier");
-			    }
-			} else {
-			    throw new EncryptedDocumentException("Crypto API not yet supported.");
-			}
+                            (Decryptor.DEFAULT_PASSWORD.equals(userPassword) ? "Default" : "Supplied")
+                            + " password is invalid for salt/verifier/verifierHash");
+                }
+            } catch (GeneralSecurityException e) {
+                throw new EncryptedDocumentException(e);
+            }
 
-			return new RecordInputStream(original, key, _initialRecordsSize);
+			return new RecordInputStream(original, info, _initialRecordsSize);
 		}
 
 		public boolean hasEncryption() {
@@ -183,7 +162,7 @@ public final class RecordFactoryInputStream {
 	/**
 	 * The most recent record that we gave to the user
 	 */
-	private Record _lastRecord = null;
+	private Record _lastRecord;
 	/**
 	 * The most recent DrawingRecord seen
 	 */
@@ -195,13 +174,15 @@ public final class RecordFactoryInputStream {
 
 
 	/**
+	 * @param in the InputStream to read from
+	 * 
 	 * @param shouldIncludeContinueRecords caller can pass <code>false</code> if loose
 	 * {@link ContinueRecord}s should be skipped (this is sometimes useful in event based
 	 * processing).
 	 */
 	public RecordFactoryInputStream(InputStream in, boolean shouldIncludeContinueRecords) {
 		RecordInputStream rs = new RecordInputStream(in);
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		StreamEncryptionInfo sei = new StreamEncryptionInfo(rs, records);
 		if (sei.hasEncryption()) {
 			rs = sei.createDecryptingStream(in);
@@ -240,8 +221,7 @@ public final class RecordFactoryInputStream {
 	}
 
 	/**
-	 * Returns the next (complete) record from the
-	 * stream, or null if there are no more.
+	 * @return the next (complete) record from the stream, or null if there are no more.
 	 */
 	public Record nextRecord() {
 		Record r;

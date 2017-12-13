@@ -26,7 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.apache.commons.codec.binary.Hex;
-import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.apache.poi.xssf.model.ThemesTable.ThemeElement;
@@ -41,8 +41,8 @@ import org.junit.Test;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColor;
 
 public class TestThemesTable {
-    private String testFileSimple = "Themes.xlsx";
-    private String testFileComplex = "Themes2.xlsx";
+    private final String testFileSimple = "Themes.xlsx";
+    private final String testFileComplex = "Themes2.xlsx";
     // TODO .xls version available too, add HSSF support then check 
     
     // What colours they should show up as
@@ -73,7 +73,7 @@ public class TestThemesTable {
         simple = XSSFTestDataSamples.openSampleWorkbook(testFileSimple);
         complex = XSSFTestDataSamples.openSampleWorkbook(testFileComplex);
         // Files and descriptions
-        Map<String,XSSFWorkbook> workbooks = new LinkedHashMap<String, XSSFWorkbook>();
+        Map<String,XSSFWorkbook> workbooks = new LinkedHashMap<>();
         workbooks.put(testFileSimple, simple);
         workbooks.put("Re-Saved_" + testFileSimple, simpleRS);
         workbooks.put(testFileComplex, complex);
@@ -130,7 +130,7 @@ public class TestThemesTable {
                 if (createFiles) {
                     XSSFCellStyle cs = row.getSheet().getWorkbook().createCellStyle();
                     cs.setFillForegroundColor(color);
-                    cs.setFillPattern(CellStyle.SOLID_FOREGROUND);
+                    cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                     row.createCell(1).setCellStyle(cs);
                 }
             }

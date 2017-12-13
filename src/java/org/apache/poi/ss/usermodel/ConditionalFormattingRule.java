@@ -19,26 +19,10 @@
 
 package org.apache.poi.ss.usermodel;
 
-import static org.apache.poi.ss.usermodel.ConditionType.*;
-
 /**
  * Represents a description of a conditional formatting rule
  */
-public interface ConditionalFormattingRule {
-    /**
-     * This conditional formatting rule compares a cell value
-     * to a formula calculated result, using an operator
-     * @deprecated Use {@link ConditionType#CELL_VALUE_IS}
-     */
-    public static final byte CONDITION_TYPE_CELL_VALUE_IS = CELL_VALUE_IS.id;
-
-    /**
-     *  This conditional formatting rule contains a formula to evaluate.
-     *  When the formula result is true, the cell is highlighted.
-     * @deprecated Use {@link ConditionType#FORMULA}
-     */
-    public static final byte CONDITION_TYPE_FORMULA = FORMULA.id;
-
+public interface ConditionalFormattingRule extends DifferentialStyleProvider {
     /**
      * Create a new border formatting structure if it does not exist,
      * otherwise just return existing object.
@@ -94,26 +78,47 @@ public interface ConditionalFormattingRule {
     ColorScaleFormatting getColorScaleFormatting();
     
     /**
-     * Type of conditional formatting rule.
-     * <p>
-     * MUST be one of the IDs of a {@link ConditionType}
-     * </p>
      *
-     * @return the type of condition
-     * @deprecated Use {@link #getConditionTypeType()}
+     * @return number format defined for this rule, or null if the cell default should be used
      */
-    byte getConditionType();
+    ExcelNumberFormat getNumberFormat();
     
     /**
      * Type of conditional formatting rule.
      *
      * @return the type of condition
      */
-    ConditionType getConditionTypeType();
+    ConditionType getConditionType();
+    
+    /**
+     * This is null if 
+     * <p>
+     * <code>{@link #getConditionType()} != {@link ConditionType#FILTER}</code>
+     * <p>
+     * This is always {@link ConditionFilterType#FILTER} for HSSF rules of type {@link ConditionType#FILTER}.
+     * <p>
+     * For XSSF filter rules, this will indicate the specific type of filter.
+     * 
+     * @return filter type for filter rules, or null if not a filter rule.
+     */
+    ConditionFilterType getConditionFilterType();
+    
+    /**
+     * This is null if 
+     * <p>
+     * <code>{@link #getConditionFilterType()} == null</code>
+     * <p>
+     * This means it is always null for HSSF, which does not define the extended condition types.
+     * <p>
+     * This object contains the additional configuration information for XSSF filter conditions.
+     * 
+     * @return the Filter Configuration Data, or null if there isn't any
+     */
+    public ConditionFilterData getFilterConfiguration();
 
     /**
      * The comparison function used when the type of conditional formatting is set to
-     * {@link #CONDITION_TYPE_CELL_VALUE_IS}
+     * {@link ConditionType#CELL_VALUE_IS}
      * <p>
      *     MUST be a constant from {@link ComparisonOperator}
      * </p>
@@ -125,13 +130,13 @@ public interface ConditionalFormattingRule {
     /**
      * The formula used to evaluate the first operand for the conditional formatting rule.
      * <p>
-     * If the condition type is {@link #CONDITION_TYPE_CELL_VALUE_IS},
+     * If the condition type is {@link ConditionType#CELL_VALUE_IS},
      * this field is the first operand of the comparison.
-     * If type is {@link #CONDITION_TYPE_FORMULA}, this formula is used
+     * If type is {@link ConditionType#FORMULA}, this formula is used
      * to determine if the conditional formatting is applied.
      * </p>
      * <p>
-     * If comparison type is {@link #CONDITION_TYPE_FORMULA} the formula MUST be a Boolean function
+     * If comparison type is {@link ConditionType#FORMULA} the formula MUST be a Boolean function
      * </p>
      *
      * @return  the first formula
@@ -140,10 +145,40 @@ public interface ConditionalFormattingRule {
 
     /**
      * The formula used to evaluate the second operand of the comparison when
-     * comparison type is  {@link #CONDITION_TYPE_CELL_VALUE_IS} and operator
+     * comparison type is  {@link ConditionType#CELL_VALUE_IS} and operator
      * is either {@link ComparisonOperator#BETWEEN} or {@link ComparisonOperator#NOT_BETWEEN}
      *
      * @return  the second formula
      */
     String getFormula2();
+
+    /**
+     * XSSF rules store textual condition values as an attribute and also as a formula that needs shifting.  Using the attribute is simpler/faster.
+     * HSSF rules don't have this and return null.  We can fall back on the formula for those (AFAIK).
+     * @return condition text if it exists, or null
+     */
+    String getText();
+    
+    /**
+     * The priority of the rule, if defined, otherwise 0.
+     * <p>
+     * If priority is 0, just use definition order, as that's how older HSSF rules 
+     *  are evaluated.
+     * <p>
+     * For XSSF, this should always be set. For HSSF, only newer style rules
+     *  have this set, older ones will return 0.
+     * <p>
+     * If a rule is created but not yet added to a sheet, this value may not be valid.
+     * @return rule priority
+     */
+    int getPriority();
+    
+    /**
+     * Always true for HSSF rules, optional flag for XSSF rules.
+     * See Excel help for more.
+     * 
+     * @return true if conditional formatting rule processing stops when this one is true, false if not
+     * @see <a href="https://support.office.com/en-us/article/Manage-conditional-formatting-rule-precedence-063cde21-516e-45ca-83f5-8e8126076249">Microsoft Excel help</a>
+     */
+    boolean getStopIfTrue();
 }

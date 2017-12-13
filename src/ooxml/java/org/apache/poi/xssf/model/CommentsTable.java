@@ -28,7 +28,6 @@ import java.util.TreeMap;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.util.Internal;
 import org.apache.poi.xssf.usermodel.XSSFComment;
@@ -67,14 +66,6 @@ public class CommentsTable extends POIXMLDocumentPart {
         super(part);
         readFrom(part.getInputStream());
     }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public CommentsTable(PackagePart part, PackageRelationship rel) throws IOException {
-        this(part);
-    }
     
     public void readFrom(InputStream is) throws IOException {
         try {
@@ -96,15 +87,6 @@ public class CommentsTable extends POIXMLDocumentPart {
         OutputStream out = part.getOutputStream();
         writeTo(out);
         out.close();
-    }
-    
-    /**
-     * Called after the reference is updated, so that
-     *  we can reflect that in our cache
-     *  @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #referenceUpdated(CellAddress, CTComment)} instead
-     */
-    public void referenceUpdated(String oldReference, CTComment comment) {
-       referenceUpdated(new CellAddress(oldReference), comment);
     }
     
     /**
@@ -145,36 +127,12 @@ public class CommentsTable extends POIXMLDocumentPart {
     /**
      * Finds the cell comment at cellAddress, if one exists
      *
-     * @param cellRef the address of the cell to find a comment
-     * @return cell comment if one exists, otherwise returns null
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #findCellComment(CellAddress)} instead
-     */
-    public XSSFComment findCellComment(String cellRef) {
-        return findCellComment(new CellAddress(cellRef));
-    }
-
-    /**
-     * Finds the cell comment at cellAddress, if one exists
-     *
      * @param cellAddress the address of the cell to find a comment
      * @return cell comment if one exists, otherwise returns null
      */
     public XSSFComment findCellComment(CellAddress cellAddress) {
         CTComment ct = getCTComment(cellAddress);
         return ct == null ? null : new XSSFComment(this, ct, null);
-    }
-    
-
-    /**
-     * Get the underlying CTComment xmlbean for a comment located at cellRef, if it exists
-     *
-     * @param ref the location of the cell comment
-     * @return CTComment xmlbean if comment exists, otherwise return null.
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link CommentsTable#getCTComment(CellAddress)} instead
-     */
-    @Internal
-    public CTComment getCTComment(String ref) {
-        return getCTComment(new CellAddress(ref));
     }
     
     /**
@@ -199,7 +157,7 @@ public class CommentsTable extends POIXMLDocumentPart {
      */
     public Map<CellAddress, XSSFComment> getCellComments() {
         prepareCTCommentCache();
-        final TreeMap<CellAddress, XSSFComment> map = new TreeMap<CellAddress, XSSFComment>();
+        final TreeMap<CellAddress, XSSFComment> map = new TreeMap<>();
         
         for (final Entry<CellAddress, CTComment> e: commentRefs.entrySet()) {
             map.put(e.getKey(), new XSSFComment(this, e.getValue(), null));
@@ -216,23 +174,11 @@ public class CommentsTable extends POIXMLDocumentPart {
     private void prepareCTCommentCache() {
         // Create the cache if needed
         if(commentRefs == null) {
-           commentRefs = new HashMap<CellAddress, CTComment>();
+           commentRefs = new HashMap<>();
            for (CTComment comment : comments.getCommentList().getCommentArray()) {
               commentRefs.put(new CellAddress(comment.getRef()), comment);
            }
         }
-    }
-    
-    /**
-     * Create a new comment located at cell address
-     *
-     * @param ref the location to add the comment
-     * @return a new CTComment located at ref with default author
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #newComment(CellAddress)} instead
-     */
-    @Internal
-    public CTComment newComment(String ref) {
-        return newComment(new CellAddress(ref));
     }
     
     /**
@@ -251,17 +197,6 @@ public class CommentsTable extends POIXMLDocumentPart {
            commentRefs.put(ref, ct);
         }
         return ct;
-    }
-    
-    /**
-     * Remove the comment at cellRef location, if one exists
-     *
-     * @param cellRef the location of the comment to remove
-     * @return returns true if a comment was removed
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #removeComment(CellAddress)} instead
-     */
-    public boolean removeComment(String cellRef) {
-        return removeComment(new CellAddress(cellRef));
     }
 
     /**

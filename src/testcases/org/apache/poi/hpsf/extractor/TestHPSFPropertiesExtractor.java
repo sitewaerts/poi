@@ -17,72 +17,77 @@
 
 package org.apache.poi.hpsf.extractor;
 
-import java.io.IOException;
+import static org.apache.poi.POITestCase.assertContains;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
-import junit.framework.TestCase;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 
 import org.apache.poi.POIDataSamples;
-import org.apache.poi.hpsf.Thumbnail;
+import org.apache.poi.hpsf.*;
 import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.hssf.extractor.ExcelExtractor;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.junit.Test;
 
-public final class TestHPSFPropertiesExtractor extends TestCase {
+public final class TestHPSFPropertiesExtractor {
 	private static final POIDataSamples _samples = POIDataSamples.getHPSFInstance();
 
+	@Test
 	public void testNormalProperties() throws Exception {
 		POIFSFileSystem fs = new POIFSFileSystem(_samples.openResourceAsStream("TestMickey.doc"));
 		HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(fs);
 		try {
-    		ext.getText();
-    
     		// Check each bit in turn
-    		String sinfText = ext.getSummaryInformationText();
-    		String dinfText = ext.getDocumentSummaryInformationText();
-    
-    		assertTrue(sinfText.indexOf("TEMPLATE = Normal") > -1);
-    		assertTrue(sinfText.indexOf("SUBJECT = sample subject") > -1);
-    		assertTrue(dinfText.indexOf("MANAGER = sample manager") > -1);
-    		assertTrue(dinfText.indexOf("COMPANY = sample company") > -1);
+    		String summary = ext.getSummaryInformationText();
+    		String docSummary = ext.getDocumentSummaryInformationText();
+
+    		assertContains(summary, "TEMPLATE = Normal");
+    		assertContains(summary, "SUBJECT = sample subject");
+    		assertContains(docSummary, "MANAGER = sample manager");
+    		assertContains(docSummary, "COMPANY = sample company");
     
     		// Now overall
     		String text = ext.getText();
-    		assertTrue(text.indexOf("TEMPLATE = Normal") > -1);
-    		assertTrue(text.indexOf("SUBJECT = sample subject") > -1);
-    		assertTrue(text.indexOf("MANAGER = sample manager") > -1);
-    		assertTrue(text.indexOf("COMPANY = sample company") > -1);
+    		assertContains(text, "TEMPLATE = Normal");
+    		assertContains(text, "SUBJECT = sample subject");
+    		assertContains(text, "MANAGER = sample manager");
+    		assertContains(text, "COMPANY = sample company");
 		} finally {
 		    ext.close();
 		}
 	}
 
+	@Test
 	public void testNormalUnicodeProperties() throws Exception {
 		POIFSFileSystem fs = new POIFSFileSystem(_samples.openResourceAsStream("TestUnicode.xls"));
 		HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(fs);
 		try {
-    		ext.getText();
-    
     		// Check each bit in turn
-    		String sinfText = ext.getSummaryInformationText();
-    		String dinfText = ext.getDocumentSummaryInformationText();
+    		String summary = ext.getSummaryInformationText();
+    		String docSummary = ext.getDocumentSummaryInformationText();
     
-    		assertTrue(sinfText.indexOf("AUTHOR = marshall") > -1);
-    		assertTrue(sinfText.indexOf("TITLE = Titel: \u00c4h") > -1);
-    		assertTrue(dinfText.indexOf("COMPANY = Schreiner") > -1);
-    		assertTrue(dinfText.indexOf("SCALE = false") > -1);
+    		assertContains(summary, "AUTHOR = marshall");
+    		assertContains(summary, "TITLE = Titel: \u00c4h");
+    		assertContains(docSummary, "COMPANY = Schreiner");
+    		assertContains(docSummary, "SCALE = false");
     
     		// Now overall
     		String text = ext.getText();
-    		assertTrue(text.indexOf("AUTHOR = marshall") > -1);
-    		assertTrue(text.indexOf("TITLE = Titel: \u00c4h") > -1);
-    		assertTrue(text.indexOf("COMPANY = Schreiner") > -1);
-    		assertTrue(text.indexOf("SCALE = false") > -1);
+    		assertContains(text, "AUTHOR = marshall");
+    		assertContains(text, "TITLE = Titel: \u00c4h");
+    		assertContains(text, "COMPANY = Schreiner");
+    		assertContains(text, "SCALE = false");
 		} finally {
 		    ext.close();
 		}
 	}
 
+	@Test
 	public void testCustomProperties() throws Exception {
 		POIFSFileSystem fs = new POIFSFileSystem(
 				_samples.openResourceAsStream("TestMickey.doc")
@@ -91,17 +96,18 @@ public final class TestHPSFPropertiesExtractor extends TestCase {
 		try {
     		// Custom properties are part of the document info stream
     		String dinfText = ext.getDocumentSummaryInformationText();
-    		assertTrue(dinfText.indexOf("Client = sample client") > -1);
-    		assertTrue(dinfText.indexOf("Division = sample division") > -1);
+    		assertContains(dinfText, "Client = sample client");
+    		assertContains(dinfText, "Division = sample division");
     
     		String text = ext.getText();
-    		assertTrue(text.indexOf("Client = sample client") > -1);
-    		assertTrue(text.indexOf("Division = sample division") > -1);
+    		assertContains(text, "Client = sample client");
+    		assertContains(text, "Division = sample division");
         } finally {
             ext.close();
         }
 	}
 
+	@Test
 	public void testConstructors() throws IOException {
 		POIFSFileSystem fs;
 		HSSFWorkbook wb;
@@ -115,6 +121,7 @@ public final class TestHPSFPropertiesExtractor extends TestCase {
 
 		final String fsText;
 		HPSFPropertiesExtractor fsExt = new HPSFPropertiesExtractor(fs);
+		fsExt.setFilesystem(null); // Don't close re-used test resources!
 		try {
 		    fsText = fsExt.getText();
 		} finally {
@@ -123,6 +130,7 @@ public final class TestHPSFPropertiesExtractor extends TestCase {
         
         final String hwText; 
 		HPSFPropertiesExtractor hwExt = new HPSFPropertiesExtractor(wb);
+		hwExt.setFilesystem(null); // Don't close re-used test resources!
 		try {
 		    hwText = hwExt.getText();
 		} finally {
@@ -131,32 +139,36 @@ public final class TestHPSFPropertiesExtractor extends TestCase {
 		
         final String eeText;
         HPSFPropertiesExtractor eeExt = new HPSFPropertiesExtractor(excelExt);
+        eeExt.setFilesystem(null); // Don't close re-used test resources!
         try {
             eeText = eeExt.getText();
         } finally {
             eeExt.close();
+            wb.close();
         }
 
 		assertEquals(fsText, hwText);
 		assertEquals(fsText, eeText);
 
-		assertTrue(fsText.indexOf("AUTHOR = marshall") > -1);
-		assertTrue(fsText.indexOf("TITLE = Titel: \u00c4h") > -1);
+		assertContains(fsText, "AUTHOR = marshall");
+		assertContains(fsText, "TITLE = Titel: \u00c4h");
 	}
 
+	@Test
 	public void test42726() throws IOException {
 		HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(HSSFTestDataSamples.openSampleWorkbook("42726.xls"));
 		try {
     		String txt = ext.getText();
-    		assertTrue(txt.indexOf("PID_AUTHOR") != -1);
-    		assertTrue(txt.indexOf("PID_EDITTIME") != -1);
-    		assertTrue(txt.indexOf("PID_REVNUMBER") != -1);
-    		assertTrue(txt.indexOf("PID_THUMBNAIL") != -1);
+    		assertContains(txt, "PID_AUTHOR");
+    		assertContains(txt, "PID_EDITTIME");
+    		assertContains(txt, "PID_REVNUMBER");
+    		assertContains(txt, "PID_THUMBNAIL");
         } finally {
             ext.close();
         }
 	}
-	
+
+	@Test
     public void testThumbnail() throws Exception {
         POIFSFileSystem fs = new POIFSFileSystem(_samples.openResourceAsStream("TestThumbnail.xls"));
         HSSFWorkbook wb = new HSSFWorkbook(fs);
@@ -167,6 +179,7 @@ public final class TestHPSFPropertiesExtractor extends TestCase {
         wb.close();
     }
 
+	@Test
     public void test52258() throws Exception {
         POIFSFileSystem fs = new POIFSFileSystem(_samples.openResourceAsStream("TestVisioWithCodepage.vsd"));
         HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(fs);
@@ -180,4 +193,13 @@ public final class TestHPSFPropertiesExtractor extends TestCase {
             ext.close();
         }
     }
+
+	@Test
+	public void test61300Extractor() throws NoPropertySetStreamException, MarkUnsupportedException, IOException {
+		try (NPOIFSFileSystem npoifs = new NPOIFSFileSystem(
+				POIDataSamples.getPOIFSInstance().getFile("61300.bin"))) {
+			HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(npoifs);
+			assertContains(ext.getText(), "PID_CODEPAGE = 1252");
+		}
+	}
 }

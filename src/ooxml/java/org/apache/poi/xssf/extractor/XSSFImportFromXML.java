@@ -71,7 +71,7 @@ public class XSSFImportFromXML {
 
     private final XSSFMap _map;
 
-    private static POILogger logger = POILogFactory.getLogger(XSSFImportFromXML.class);
+    private static final POILogger logger = POILogFactory.getLogger(XSSFImportFromXML.class);
 
     public XSSFImportFromXML(XSSFMap map) {
         _map = map;
@@ -132,21 +132,18 @@ public class XSSFImportFromXML {
                 // TODO: implement support for denormalized XMLs (see
                 // OpenOffice part 4: chapter 3.5.1.7)
 
+            	Node singleNode = result.item(i).cloneNode(true);
                 for (XSSFXmlColumnPr xmlColumnPr : table.getXmlColumnPrs()) {
 
                     int localColumnId = (int) xmlColumnPr.getId();
                     int rowId = rowOffset + i;
                     int columnId = columnOffset + localColumnId;
                     String localXPath = xmlColumnPr.getLocalXPath();
-                    localXPath = localXPath.substring(localXPath.substring(1).indexOf('/') + 1);
-
-                    // Build an XPath to select the right node (assuming
-                    // that the commonXPath != "/")
-                    String nodeXPath = commonXPath + "[" + (i + 1) + "]" + localXPath;
+                    localXPath = localXPath.substring(localXPath.substring(1).indexOf('/') + 2);
 
                     // TODO: convert the data to the cell format
-                    String value = (String) xpath.evaluate(nodeXPath, result.item(i), XPathConstants.STRING);
-                    logger.log(POILogger.DEBUG, "Extracting with xpath " + nodeXPath + " : value is '" + value + "'");
+					String value = (String) xpath.evaluate(localXPath, singleNode, XPathConstants.STRING);
+                    logger.log(POILogger.DEBUG, "Extracting with xpath " + localXPath + " : value is '" + value + "'");
                     XSSFRow row = table.getXSSFSheet().getRow(rowId);
                     if (row == null) {
                         row = table.getXSSFSheet().createRow(rowId);
@@ -174,7 +171,7 @@ public class XSSFImportFromXML {
         private Set<STXmlDataType.Enum> xmlDataTypes;
 
         private DataType(STXmlDataType.Enum... xmlDataTypes) {
-            this.xmlDataTypes = new HashSet<STXmlDataType.Enum>(Arrays.asList(xmlDataTypes));
+            this.xmlDataTypes = new HashSet<>(Arrays.asList(xmlDataTypes));
         }
 
         public static DataType getDataType(STXmlDataType.Enum xmlDataType) {

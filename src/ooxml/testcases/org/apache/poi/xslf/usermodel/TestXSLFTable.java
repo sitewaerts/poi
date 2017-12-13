@@ -24,9 +24,16 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.poi.sl.draw.DrawFactory;
+import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.sl.usermodel.TableCell.BorderEdge;
 import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.apache.poi.xslf.XSLFTestDataSamples;
@@ -34,9 +41,6 @@ import org.junit.Test;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTTableCell;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTGraphicalObjectFrame;
 
-/**
- * @author Yegor Kozlov
- */
 public class TestXSLFTable {
     @Test
     public void testRead() throws IOException {
@@ -82,8 +86,8 @@ public class TestXSLFTable {
 
     @Test
     public void testCreate() throws IOException {
-        XMLSlideShow ppt = new XMLSlideShow();
-        XSLFSlide slide = ppt.createSlide();
+        XMLSlideShow ppt1 = new XMLSlideShow();
+        XSLFSlide slide = ppt1.createSlide();
 
         XSLFTable tbl = slide.createTable();
         assertNotNull(tbl.getCTTable());
@@ -145,7 +149,17 @@ public class TestXSLFTable {
         cell1.setVerticalAlignment(null);
         assertEquals(VerticalAlignment.TOP, cell1.getVerticalAlignment());
         
-        ppt.close();
+        XMLSlideShow ppt2 = XSLFTestDataSamples.writeOutAndReadBack(ppt1);
+        ppt1.close();
+
+        slide = ppt2.getSlides().get(0);
+        tbl = (XSLFTable)slide.getShapes().get(0);
+        assertEquals(2, tbl.getNumberOfColumns());
+        assertEquals(1, tbl.getNumberOfRows());
+        assertEquals("POI", tbl.getCell(0, 0).getText());
+        assertEquals("Apache", tbl.getCell(0, 1).getText());
+        
+        ppt2.close();
     }
     
     @Test
@@ -164,5 +178,41 @@ public class TestXSLFTable {
         }
         
         ss2.close();
+    }
+
+    @Test
+    public void checkTextHeight() throws IOException {
+        // from bug 59686
+        XMLSlideShow ppt = new XMLSlideShow();
+        XSLFSlide sl = ppt.createSlide();
+        XSLFTable tab = sl.createTable();
+        tab.setAnchor(new Rectangle2D.Double(50,50,300,50));
+        XSLFTableRow tr = tab.addRow();
+        XSLFTableCell tc0 = tr.addCell();
+        tc0.setText("bla bla bla bla");
+        tab.setColumnWidth(0, 50);
+
+        // usually text height == 88, but font rendering is plattform dependent
+        // so we use something more reliable
+        assertTrue(tc0.getTextHeight() > 50);
+        assertEquals(0, tc0.getLineWidth(), 0);
+        
+        ppt.close();
+    }
+
+    @Test
+    public void checkNullPointerException() {
+        XMLSlideShow ss = XSLFTestDataSamples.openSampleDocument("au.asn.aes.www_conferences_2011_presentations_Fri_20Room4Level4_20930_20Maloney.pptx");
+        Dimension pgsize = ss.getPageSize();
+        for (Slide<?, ?> s : ss.getSlides()) {
+            BufferedImage img = new BufferedImage(pgsize.width, pgsize.height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = img.createGraphics();
+
+            // draw stuff
+            s.draw(graphics);
+
+            graphics.dispose();
+            img.flush();
+        }
     }
 }

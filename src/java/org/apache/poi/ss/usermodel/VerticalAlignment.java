@@ -20,6 +20,9 @@ package org.apache.poi.ss.usermodel;
 /**
  * This enumeration value indicates the type of vertical alignment for a cell, i.e.,
  * whether it is aligned top, bottom, vertically centered, justified or distributed.
+ * 
+ * <!-- FIXME: Identical to {@link org.apache.poi.ss.usermodel.VerticalAlignment}. Should merge these to
+ * {@link org.apache.poi.common.usermodel}.VerticalAlignment in the future. -->
  */
 public enum VerticalAlignment {
     /**
@@ -33,7 +36,7 @@ public enum VerticalAlignment {
     CENTER,
 
     /**
-     * The vertical alignment is aligned-to-bottom.
+     * The vertical alignment is aligned-to-bottom. (typically the default value)
      */
     BOTTOM,
 
@@ -65,5 +68,15 @@ public enum VerticalAlignment {
      * and the line of text is distributed evenly from top to bottom.
      * </p>
      */
-    DISTRIBUTED
+    DISTRIBUTED;
+    
+    public short getCode() {
+        return (short) ordinal();
+    }
+    public static VerticalAlignment forInt(int code) {
+        if (code < 0 || code >= values().length) {
+            throw new IllegalArgumentException("Invalid VerticalAlignment code: " + code);
+        }
+        return values()[code];
+    }
 }

@@ -23,11 +23,14 @@ import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.InvalidOperationException;
 import org.apache.poi.openxml4j.opc.ContentTypes;
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackageNamespaces;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackagePartName;
 import org.apache.poi.openxml4j.opc.PackageProperties;
@@ -42,16 +45,33 @@ import org.apache.poi.util.LocaleUtil;
 public final class PackagePropertiesPart extends PackagePart implements
 		PackageProperties {
 
-	public final static String NAMESPACE_DC_URI = "http://purl.org/dc/elements/1.1/";
+	public final static String NAMESPACE_DC_URI = PackageProperties.NAMESPACE_DC;
 
-	public final static String NAMESPACE_CP_URI = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties";
+	public final static String NAMESPACE_CP_URI = PackageNamespaces.CORE_PROPERTIES;
 
-	public final static String NAMESPACE_DCTERMS_URI = "http://purl.org/dc/terms/";
+	public final static String NAMESPACE_DCTERMS_URI = PackageProperties.NAMESPACE_DCTERMS;
 
-	private final static String DEFAULT_DATEFORMAT =     "yyyy-MM-dd'T'HH:mm:ss'Z'";
-	private final static String ALTERNATIVE_DATEFORMAT = "yyyy-MM-dd'T'HH:mm:ss.SS'Z'";
-	
-	
+	private final static String DEFAULT_DATEFORMAT =   "yyyy-MM-dd'T'HH:mm:ss'Z'";
+
+	private final static String[] DATE_FORMATS = new String[]{
+			DEFAULT_DATEFORMAT,
+			"yyyy-MM-dd'T'HH:mm:ss.SS'Z'",
+            "yyyy-MM-dd"
+	};
+
+	//Had to add this and TIME_ZONE_PAT to handle tz with colons.
+	//When we move to Java 7, we should be able to add another
+	//date format to DATE_FORMATS that uses XXX and get rid of this
+	//and TIME_ZONE_PAT
+	// TODO Fix this after the Java 7 upgrade
+	private final String[] TZ_DATE_FORMATS = new String[]{
+			"yyyy-MM-dd'T'HH:mm:ssz",
+            "yyyy-MM-dd'T'HH:mm:ss.Sz",
+            "yyyy-MM-dd'T'HH:mm:ss.SSz",
+			"yyyy-MM-dd'T'HH:mm:ss.SSSz",
+	};
+
+	private final Pattern TIME_ZONE_PAT = Pattern.compile("([-+]\\d\\d):?(\\d\\d)");
 	/**
 	 * Constructor.
 	 *
@@ -75,7 +95,7 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * value might be used by an application's user interface to facilitate
 	 * navigation of a large set of documents. end example]
 	 */
-	protected Nullable<String> category = new Nullable<String>();
+	protected Nullable<String> category = new Nullable<>();
 
 	/**
 	 * The status of the content.
@@ -83,7 +103,7 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * [Example: Values might include "Draft", "Reviewed", and "Final". end
 	 * example]
 	 */
-	protected Nullable<String> contentStatus = new Nullable<String>();
+	protected Nullable<String> contentStatus = new Nullable<>();
 
 	/**
 	 * The type of content represented, generally defined by a specific use and
@@ -93,17 +113,17 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * "Exam". end example] [Note: This property is distinct from MIME content
 	 * types as defined in RFC 2616. end note]
 	 */
-	protected Nullable<String> contentType = new Nullable<String>();
+	protected Nullable<String> contentType = new Nullable<>();
 
 	/**
 	 * Date of creation of the resource.
 	 */
-	protected Nullable<Date> created = new Nullable<Date>();
+	protected Nullable<Date> created = new Nullable<>();
 
 	/**
 	 * An entity primarily responsible for making the content of the resource.
 	 */
-	protected Nullable<String> creator = new Nullable<String>();
+	protected Nullable<String> creator = new Nullable<>();
 
 	/**
 	 * An explanation of the content of the resource.
@@ -112,19 +132,19 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * to a graphical representation of content, and a free-text account of the
 	 * content. end example]
 	 */
-	protected Nullable<String> description = new Nullable<String>();
+	protected Nullable<String> description = new Nullable<>();
 
 	/**
 	 * An unambiguous reference to the resource within a given context.
 	 */
-	protected Nullable<String> identifier = new Nullable<String>();
+	protected Nullable<String> identifier = new Nullable<>();
 
 	/**
 	 * A delimited set of keywords to support searching and indexing. This is
 	 * typically a list of terms that are not available elsewhere in the
 	 * properties.
 	 */
-	protected Nullable<String> keywords = new Nullable<String>();
+	protected Nullable<String> keywords = new Nullable<>();
 
 	/**
 	 * The language of the intellectual content of the resource.
@@ -132,7 +152,7 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * [Note: IETF RFC 3066 provides guidance on encoding to represent
 	 * languages. end note]
 	 */
-	protected Nullable<String> language = new Nullable<String>();
+	protected Nullable<String> language = new Nullable<>();
 
 	/**
 	 * The user who performed the last modification. The identification is
@@ -141,17 +161,17 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * [Example: A name, email address, or employee ID. end example] It is
 	 * recommended that this value be as concise as possible.
 	 */
-	protected Nullable<String> lastModifiedBy = new Nullable<String>();
+	protected Nullable<String> lastModifiedBy = new Nullable<>();
 
 	/**
 	 * The date and time of the last printing.
 	 */
-	protected Nullable<Date> lastPrinted = new Nullable<Date>();
+	protected Nullable<Date> lastPrinted = new Nullable<>();
 
 	/**
 	 * Date on which the resource was changed.
 	 */
-	protected Nullable<Date> modified = new Nullable<Date>();
+	protected Nullable<Date> modified = new Nullable<>();
 
 	/**
 	 * The revision number.
@@ -159,22 +179,22 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * [Example: This value might indicate the number of saves or revisions,
 	 * provided the application updates it after each revision. end example]
 	 */
-	protected Nullable<String> revision = new Nullable<String>();
+	protected Nullable<String> revision = new Nullable<>();
 
 	/**
 	 * The topic of the content of the resource.
 	 */
-	protected Nullable<String> subject = new Nullable<String>();
+	protected Nullable<String> subject = new Nullable<>();
 
 	/**
 	 * The name given to the resource.
 	 */
-	protected Nullable<String> title = new Nullable<String>();
+	protected Nullable<String> title = new Nullable<>();
 
 	/**
 	 * The version number. This value is set by the user or by the application.
 	 */
-	protected Nullable<String> version = new Nullable<String>();
+	protected Nullable<String> version = new Nullable<>();
 
 	/*
 	 * Getters and setters
@@ -315,7 +335,7 @@ public final class PackagePropertiesPart extends PackagePart implements
 		if (modified.hasValue()) {
 			return getDateValue(modified);
 		}
-		return getDateValue(new Nullable<Date>(new Date()));
+		return getDateValue(new Nullable<>(new Date()));
 	}
 
 	/**
@@ -546,10 +566,10 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 * Convert a strig value into a Nullable<String>
 	 */
 	private Nullable<String> setStringValue(String s) {
-		if (s == null || s.equals("")) {
-			return new Nullable<String>();
+		if (s == null || s.isEmpty()) {
+			return new Nullable<>();
 		}
-		return new Nullable<String>(s);
+		return new Nullable<>(s);
 	}
 
 	/**
@@ -559,23 +579,46 @@ public final class PackagePropertiesPart extends PackagePart implements
 	 *             Throws if the date format isnot valid.
 	 */
 	private Nullable<Date> setDateValue(String dateStr) throws InvalidFormatException {
-		if (dateStr == null || dateStr.equals("")) {
-			return new Nullable<Date>();
+		if (dateStr == null || dateStr.isEmpty()) {
+			return new Nullable<>();
+		}
+
+		Matcher m = TIME_ZONE_PAT.matcher(dateStr);
+		if (m.find()) {
+			String dateTzStr = dateStr.substring(0, m.start())+
+					m.group(1)+m.group(2);
+			for (String fStr : TZ_DATE_FORMATS) {
+				SimpleDateFormat df = new SimpleDateFormat(fStr, Locale.ROOT);
+				df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
+				Date d = df.parse(dateTzStr, new ParsePosition(0));
+				if (d != null) {
+					return new Nullable<>(d);
+				}
+			}
 		}
 		String dateTzStr = dateStr.endsWith("Z") ? dateStr : (dateStr + "Z");
-		SimpleDateFormat df = new SimpleDateFormat(DEFAULT_DATEFORMAT, Locale.ROOT);
-		df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
-		Date d = df.parse(dateTzStr, new ParsePosition(0));
-		if (d == null) {
-		    df = new SimpleDateFormat(ALTERNATIVE_DATEFORMAT, Locale.ROOT);
-		    df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
-		    d = df.parse(dateTzStr, new ParsePosition(0));
+		for (String fStr : DATE_FORMATS) {
+			SimpleDateFormat df = new SimpleDateFormat(fStr, Locale.ROOT);
+			df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
+			Date d = df.parse(dateTzStr, new ParsePosition(0));
+			if (d != null) {
+				return new Nullable<>(d);
+			}
 		}
-		if (d == null) {
-			throw new InvalidFormatException("Date " + dateTzStr + " not well formated, "
-			        + "expected format " + DEFAULT_DATEFORMAT + " or " + ALTERNATIVE_DATEFORMAT);
+		//if you're here, no pattern matched, throw exception
+		StringBuilder sb = new StringBuilder();
+		int i = 0;
+		for (String fStr : TZ_DATE_FORMATS) {
+			if (i++ > 0) {
+				sb.append(", ");
+			}
+			sb.append(fStr);
 		}
-		return new Nullable<Date>(d);
+		for (String fStr : DATE_FORMATS) {
+			sb.append(", ").append(fStr);
+		}
+		throw new InvalidFormatException("Date " + dateStr + " not well formatted, "
+		        + "expected format in: "+ sb);
 	}
 
 	/**
@@ -594,7 +637,7 @@ public final class PackagePropertiesPart extends PackagePart implements
 		if (date == null) {
 		   return "";
 		}
-		
+
 		SimpleDateFormat df = new SimpleDateFormat(DEFAULT_DATEFORMAT, Locale.ROOT);
 		df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
 		return df.format(date);

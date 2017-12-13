@@ -42,12 +42,12 @@ import org.apache.poi.hssf.record.FtCfSubRecord;
 import org.apache.poi.hssf.record.FtPioGrbitSubRecord;
 import org.apache.poi.hssf.record.NoteRecord;
 import org.apache.poi.hssf.record.ObjRecord;
-import org.apache.poi.hssf.util.CellReference;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.poifs.filesystem.DirectoryEntry;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
-import org.apache.poi.ss.usermodel.Chart;
 import org.apache.poi.ss.usermodel.ClientAnchor;
 import org.apache.poi.ss.usermodel.Drawing;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.util.HexDump;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.StringUtil;
@@ -56,9 +56,9 @@ import org.apache.poi.util.StringUtil;
  * The patriarch is the toplevel container for shapes in a sheet.  It does
  * little other than act as a container for other shapes and groups.
  */
-public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
+public final class HSSFPatriarch implements HSSFShapeContainer, Drawing<HSSFShape> {
     // private static POILogger log = POILogFactory.getLogger(HSSFPatriarch.class);
-    private final List<HSSFShape> _shapes = new ArrayList<HSSFShape>();
+    private final List<HSSFShape> _shapes = new ArrayList<>();
 
     private final EscherSpgrRecord _spgrRecord;
     private final EscherContainerRecord _mainSpgrContainer;
@@ -117,13 +117,13 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
      */
     protected void preSerialize(){
         Map<Integer, NoteRecord> tailRecords = _boundAggregate.getTailRecords();
-        /**
+        /*
          * contains coordinates of comments we iterate over
          */
-        Set<String> coordinates = new HashSet<String>(tailRecords.size());
+        Set<String> coordinates = new HashSet<>(tailRecords.size());
         for(NoteRecord rec : tailRecords.values()){
             String noteRef = new CellReference(rec.getRow(),
-                    rec.getColumn()).formatAsString(); // A1-style notation
+                    rec.getColumn(), true, true).formatAsString(); // A1-style notation
             if(coordinates.contains(noteRef )){
                 throw new IllegalStateException("found multiple cell comments for cell " + noteRef );
             } else {
@@ -136,6 +136,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
      * @param shape to be removed
      * @return true of shape is removed
      */
+    @Override
     public boolean removeShape(HSSFShape shape) {
         boolean  isRemoved = _mainSpgrContainer.removeChildRecord(shape.getEscherContainer());
         if (isRemoved){
@@ -213,22 +214,13 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
      *
      * @return newly created shape
      */
+    @Override
     public HSSFPicture createPicture(ClientAnchor anchor, int pictureIndex) {
         return createPicture((HSSFClientAnchor) anchor, pictureIndex);
     }
 
-    /**
-     * Adds a new OLE Package Shape 
-     * 
-     * @param anchor       the client anchor describes how this picture is
-     *                     attached to the sheet.
-     * @param storageId    the storageId returned by {@link HSSFWorkbook#addOlePackage(POIFSFileSystem,String,String,String)}
-     * @param pictureIndex the index of the picture (used as preview image) in the
-     *                     workbook collection of pictures.
-     *
-     * @return newly created shape
-     */
-    public HSSFObjectData createObjectData(HSSFClientAnchor anchor, int storageId, int pictureIndex) {
+    @Override
+    public HSSFObjectData createObjectData(ClientAnchor anchor, int storageId, int pictureIndex) {
         ObjRecord obj = new ObjRecord();
 
         CommonObjectDataSubRecord ftCmo = new CommonObjectDataSubRecord();
@@ -247,17 +239,19 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
         FtCfSubRecord ftCf = new FtCfSubRecord();
         HSSFPictureData pictData = getSheet().getWorkbook().getAllPictures().get(pictureIndex-1);
         switch (pictData.getFormat()) {
-	        case HSSFWorkbook.PICTURE_TYPE_WMF:
-	        case HSSFWorkbook.PICTURE_TYPE_EMF:
+	        case Workbook.PICTURE_TYPE_WMF:
+	        case Workbook.PICTURE_TYPE_EMF:
 	        	// this needs patch #49658 to be applied to actually work 
 	            ftCf.setFlags(FtCfSubRecord.METAFILE_BIT);
 	            break;
-	        case HSSFWorkbook.PICTURE_TYPE_DIB:
-	        case HSSFWorkbook.PICTURE_TYPE_PNG:
-	        case HSSFWorkbook.PICTURE_TYPE_JPEG:
-	        case HSSFWorkbook.PICTURE_TYPE_PICT:
+	        case Workbook.PICTURE_TYPE_DIB:
+	        case Workbook.PICTURE_TYPE_PNG:
+	        case Workbook.PICTURE_TYPE_JPEG:
+	        case Workbook.PICTURE_TYPE_PICT:
 	            ftCf.setFlags(FtCfSubRecord.BITMAP_BIT);
 	            break;
+	        default:
+	            throw new IllegalStateException("Invalid picture type: " + pictData.getFormat());
         }
         obj.addSubRecord(ftCf);
         // FtPioGrbit (pictFlags)
@@ -276,15 +270,17 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
         String entryName = "MBD"+HexDump.toHex(storageId);
         DirectoryEntry oleRoot;
         try {
-            DirectoryNode dn = _sheet.getWorkbook().getRootDirectory();
-        	if (dn == null) throw new FileNotFoundException();
+            DirectoryNode dn = _sheet.getWorkbook().getDirectory();
+        	if (dn == null) {
+                throw new FileNotFoundException();
+            }
         	oleRoot = (DirectoryEntry)dn.getEntry(entryName);
         } catch (FileNotFoundException e) {
         	throw new IllegalStateException("trying to add ole shape without actually adding data first - use HSSFWorkbook.addOlePackage first", e);
         }
         
         // create picture shape, which need to be minimal modified for oleshapes
-        HSSFPicture shape = new HSSFPicture(null, anchor);
+        HSSFPicture shape = new HSSFPicture(null, (HSSFClientAnchor)anchor);
         shape.setPictureIndex(pictureIndex);
         EscherContainerRecord spContainer = shape.getEscherContainer();
         EscherSpRecord spRecord = spContainer.getChildById(EscherSpRecord.RECORD_ID);
@@ -352,6 +348,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
         return shape;
     }
 
+    @Override
     public HSSFComment createCellComment(ClientAnchor anchor) {
         return createComment((HSSFAnchor) anchor);
     }
@@ -359,6 +356,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * Returns a unmodifiable list of all shapes contained by the patriarch.
      */
+    @Override
     public List<HSSFShape> getChildren() {
         return Collections.unmodifiableList(_shapes);
     }
@@ -366,6 +364,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * add a shape to this drawing
      */
+    @Override
     @Internal
     public void addShape(HSSFShape shape) {
         shape.setPatriarch(this);
@@ -391,8 +390,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
      */
     public int countOfAllChildren() {
         int count = _shapes.size();
-        for (Iterator<HSSFShape> iterator = _shapes.iterator(); iterator.hasNext(); ) {
-            HSSFShape shape = iterator.next();
+        for (HSSFShape shape : _shapes) {
             count += shape.countOfAllChildren();
         }
         return count;
@@ -402,6 +400,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
      * Sets the coordinate space of this group.  All children are constrained
      * to these coordinates.
      */
+    @Override
     public void setCoordinates(int x1, int y1, int x2, int y2) {
         _spgrRecord.setRectY1(y1);
         _spgrRecord.setRectY2(y2);
@@ -412,8 +411,9 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * remove all shapes inside patriarch
      */
+    @Override
     public void clear() {
-        ArrayList <HSSFShape> copy = new ArrayList<HSSFShape>(_shapes);
+        ArrayList <HSSFShape> copy = new ArrayList<>(_shapes);
         for (HSSFShape shape: copy){
             removeShape(shape);
         }
@@ -426,8 +426,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
         DrawingManager2 dm = _sheet.getWorkbook().getWorkbook().getDrawingManager();
         EscherDgRecord dg =
                 _boundAggregate.getEscherContainer().getChildById(EscherDgRecord.RECORD_ID);
-        short drawingGroupId = dg.getDrawingGroupId();
-        return dm.allocateShapeId(drawingGroupId, dg);
+        return dm.allocateShapeId(dg);
     }
 
     /**
@@ -448,8 +447,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
             return false;
         }
 
-        for (Iterator<EscherProperty> it = optRecord.getEscherProperties().iterator(); it.hasNext(); ) {
-            EscherProperty prop = it.next();
+        for (EscherProperty prop : optRecord.getEscherProperties()) {
             if (prop.getPropertyNumber() == 896 && prop.isComplex()) {
                 EscherComplexProperty cp = (EscherComplexProperty) prop;
                 String str = StringUtil.getFromUnicodeLE(cp.getComplexData());
@@ -466,6 +464,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * @return x coordinate of the left up corner
      */
+    @Override
     public int getX1() {
         return _spgrRecord.getRectX1();
     }
@@ -473,6 +472,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * @return y coordinate of the left up corner
      */
+    @Override
     public int getY1() {
         return _spgrRecord.getRectY1();
     }
@@ -480,6 +480,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * @return x coordinate of the right down corner
      */
+    @Override
     public int getX2() {
         return _spgrRecord.getRectX2();
     }
@@ -487,6 +488,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
     /**
      * @return y coordinate of the right down corner
      */
+    @Override
     public int getY2() {
         return _spgrRecord.getRectY2();
     }
@@ -514,14 +516,10 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
      * @param row2 the row (0 based) of the second cell.
      * @return the newly created client anchor
      */
+    @Override
     public HSSFClientAnchor createAnchor(int dx1, int dy1, int dx2, int dy2, int col1, int row1, int col2, int row2) {
         return new HSSFClientAnchor(dx1, dy1, dx2, dy2, (short) col1, row1, (short) col2, row2);
     }
-
-    public Chart createChart(ClientAnchor anchor) {
-        throw new RuntimeException("NotImplemented");
-    }
-
 
     /**
      * create shape tree from existing escher records tree
@@ -537,7 +535,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
         for (int i = 0; i < spgrChildren.size(); i++) {
             EscherContainerRecord spContainer = spgrChildren.get(i);
             if (i != 0) {
-                HSSFShapeFactory.createShapeTree(spContainer, _boundAggregate, this, _sheet.getWorkbook().getRootDirectory());
+                HSSFShapeFactory.createShapeTree(spContainer, _boundAggregate, this, _sheet.getWorkbook().getDirectory());
             }
         }
     }
@@ -552,6 +550,7 @@ public final class HSSFPatriarch implements HSSFShapeContainer, Drawing {
         }
     }
 
+    @Override
     public Iterator<HSSFShape> iterator() {
         return _shapes.iterator();
     }

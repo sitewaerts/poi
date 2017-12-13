@@ -17,9 +17,13 @@
 
 package org.apache.poi.ss.formula;
 
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.Removal;
+
 /**
  * Abstracts a cell for the purpose of formula evaluation.  This interface represents both formula
- * and non-formula cells.<br/>
+ * and non-formula cells.<br>
  * 
  * For POI internal use only
  * 
@@ -28,19 +32,39 @@ package org.apache.poi.ss.formula;
 public interface EvaluationCell {
 	/**
 	 * @return an Object that identifies the underlying cell,
-     * suitable for use as a key in a {@link java.util.HashMap}
+	 * suitable for use as a key in a {@link java.util.HashMap}
 	 */
 	Object getIdentityKey();
 
 	EvaluationSheet getSheet();
 	int getRowIndex();
 	int getColumnIndex();
-	int getCellType();
+	CellType getCellType();
+	/**
+	 * @since POI 3.15 beta 3
+	 * @deprecated POI 3.15 beta 3.
+	 */
+	@Deprecated
+	@Removal(version = "4.2")
+	CellType getCellTypeEnum();
 
 	double getNumericCellValue();
 	String getStringCellValue();
 	boolean getBooleanCellValue();
 	int getErrorCellValue();
+	CellRangeAddress getArrayFormulaRange();
+	boolean isPartOfArrayFormulaGroup();
 
-	int getCachedFormulaResultType();
+	/**
+	 * @return cell type of cached formula result
+	 */
+	CellType getCachedFormulaResultType();
+	/**
+	 * @since POI 3.15 beta 3
+	 * @deprecated POI 3.15 beta 3.
+	 * Will be deleted when we make the CellType enum transition. See bug 59791.
+	 */
+	@Deprecated
+	@Removal(version = "4.2")
+	CellType getCachedFormulaResultTypeEnum();
 }

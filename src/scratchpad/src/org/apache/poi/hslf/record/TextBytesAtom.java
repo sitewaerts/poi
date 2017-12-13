@@ -17,25 +17,27 @@
 
 package org.apache.poi.hslf.record;
 
-import org.apache.poi.util.HexDump;
-import org.apache.poi.util.LittleEndian;
-import org.apache.poi.util.StringUtil;
 import java.io.IOException;
 import java.io.OutputStream;
+
+import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
+import org.apache.poi.util.LittleEndian;
+import org.apache.poi.util.StringUtil;
 
 /**
  * A TextBytesAtom (type 4008). Holds text in ascii form (unknown
  *  code page, for now assumed to be the default of
  *  org.apache.poi.util.StringUtil, which is the Excel default).
  * The trailing return character is always stripped from this
- *
- * @author Nick Burch
  */
 
-public final class TextBytesAtom extends RecordAtom
-{
+public final class TextBytesAtom extends RecordAtom {
+    public static final long _type = RecordTypes.TextBytesAtom.typeID;
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 1_000_000;
+
 	private byte[] _header;
-	private static long _type = RecordTypes.TextBytesAtom.typeID;
 
 	/** The bytes that make up the text */
 	private byte[] _text;
@@ -68,7 +70,7 @@ public final class TextBytesAtom extends RecordAtom
 		System.arraycopy(source,start,_header,0,8);
 
 		// Grab the text
-		_text = new byte[len-8];
+		_text = IOUtils.safelyAllocate(len-8, MAX_RECORD_LENGTH);
 		System.arraycopy(source,start+8,_text,0,len-8);
 	}
 
@@ -87,13 +89,15 @@ public final class TextBytesAtom extends RecordAtom
 	/**
 	 * We are of type 4008
 	 */
-	public long getRecordType() { return _type; }
+	@Override
+    public long getRecordType() { return _type; }
 
 	/**
 	 * Write the contents of the record back, so it can be written
 	 *  to disk
 	 */
-	public void writeOut(OutputStream out) throws IOException {
+	@Override
+    public void writeOut(OutputStream out) throws IOException {
 		// Header - size or type unchanged
 		out.write(_header);
 
@@ -105,7 +109,8 @@ public final class TextBytesAtom extends RecordAtom
 	 * dump debug info; use getText() to return a string
 	 * representation of the atom
 	 */
-	public String toString() {
+	@Override
+    public String toString() {
         StringBuffer out = new StringBuffer();
         out.append( "TextBytesAtom:\n");
 		out.append( HexDump.dump(_text, 0, 0) );

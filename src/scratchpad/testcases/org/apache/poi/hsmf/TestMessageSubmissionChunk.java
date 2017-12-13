@@ -19,7 +19,6 @@ package org.apache.poi.hsmf;
 
 import java.io.IOException;
 
-import org.apache.poi.hsmf.MAPIMessage;
 import org.apache.poi.hsmf.exceptions.ChunkNotFoundException;
 import org.apache.poi.POIDataSamples;
 
@@ -29,8 +28,8 @@ import junit.framework.TestCase;
 
 public final class TestMessageSubmissionChunk extends TestCase {
     
-    private MAPIMessage mapiMessageExtraHyphenSubmissionChunk;
-    private MAPIMessage mapiMessageNormalSubmissionChunk;
+    private final MAPIMessage mapiMessageExtraHyphenSubmissionChunk;
+    private final MAPIMessage mapiMessageNormalSubmissionChunk;
 
     /**
      * Initialise this test, load up the test messages.

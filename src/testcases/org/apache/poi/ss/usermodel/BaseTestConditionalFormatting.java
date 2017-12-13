@@ -19,15 +19,6 @@
 
 package org.apache.poi.ss.usermodel;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import java.io.IOException;
-
 import org.apache.poi.hssf.usermodel.HSSFConditionalFormatting;
 import org.apache.poi.hssf.usermodel.HSSFConditionalFormattingRule;
 import org.apache.poi.ss.ITestDataProvider;
@@ -35,6 +26,10 @@ import org.apache.poi.ss.usermodel.ConditionalFormattingThreshold.RangeType;
 import org.apache.poi.ss.usermodel.IconMultiStateFormatting.IconSet;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.junit.Test;
+
+import java.io.IOException;
+
+import static org.junit.Assert.*;
 
 /**
  * Base tests for Conditional Formatting, for both HSSF and XSSF
@@ -112,15 +107,13 @@ public abstract class BaseTestConditionalFormatting {
      * Test format conditions based on a boolean formula
      */
     @Test
-    @SuppressWarnings("deprecation")
     public void testBooleanFormulaConditions() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
         Sheet sh = wb.createSheet();
         SheetConditionalFormatting sheetCF = sh.getSheetConditionalFormatting();
 
         ConditionalFormattingRule rule1 = sheetCF.createConditionalFormattingRule("SUM(A1:A5)>10");
-        assertEquals(ConditionType.FORMULA.id, rule1.getConditionType());
-        assertEquals(ConditionType.FORMULA, rule1.getConditionTypeType());
+        assertEquals(ConditionType.FORMULA, rule1.getConditionType());
         assertEquals("SUM(A1:A5)>10", rule1.getFormula1());
         int formatIndex1 = sheetCF.addConditionalFormatting(
                 new CellRangeAddress[]{
@@ -150,7 +143,6 @@ public abstract class BaseTestConditionalFormatting {
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     public void testSingleFormulaConditions() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
         Sheet sh = wb.createSheet();
@@ -158,65 +150,56 @@ public abstract class BaseTestConditionalFormatting {
 
         ConditionalFormattingRule rule1 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.EQUAL, "SUM(A1:A5)+10");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule1.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule1.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule1.getConditionType());
         assertEquals("SUM(A1:A5)+10", rule1.getFormula1());
         assertEquals(ComparisonOperator.EQUAL, rule1.getComparisonOperation());
 
         ConditionalFormattingRule rule2 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.NOT_EQUAL, "15");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule2.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule2.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule2.getConditionType());
         assertEquals("15", rule2.getFormula1());
         assertEquals(ComparisonOperator.NOT_EQUAL, rule2.getComparisonOperation());
 
         ConditionalFormattingRule rule3 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.NOT_EQUAL, "15");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule3.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule3.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule3.getConditionType());
         assertEquals("15", rule3.getFormula1());
         assertEquals(ComparisonOperator.NOT_EQUAL, rule3.getComparisonOperation());
 
         ConditionalFormattingRule rule4 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.GT, "0");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule4.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule4.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule4.getConditionType());
         assertEquals("0", rule4.getFormula1());
         assertEquals(ComparisonOperator.GT, rule4.getComparisonOperation());
 
         ConditionalFormattingRule rule5 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.LT, "0");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule5.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule5.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule5.getConditionType());
         assertEquals("0", rule5.getFormula1());
         assertEquals(ComparisonOperator.LT, rule5.getComparisonOperation());
 
         ConditionalFormattingRule rule6 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.GE, "0");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule6.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule6.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule6.getConditionType());
         assertEquals("0", rule6.getFormula1());
         assertEquals(ComparisonOperator.GE, rule6.getComparisonOperation());
 
         ConditionalFormattingRule rule7 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.LE, "0");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule7.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule7.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule7.getConditionType());
         assertEquals("0", rule7.getFormula1());
         assertEquals(ComparisonOperator.LE, rule7.getComparisonOperation());
 
         ConditionalFormattingRule rule8 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.BETWEEN, "0", "5");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule8.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule8.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule8.getConditionType());
         assertEquals("0", rule8.getFormula1());
         assertEquals("5", rule8.getFormula2());
         assertEquals(ComparisonOperator.BETWEEN, rule8.getComparisonOperation());
 
         ConditionalFormattingRule rule9 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.NOT_BETWEEN, "0", "5");
-        assertEquals(ConditionType.CELL_VALUE_IS.id, rule9.getConditionType());
-        assertEquals(ConditionType.CELL_VALUE_IS, rule9.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule9.getConditionType());
         assertEquals("0", rule9.getFormula1());
         assertEquals("5", rule9.getFormula2());
         assertEquals(ComparisonOperator.NOT_BETWEEN, rule9.getComparisonOperation());
@@ -225,7 +208,6 @@ public abstract class BaseTestConditionalFormatting {
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     public void testCopy() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
         Sheet sheet1 = wb.createSheet();
@@ -258,10 +240,10 @@ public abstract class BaseTestConditionalFormatting {
         assertEquals(2, sheet2cf.getNumberOfRules());
         assertEquals("SUM(A1:A5)+10", sheet2cf.getRule(0).getFormula1());
         assertEquals(ComparisonOperator.EQUAL, sheet2cf.getRule(0).getComparisonOperation());
-        assertEquals(ConditionalFormattingRule.CONDITION_TYPE_CELL_VALUE_IS, sheet2cf.getRule(0).getConditionType());
+        assertEquals(ConditionType.CELL_VALUE_IS, sheet2cf.getRule(0).getConditionType());
         assertEquals("15", sheet2cf.getRule(1).getFormula1());
         assertEquals(ComparisonOperator.NOT_EQUAL, sheet2cf.getRule(1).getComparisonOperation());
-        assertEquals(ConditionalFormattingRule.CONDITION_TYPE_CELL_VALUE_IS, sheet2cf.getRule(1).getConditionType());
+        assertEquals(ConditionType.CELL_VALUE_IS, sheet2cf.getRule(1).getConditionType());
         
         wb.close();
     }
@@ -323,10 +305,10 @@ public abstract class BaseTestConditionalFormatting {
         fontFmt.setFontStyle(true, false);
 
         BorderFormatting bordFmt = rule1.createBorderFormatting();
-        bordFmt.setBorderBottom(BorderFormatting.BORDER_THIN);
-        bordFmt.setBorderTop(BorderFormatting.BORDER_THICK);
-        bordFmt.setBorderLeft(BorderFormatting.BORDER_DASHED);
-        bordFmt.setBorderRight(BorderFormatting.BORDER_DOTTED);
+        bordFmt.setBorderBottom(BorderStyle.THIN);
+        bordFmt.setBorderTop(BorderStyle.THICK);
+        bordFmt.setBorderLeft(BorderStyle.DASHED);
+        bordFmt.setBorderRight(BorderStyle.DOTTED);
 
         PatternFormatting patternFmt = rule1.createPatternFormatting();
         patternFmt.setFillBackgroundColor(IndexedColors.YELLOW.index);
@@ -376,10 +358,10 @@ public abstract class BaseTestConditionalFormatting {
 
         BorderFormatting  r1bf = rule1.getBorderFormatting();
         assertNotNull(r1bf);
-        assertEquals(BorderFormatting.BORDER_THIN, r1bf.getBorderBottom());
-        assertEquals(BorderFormatting.BORDER_THICK,r1bf.getBorderTop());
-        assertEquals(BorderFormatting.BORDER_DASHED,r1bf.getBorderLeft());
-        assertEquals(BorderFormatting.BORDER_DOTTED,r1bf.getBorderRight());
+        assertEquals(BorderStyle.THIN, r1bf.getBorderBottom());
+        assertEquals(BorderStyle.THICK,r1bf.getBorderTop());
+        assertEquals(BorderStyle.DASHED,r1bf.getBorderLeft());
+        assertEquals(BorderStyle.DOTTED,r1bf.getBorderRight());
 
         PatternFormatting r1pf = rule1.getPatternFormatting();
         assertNotNull(r1pf);
@@ -427,7 +409,7 @@ public abstract class BaseTestConditionalFormatting {
             assertEquals(2, wb.getNumberOfSheets());
         } catch (RuntimeException e) {
             if (e.getMessage().indexOf("needs to define a clone method") > 0) {
-                fail("Indentified bug 45682");
+                fail("Identified bug 45682");
             }
             throw e;
         } finally {
@@ -453,7 +435,7 @@ public abstract class BaseTestConditionalFormatting {
         ConditionalFormattingRule rule2 = sheetCF.createConditionalFormattingRule(
                 ComparisonOperator.BETWEEN, "SUM(A10:A15)", "1+SUM(B16:B30)");
         BorderFormatting borderFmt = rule2.createBorderFormatting();
-        borderFmt.setBorderDiagonal((short) 2);
+        borderFmt.setBorderDiagonal(BorderStyle.MEDIUM);
 
         CellRangeAddress [] regions = {
             new CellRangeAddress(2, 4, 0, 0), // A3:A5
@@ -504,7 +486,7 @@ public abstract class BaseTestConditionalFormatting {
 
         // CF1 has two rules: values less than -3 are bold-italic red, values greater than 3 are green
         ConditionalFormattingRule rule1 = cf1.getRule(0);
-        assertEquals(ConditionType.CELL_VALUE_IS, rule1.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule1.getConditionType());
         assertEquals(ComparisonOperator.GT, rule1.getComparisonOperation());
         assertEquals("3", rule1.getFormula1());
         assertNull(rule1.getFormula2());
@@ -518,7 +500,7 @@ public abstract class BaseTestConditionalFormatting {
         assertFalse(fmt1.isItalic());
 
         ConditionalFormattingRule rule2 = cf1.getRule(1);
-        assertEquals(ConditionType.CELL_VALUE_IS, rule2.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule2.getConditionType());
         assertEquals(ComparisonOperator.LT, rule2.getComparisonOperation());
         assertEquals("-3", rule2.getFormula1());
         assertNull(rule2.getFormula2());
@@ -538,7 +520,7 @@ public abstract class BaseTestConditionalFormatting {
         assertEquals("B9", regions2[0].formatAsString());
 
         ConditionalFormattingRule rule3 = cf2.getRule(0);
-        assertEquals(ConditionType.FORMULA, rule3.getConditionTypeType());
+        assertEquals(ConditionType.FORMULA, rule3.getConditionType());
         assertEquals(ComparisonOperator.NO_COMPARISON, rule3.getComparisonOperation());
         assertEquals("$A$8>5", rule3.getFormula1());
         assertNull(rule3.getFormula2());
@@ -562,13 +544,13 @@ public abstract class BaseTestConditionalFormatting {
         assertEquals(2, cf3.getNumberOfRules());
 
         ConditionalFormattingRule rule4 = cf3.getRule(0);
-        assertEquals(ConditionType.CELL_VALUE_IS, rule4.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule4.getConditionType());
         assertEquals(ComparisonOperator.LE, rule4.getComparisonOperation());
         assertEquals("\"AAA\"", rule4.getFormula1());
         assertNull(rule4.getFormula2());
 
         ConditionalFormattingRule rule5 = cf3.getRule(1);
-        assertEquals(ConditionType.CELL_VALUE_IS, rule5.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, rule5.getConditionType());
         assertEquals(ComparisonOperator.BETWEEN, rule5.getComparisonOperation());
         assertEquals("\"A\"", rule5.getFormula1());
         assertEquals("\"AAA\"", rule5.getFormula2());
@@ -579,10 +561,7 @@ public abstract class BaseTestConditionalFormatting {
     public void testReadOffice2007(String filename) throws IOException {
         Workbook wb = _testDataProvider.openSampleWorkbook(filename);
         Sheet s = wb.getSheet("CF");
-        ConditionalFormatting cf = null;
-        ConditionalFormattingRule cr = null;
 
-        
         // Sanity check data
         assertEquals("Values", s.getRow(0).getCell(0).toString());
         assertEquals("10.0", s.getRow(2).getCell(0).toString());
@@ -596,14 +575,14 @@ public abstract class BaseTestConditionalFormatting {
         
         int fCF = 0, fCF12 = 0, fCFEX = 0;
         for (int i=0; i<sheetCF.getNumConditionalFormattings(); i++) {
-            cf = sheetCF.getConditionalFormattingAt(i);
+            ConditionalFormatting cf = sheetCF.getConditionalFormattingAt(i);
             if (cf instanceof HSSFConditionalFormatting) {
                 String str = cf.toString();
                 if (str.contains("[CF]")) fCF++;
                 if (str.contains("[CF12]")) fCF12++;
                 if (str.contains("[CFEX]")) fCFEX++;
             } else {
-                ConditionType type = cf.getRule(cf.getNumberOfRules()-1).getConditionTypeType();
+                ConditionType type = cf.getRule(cf.getNumberOfRules()-1).getConditionType();
                 if (type == ConditionType.CELL_VALUE_IS ||
                     type == ConditionType.FORMULA) {
                     fCF++;
@@ -622,13 +601,13 @@ public abstract class BaseTestConditionalFormatting {
         
         
         // Highlight Positive values - Column C
-        cf = sheetCF.getConditionalFormattingAt(0);
+        ConditionalFormatting cf = sheetCF.getConditionalFormattingAt(0);
         assertEquals(1, cf.getFormattingRanges().length);
         assertEquals("C2:C17", cf.getFormattingRanges()[0].formatAsString());
         
         assertEquals(1, cf.getNumberOfRules());
-        cr = cf.getRule(0);
-        assertEquals(ConditionType.CELL_VALUE_IS, cr.getConditionTypeType());
+        ConditionalFormattingRule cr = cf.getRule(0);
+        assertEquals(ConditionType.CELL_VALUE_IS, cr.getConditionType());
         assertEquals(ComparisonOperator.GT, cr.getComparisonOperation());
         assertEquals("0", cr.getFormula1());
         assertEquals(null, cr.getFormula2());
@@ -652,7 +631,7 @@ public abstract class BaseTestConditionalFormatting {
         
         assertEquals(1, cf.getNumberOfRules());
         cr = cf.getRule(0);
-        assertEquals(ConditionType.CELL_VALUE_IS, cr.getConditionTypeType());
+        assertEquals(ConditionType.CELL_VALUE_IS, cr.getConditionType());
         assertEquals(ComparisonOperator.BETWEEN, cr.getComparisonOperation());
         assertEquals("10", cr.getFormula1());
         assertEquals("30", cr.getFormula2());
@@ -787,7 +766,7 @@ public abstract class BaseTestConditionalFormatting {
 //        cr = cf.getRule(0);
 //        assertIconSetPercentages(cr, IconSet.GYR_3_TRAFFIC_LIGHTS_BOX, 0d, 33d, 67d);
 //        cr = cf.getRule(1);
-//        assertEquals(ConditionType.FORMULA, cr.getConditionTypeType());
+//        assertEquals(ConditionType.FORMULA, cr.getConditionType());
 //        assertEquals(ComparisonOperator.NO_COMPARISON, cr.getComparisonOperation());
 //        // TODO Why aren't these two the same between formats?
 //        if (cr instanceof HSSFConditionalFormattingRule) {
@@ -810,7 +789,7 @@ public abstract class BaseTestConditionalFormatting {
         assertDataBar(cr, color);
     }
     private void assertDataBar(ConditionalFormattingRule cr, String color) {
-        assertEquals(ConditionType.DATA_BAR, cr.getConditionTypeType());
+        assertEquals(ConditionType.DATA_BAR, cr.getConditionType());
         assertEquals(ComparisonOperator.NO_COMPARISON, cr.getComparisonOperation());
         assertEquals(null, cr.getFormula1());
         assertEquals(null, cr.getFormula2());
@@ -841,7 +820,7 @@ public abstract class BaseTestConditionalFormatting {
         assertIconSetPercentages(cr, iconset, vals);
     }        
     private void assertIconSetPercentages(ConditionalFormattingRule cr, IconSet iconset, Double...vals) {
-        assertEquals(ConditionType.ICON_SET, cr.getConditionTypeType());
+        assertEquals(ConditionType.ICON_SET, cr.getConditionType());
         assertEquals(ComparisonOperator.NO_COMPARISON, cr.getComparisonOperation());
         assertEquals(null, cr.getFormula1());
         assertEquals(null, cr.getFormula2());
@@ -869,7 +848,7 @@ public abstract class BaseTestConditionalFormatting {
         assertColorScale(cr, colors);
     }        
     private void assertColorScale(ConditionalFormattingRule cr, String... colors) {
-        assertEquals(ConditionType.COLOR_SCALE, cr.getConditionTypeType());
+        assertEquals(ConditionType.COLOR_SCALE, cr.getConditionType());
         assertEquals(ComparisonOperator.NO_COMPARISON, cr.getComparisonOperation());
         assertEquals(null, cr.getFormula1());
         assertEquals(null, cr.getFormula2());
@@ -1019,6 +998,38 @@ public abstract class BaseTestConditionalFormatting {
         
         workbook.close();
     }
+    
+    @Test
+    public void testAllCreateBorderFormatting() throws IOException {
+        // Make sure it is possible to create a conditional formatting rule
+        // with every type of Border Style
+        Workbook workbook = _testDataProvider.createWorkbook();
+        Sheet sheet = workbook.createSheet();
+
+        SheetConditionalFormatting sheetCF = sheet.getSheetConditionalFormatting();
+
+        ConditionalFormattingRule rule1 = sheetCF.createConditionalFormattingRule(ComparisonOperator.EQUAL, "7");
+        BorderFormatting borderFmt = rule1.createBorderFormatting();
+
+        for (BorderStyle border : BorderStyle.values()) {
+            borderFmt.setBorderTop(border);
+            assertEquals(border, borderFmt.getBorderTop());
+
+            borderFmt.setBorderBottom(border);
+            assertEquals(border, borderFmt.getBorderBottom());
+
+            borderFmt.setBorderLeft(border);
+            assertEquals(border, borderFmt.getBorderLeft());
+
+            borderFmt.setBorderRight(border);
+            assertEquals(border, borderFmt.getBorderRight());
+
+            borderFmt.setBorderDiagonal(border);
+            assertEquals(border, borderFmt.getBorderDiagonal());
+        }
+
+        workbook.close();
+    }
 
     @Test
     public void testCreateBorderFormatting() throws IOException {
@@ -1030,37 +1041,37 @@ public abstract class BaseTestConditionalFormatting {
         ConditionalFormattingRule rule1 = sheetCF.createConditionalFormattingRule(ComparisonOperator.EQUAL, "7");
         BorderFormatting borderFmt = rule1.createBorderFormatting();
 
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderBottom());
-        borderFmt.setBorderBottom(BorderFormatting.BORDER_DOTTED);
-        assertEquals(BorderFormatting.BORDER_DOTTED, borderFmt.getBorderBottom());
-        borderFmt.setBorderBottom(BorderFormatting.BORDER_NONE);
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderBottom());
-        borderFmt.setBorderBottom(BorderFormatting.BORDER_THICK);
-        assertEquals(BorderFormatting.BORDER_THICK, borderFmt.getBorderBottom());
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderBottom());
+        borderFmt.setBorderBottom(BorderStyle.DOTTED);
+        assertEquals(BorderStyle.DOTTED, borderFmt.getBorderBottom());
+        borderFmt.setBorderBottom(BorderStyle.NONE);
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderBottom());
+        borderFmt.setBorderBottom(BorderStyle.THICK);
+        assertEquals(BorderStyle.THICK, borderFmt.getBorderBottom());
 
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderTop());
-        borderFmt.setBorderTop(BorderFormatting.BORDER_DOTTED);
-        assertEquals(BorderFormatting.BORDER_DOTTED, borderFmt.getBorderTop());
-        borderFmt.setBorderTop(BorderFormatting.BORDER_NONE);
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderTop());
-        borderFmt.setBorderTop(BorderFormatting.BORDER_THICK);
-        assertEquals(BorderFormatting.BORDER_THICK, borderFmt.getBorderTop());
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderTop());
+        borderFmt.setBorderTop(BorderStyle.DOTTED);
+        assertEquals(BorderStyle.DOTTED, borderFmt.getBorderTop());
+        borderFmt.setBorderTop(BorderStyle.NONE);
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderTop());
+        borderFmt.setBorderTop(BorderStyle.THICK);
+        assertEquals(BorderStyle.THICK, borderFmt.getBorderTop());
 
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderLeft());
-        borderFmt.setBorderLeft(BorderFormatting.BORDER_DOTTED);
-        assertEquals(BorderFormatting.BORDER_DOTTED, borderFmt.getBorderLeft());
-        borderFmt.setBorderLeft(BorderFormatting.BORDER_NONE);
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderLeft());
-        borderFmt.setBorderLeft(BorderFormatting.BORDER_THIN);
-        assertEquals(BorderFormatting.BORDER_THIN, borderFmt.getBorderLeft());
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderLeft());
+        borderFmt.setBorderLeft(BorderStyle.DOTTED);
+        assertEquals(BorderStyle.DOTTED, borderFmt.getBorderLeft());
+        borderFmt.setBorderLeft(BorderStyle.NONE);
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderLeft());
+        borderFmt.setBorderLeft(BorderStyle.THIN);
+        assertEquals(BorderStyle.THIN, borderFmt.getBorderLeft());
 
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderRight());
-        borderFmt.setBorderRight(BorderFormatting.BORDER_DOTTED);
-        assertEquals(BorderFormatting.BORDER_DOTTED, borderFmt.getBorderRight());
-        borderFmt.setBorderRight(BorderFormatting.BORDER_NONE);
-        assertEquals(BorderFormatting.BORDER_NONE, borderFmt.getBorderRight());
-        borderFmt.setBorderRight(BorderFormatting.BORDER_HAIR);
-        assertEquals(BorderFormatting.BORDER_HAIR, borderFmt.getBorderRight());
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderRight());
+        borderFmt.setBorderRight(BorderStyle.DOTTED);
+        assertEquals(BorderStyle.DOTTED, borderFmt.getBorderRight());
+        borderFmt.setBorderRight(BorderStyle.NONE);
+        assertEquals(BorderStyle.NONE, borderFmt.getBorderRight());
+        borderFmt.setBorderRight(BorderStyle.HAIR);
+        assertEquals(BorderStyle.HAIR, borderFmt.getBorderRight());
 
         ConditionalFormattingRule [] cfRules = { rule1 };
 
@@ -1076,10 +1087,10 @@ public abstract class BaseTestConditionalFormatting {
 
         BorderFormatting  r1fp = cf.getRule(0).getBorderFormatting();
         assertNotNull(r1fp);
-        assertEquals(BorderFormatting.BORDER_THICK, r1fp.getBorderBottom());
-        assertEquals(BorderFormatting.BORDER_THICK, r1fp.getBorderTop());
-        assertEquals(BorderFormatting.BORDER_THIN, r1fp.getBorderLeft());
-        assertEquals(BorderFormatting.BORDER_HAIR, r1fp.getBorderRight());
+        assertEquals(BorderStyle.THICK, r1fp.getBorderBottom());
+        assertEquals(BorderStyle.THICK, r1fp.getBorderTop());
+        assertEquals(BorderStyle.THIN, r1fp.getBorderLeft());
+        assertEquals(BorderStyle.HAIR, r1fp.getBorderRight());
         
         workbook.close();
     }
@@ -1120,7 +1131,7 @@ public abstract class BaseTestConditionalFormatting {
         ConditionalFormatting cf = sheetCF.getConditionalFormattingAt(0);
         assertEquals(1, cf.getNumberOfRules());
         rule1 = cf.getRule(0);
-        assertEquals(ConditionType.ICON_SET, rule1.getConditionTypeType());
+        assertEquals(ConditionType.ICON_SET, rule1.getConditionType());
         iconFmt = rule1.getMultiStateFormatting();
         
         assertEquals(IconSet.GYRB_4_TRAFFIC_LIGHTS, iconFmt.getIconSet());
@@ -1173,7 +1184,7 @@ public abstract class BaseTestConditionalFormatting {
         assertEquals(1, cf.getNumberOfRules());
         rule1 = cf.getRule(0);
         clrFmt = rule1.getColorScaleFormatting();
-        assertEquals(ConditionType.COLOR_SCALE, rule1.getConditionTypeType());
+        assertEquals(ConditionType.COLOR_SCALE, rule1.getConditionType());
         
         assertEquals(3, clrFmt.getNumControlPoints());
         assertEquals(3, clrFmt.getColors().length);
@@ -1225,7 +1236,7 @@ public abstract class BaseTestConditionalFormatting {
         assertEquals(1, cf.getNumberOfRules());
         rule1 = cf.getRule(0);
         dbFmt = rule1.getDataBarFormatting();
-        assertEquals(ConditionType.DATA_BAR, rule1.getConditionTypeType());
+        assertEquals(ConditionType.DATA_BAR, rule1.getConditionType());
         
         assertEquals(false, dbFmt.isIconOnly());
         assertEquals(true, dbFmt.isLeftToRight());
@@ -1251,5 +1262,175 @@ public abstract class BaseTestConditionalFormatting {
         ConditionalFormattingRule rule = sheet.getSheetConditionalFormatting().createConditionalFormattingRule("$A$1>0");
         sheet.getSheetConditionalFormatting().addConditionalFormatting(ranges, rule);
         wb.close();
+    }
+
+    @Test
+    public void testSetCellRangeAddresswithSingleRange() throws Exception {
+        Workbook wb = _testDataProvider.createWorkbook();
+        final Sheet sheet = wb.createSheet("S1");
+        final SheetConditionalFormatting cf = sheet.getSheetConditionalFormatting();
+        assertEquals(0, cf.getNumConditionalFormattings());
+        ConditionalFormattingRule rule1 = cf.createConditionalFormattingRule("$A$1>0");
+        cf.addConditionalFormatting(new CellRangeAddress[] {
+                CellRangeAddress.valueOf("A1:A5")
+        }, rule1);
+
+        assertEquals(1, cf.getNumConditionalFormattings());
+        ConditionalFormatting readCf = cf.getConditionalFormattingAt(0);
+        CellRangeAddress[] formattingRanges = readCf.getFormattingRanges();
+        assertEquals(1, formattingRanges.length);
+        CellRangeAddress formattingRange = formattingRanges[0];
+        assertEquals("A1:A5", formattingRange.formatAsString());
+
+        readCf.setFormattingRanges(new CellRangeAddress[] {
+                CellRangeAddress.valueOf("A1:A6")
+        });
+
+        readCf = cf.getConditionalFormattingAt(0);
+        formattingRanges = readCf.getFormattingRanges();
+        assertEquals(1, formattingRanges.length);
+        formattingRange = formattingRanges[0];
+        assertEquals("A1:A6", formattingRange.formatAsString());
+    }
+
+    @Test
+    public void testSetCellRangeAddressWithMultipleRanges() throws Exception {
+        Workbook wb = _testDataProvider.createWorkbook();
+        final Sheet sheet = wb.createSheet("S1");
+        final SheetConditionalFormatting cf = sheet.getSheetConditionalFormatting();
+        assertEquals(0, cf.getNumConditionalFormattings());
+        ConditionalFormattingRule rule1 = cf.createConditionalFormattingRule("$A$1>0");
+        cf.addConditionalFormatting(new CellRangeAddress[] {
+                CellRangeAddress.valueOf("A1:A5")
+        }, rule1);
+
+        assertEquals(1, cf.getNumConditionalFormattings());
+        ConditionalFormatting readCf = cf.getConditionalFormattingAt(0);
+        CellRangeAddress[] formattingRanges = readCf.getFormattingRanges();
+        assertEquals(1, formattingRanges.length);
+        CellRangeAddress formattingRange = formattingRanges[0];
+        assertEquals("A1:A5", formattingRange.formatAsString());
+
+        readCf.setFormattingRanges(new CellRangeAddress[] {
+                CellRangeAddress.valueOf("A1:A6"),
+                CellRangeAddress.valueOf("B1:B6")
+        });
+
+        readCf = cf.getConditionalFormattingAt(0);
+        formattingRanges = readCf.getFormattingRanges();
+        assertEquals(2, formattingRanges.length);
+        formattingRange = formattingRanges[0];
+        assertEquals("A1:A6", formattingRange.formatAsString());
+        formattingRange = formattingRanges[1];
+        assertEquals("B1:B6", formattingRange.formatAsString());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testSetCellRangeAddressWithNullRanges() throws Exception {
+        Workbook wb = _testDataProvider.createWorkbook();
+        final Sheet sheet = wb.createSheet("S1");
+        final SheetConditionalFormatting cf = sheet.getSheetConditionalFormatting();
+        assertEquals(0, cf.getNumConditionalFormattings());
+        ConditionalFormattingRule rule1 = cf.createConditionalFormattingRule("$A$1>0");
+        cf.addConditionalFormatting(new CellRangeAddress[] {
+                CellRangeAddress.valueOf("A1:A5")
+        }, rule1);
+
+        assertEquals(1, cf.getNumConditionalFormattings());
+        ConditionalFormatting readCf = cf.getConditionalFormattingAt(0);
+        readCf.setFormattingRanges(null);
+    }
+
+
+    @SuppressWarnings("deprecation")
+    @Test
+    public void test52122() throws Exception {
+        Workbook workbook = _testDataProvider.createWorkbook();
+        Sheet sheet = workbook.createSheet("Conditional Formatting Test");
+        sheet.setColumnWidth(0, 256 * 10);
+        sheet.setColumnWidth(1, 256 * 10);
+        sheet.setColumnWidth(2, 256 * 10);
+
+        // Create some content.
+        // row 0
+        Row row = sheet.createRow(0);
+
+        Cell cell0 = row.createCell(0);
+        cell0.setCellType(CellType.NUMERIC);
+        cell0.setCellValue(100);
+
+        Cell cell1 = row.createCell(1);
+        cell1.setCellType(CellType.NUMERIC);
+        cell1.setCellValue(120);
+
+        Cell cell2 = row.createCell(2);
+        cell2.setCellType(CellType.NUMERIC);
+        cell2.setCellValue(130);
+
+        // row 1
+        row = sheet.createRow(1);
+
+        cell0 = row.createCell(0);
+        cell0.setCellType(CellType.NUMERIC);
+        cell0.setCellValue(200);
+
+        cell1 = row.createCell(1);
+        cell1.setCellType(CellType.NUMERIC);
+        cell1.setCellValue(220);
+
+        cell2 = row.createCell(2);
+        cell2.setCellType(CellType.NUMERIC);
+        cell2.setCellValue(230);
+
+        // row 2
+        row = sheet.createRow(2);
+
+        cell0 = row.createCell(0);
+        cell0.setCellType(CellType.NUMERIC);
+        cell0.setCellValue(300);
+
+        cell1 = row.createCell(1);
+        cell1.setCellType(CellType.NUMERIC);
+        cell1.setCellValue(320);
+
+        cell2 = row.createCell(2);
+        cell2.setCellType(CellType.NUMERIC);
+        cell2.setCellValue(330);
+
+        // Create conditional formatting, CELL1 should be yellow if CELL0 is not blank.
+        SheetConditionalFormatting formatting = sheet.getSheetConditionalFormatting();
+
+        ConditionalFormattingRule rule = formatting.createConditionalFormattingRule("$A$1>75");
+
+        PatternFormatting pattern = rule.createPatternFormatting();
+        pattern.setFillBackgroundColor(IndexedColors.BLUE.index);
+        pattern.setFillPattern(PatternFormatting.SOLID_FOREGROUND);
+
+        CellRangeAddress[] range = {CellRangeAddress.valueOf("B2:C2")};
+        CellRangeAddress[] range2 = {CellRangeAddress.valueOf("B1:C1")};
+
+        formatting.addConditionalFormatting(range, rule);
+        formatting.addConditionalFormatting(range2, rule);
+
+        // Write file.
+        /*FileOutputStream fos = new FileOutputStream("c:\\temp\\52122_conditional-sheet.xls");
+        try {
+            workbook.write(fos);
+        } finally {
+            fos.close();
+        }*/
+
+        Workbook wbBack = _testDataProvider.writeOutAndReadBack(workbook);
+        Sheet sheetBack = wbBack.getSheetAt(0);
+        final SheetConditionalFormatting sheetConditionalFormattingBack = sheetBack.getSheetConditionalFormatting();
+        assertNotNull(sheetConditionalFormattingBack);
+        final ConditionalFormatting formattingBack = sheetConditionalFormattingBack.getConditionalFormattingAt(0);
+        assertNotNull(formattingBack);
+        final ConditionalFormattingRule ruleBack = formattingBack.getRule(0);
+        assertNotNull(ruleBack);
+        final PatternFormatting patternFormattingBack1 = ruleBack.getPatternFormatting();
+        assertNotNull(patternFormattingBack1);
+        assertEquals(IndexedColors.BLUE.index, patternFormattingBack1.getFillBackgroundColor());
+        assertEquals(PatternFormatting.SOLID_FOREGROUND, patternFormattingBack1.getFillPattern());
     }
 }

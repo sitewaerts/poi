@@ -28,17 +28,7 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.poi.hpsf.HPSFRuntimeException;
-import org.apache.poi.hpsf.MarkUnsupportedException;
-import org.apache.poi.hpsf.MutablePropertySet;
-import org.apache.poi.hpsf.MutableSection;
-import org.apache.poi.hpsf.NoPropertySetStreamException;
-import org.apache.poi.hpsf.PropertySet;
-import org.apache.poi.hpsf.PropertySetFactory;
-import org.apache.poi.hpsf.SummaryInformation;
-import org.apache.poi.hpsf.Util;
-import org.apache.poi.hpsf.Variant;
-import org.apache.poi.hpsf.WritingNotSupportedException;
+import org.apache.poi.hpsf.*;
 import org.apache.poi.hpsf.wellknown.PropertyIDMap;
 import org.apache.poi.poifs.eventfilesystem.POIFSReader;
 import org.apache.poi.poifs.eventfilesystem.POIFSReaderEvent;
@@ -81,9 +71,6 @@ import org.apache.poi.poifs.filesystem.POIFSFileSystem;
  * summary information stream into the output file.</p>
  * 
  * <p>Further explanations can be found in the HPSF HOW-TO.</p>
- *
- * @author Rainer Klute <a
- * href="mailto:klute@rainer-klute.de">&lt;klute@rainer-klute.de&gt;</a>
  */
 public class WriteAuthorAndTitle
 {
@@ -114,7 +101,9 @@ public class WriteAuthorAndTitle
         final POIFSReader r = new POIFSReader();
         final ModifySICopyTheRest msrl = new ModifySICopyTheRest(dstName);
         r.registerListener(msrl);
-        r.read(new FileInputStream(srcName));
+        FileInputStream fis = new FileInputStream(srcName);
+        r.read(fis);
+        fis.close();
         
         /* Write the new POIFS to disk. */
         msrl.close();
@@ -132,9 +121,9 @@ public class WriteAuthorAndTitle
      */
     static class ModifySICopyTheRest implements POIFSReaderListener
     {
-        String dstName;
-        OutputStream out;
-        POIFSFileSystem poiFs;
+        private String dstName;
+        private OutputStream out;
+        private POIFSFileSystem poiFs;
 
 
         /**
@@ -156,6 +145,7 @@ public class WriteAuthorAndTitle
          * <p>The method is called by POI's eventing API for each file in the
          * origin POIFS.</p>
          */
+        @Override
         public void processPOIFSReaderEvent(final POIFSReaderEvent event)
         {
             /* The following declarations are shortcuts for accessing the
@@ -166,66 +156,48 @@ public class WriteAuthorAndTitle
 
             Throwable t = null;
 
-            try
-            {
+            try {
                 /* Find out whether the current document is a property set
                  * stream or not. */
-                if (PropertySet.isPropertySetStream(stream))
-                {
-                    /* Yes, the current document is a property set stream.
-                     * Let's create a PropertySet instance from it. */
-                    PropertySet ps = null;
-                    try
-                    {
-                        ps = PropertySetFactory.create(stream);
-                    }
-                    catch (NoPropertySetStreamException ex)
-                    {
+                if (PropertySet.isPropertySetStream(stream)) {
+                    try {
+                        /* Yes, the current document is a property set stream.
+                         * Let's create a PropertySet instance from it. */
+                        PropertySet ps = PropertySetFactory.create(stream);
+
+                        /* Now we know that we really have a property set. The next
+                         * step is to find out whether it is a summary information
+                         * or not. */
+                        if (ps.isSummaryInformation()) {
+                            /* Yes, it is a summary information. We will modify it
+                             * and write the result to the destination POIFS. */
+                            editSI(poiFs, path, name, ps);
+                        } else {
+                            /* No, it is not a summary information. We don't care
+                             * about its internals and copy it unmodified to the
+                             * destination POIFS. */
+                            copy(poiFs, path, name, ps);
+                        }
+                    } catch (NoPropertySetStreamException ex) {
                         /* This exception will not be thrown because we already
                          * checked above. */
                     }
-
-                    /* Now we know that we really have a property set. The next
-                     * step is to find out whether it is a summary information
-                     * or not. */
-                    if (ps.isSummaryInformation())
-                        /* Yes, it is a summary information. We will modify it
-                         * and write the result to the destination POIFS. */
-                        editSI(poiFs, path, name, ps);
-                    else
-                        /* No, it is not a summary information. We don't care
-                         * about its internals and copy it unmodified to the
-                         * destination POIFS. */
-                        copy(poiFs, path, name, ps);
-                }
-                else
+                } else {
                     /* No, the current document is not a property set stream. We
                      * copy it unmodified to the destination POIFS. */
                     copy(poiFs, event.getPath(), event.getName(), stream);
-            }
-            catch (MarkUnsupportedException ex)
-            {
-                t = ex;
-            }
-            catch (IOException ex)
-            {
-                t = ex;
-            }
-            catch (WritingNotSupportedException ex)
-            {
+                }
+            } catch (MarkUnsupportedException | WritingNotSupportedException | IOException ex) {
                 t = ex;
             }
 
             /* According to the definition of the processPOIFSReaderEvent method
              * we cannot pass checked exceptions to the caller. The following
-             * lines check whether a checked exception occured and throws an
+             * lines check whether a checked exception occurred and throws an
              * unchecked exception. The message of that exception is that of
              * the underlying checked exception. */
-            if (t != null)
-            {
-                throw new HPSFRuntimeException
-                    ("Could not read file \"" + path + "/" + name +
-                     "\". Reason: " + Util.toString(t));
+            if (t != null) {
+                throw new HPSFRuntimeException("Could not read file \"" + path + "/" + name, t);
             }
         }
 
@@ -240,8 +212,6 @@ public class WriteAuthorAndTitle
          * @param name The original (and destination) stream's name.
          * @param si The property set. It should be a summary information
          * property set.
-         * @throws IOException 
-         * @throws WritingNotSupportedException 
          */
         public void editSI(final POIFSFileSystem poiFs,
                            final POIFSDocumentPath path,
@@ -255,12 +225,11 @@ public class WriteAuthorAndTitle
 
             /* Create a mutable property set as a copy of the original read-only
              * property set. */
-            final MutablePropertySet mps = new MutablePropertySet(si);
+            final PropertySet mps = new PropertySet(si);
             
             /* Retrieve the section containing the properties to modify. A
              * summary information property set contains exactly one section. */
-            final MutableSection s =
-                (MutableSection) mps.getSections().get(0);
+            final Section s = mps.getSections().get(0);
 
             /* Set the properties. */
             s.setProperty(PropertyIDMap.PID_AUTHOR, Variant.VT_LPSTR,
@@ -286,8 +255,6 @@ public class WriteAuthorAndTitle
          * @param path The file's path in the POI filesystem.
          * @param name The file's name in the POI filesystem.
          * @param ps The property set to write.
-         * @throws WritingNotSupportedException 
-         * @throws IOException 
          */
         public void copy(final POIFSFileSystem poiFs,
                          final POIFSDocumentPath path,
@@ -296,7 +263,7 @@ public class WriteAuthorAndTitle
             throws WritingNotSupportedException, IOException
         {
             final DirectoryEntry de = getPath(poiFs, path);
-            final MutablePropertySet mps = new MutablePropertySet(ps);
+            final PropertySet mps = new PropertySet(ps);
             de.createDocument(name, mps.toInputStream());
         }
 
@@ -310,7 +277,6 @@ public class WriteAuthorAndTitle
          * @param path The source document's path.
          * @param name The source document's name.
          * @param stream The stream containing the source document.
-         * @throws IOException 
          */
         public void copy(final POIFSFileSystem poiFs,
                          final POIFSDocumentPath path,
@@ -332,9 +298,6 @@ public class WriteAuthorAndTitle
 
         /**
          * <p>Writes the POI file system to a disk file.</p>
-         *
-         * @throws FileNotFoundException
-         * @throws IOException
          */
         public void close() throws FileNotFoundException, IOException
         {
@@ -348,7 +311,7 @@ public class WriteAuthorAndTitle
         /** Contains the directory paths that have already been created in the
          * output POI filesystem and maps them to their corresponding
          * {@link org.apache.poi.poifs.filesystem.DirectoryNode}s. */
-        private final Map paths = new HashMap();
+        private final Map<String, DirectoryEntry> paths = new HashMap<>();
 
 
 
@@ -382,7 +345,7 @@ public class WriteAuthorAndTitle
             {
                 /* Check whether this directory has already been created. */
                 final String s = path.toString();
-                DirectoryEntry de = (DirectoryEntry) paths.get(s);
+                DirectoryEntry de = paths.get(s);
                 if (de != null)
                     /* Yes: return the corresponding DirectoryEntry. */
                     return de;
@@ -412,10 +375,7 @@ public class WriteAuthorAndTitle
                  * exists. However, since we have full control about directory
                  * creation we can ensure that this will never happen. */
                 ex.printStackTrace(System.err);
-                throw new RuntimeException(ex.toString());
-                /* FIXME (2): Replace the previous line by the following once we
-                 * no longer need JDK 1.3 compatibility. */
-                // throw new RuntimeException(ex);
+                throw new RuntimeException(ex);
             }
         }
     }

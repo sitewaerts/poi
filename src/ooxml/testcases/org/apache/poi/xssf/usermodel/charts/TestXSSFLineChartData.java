@@ -16,54 +16,61 @@
 ==================================================================== */
 package org.apache.poi.xssf.usermodel.charts;
 
-import junit.framework.TestCase;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
-import org.apache.poi.ss.usermodel.Chart;
-import org.apache.poi.ss.usermodel.ClientAnchor;
-import org.apache.poi.ss.usermodel.Drawing;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.charts.AxisPosition;
-import org.apache.poi.ss.usermodel.charts.ChartAxis;
-import org.apache.poi.ss.usermodel.charts.ChartDataSource;
-import org.apache.poi.ss.usermodel.charts.DataSources;
-import org.apache.poi.ss.usermodel.charts.LineChartData;
-import org.apache.poi.ss.usermodel.charts.LineChartSeries;
+import java.io.IOException;
+
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.SheetBuilder;
+import org.apache.poi.xddf.usermodel.chart.AxisPosition;
+import org.apache.poi.xddf.usermodel.chart.ChartTypes;
+import org.apache.poi.xddf.usermodel.chart.XDDFCategoryAxis;
+import org.apache.poi.xddf.usermodel.chart.XDDFChartData;
+import org.apache.poi.xddf.usermodel.chart.XDDFDataSource;
+import org.apache.poi.xddf.usermodel.chart.XDDFDataSourcesFactory;
+import org.apache.poi.xddf.usermodel.chart.XDDFNumericalDataSource;
+import org.apache.poi.xddf.usermodel.chart.XDDFValueAxis;
+import org.apache.poi.xssf.usermodel.XSSFChart;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.Test;
 
 /**
  * Tests for XSSF Line Charts
  */
-public class TestXSSFLineChartData extends TestCase {
+public class TestXSSFLineChartData {
 
     private static final Object[][] plotData = {
             {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"},
             {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
     };
 
-    public void testOneSeriePlot() throws Exception {
-        Workbook wb = new XSSFWorkbook();
-        Sheet sheet = new SheetBuilder(wb, plotData).build();
-        Drawing drawing = sheet.createDrawingPatriarch();
-        ClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 1, 1, 10, 30);
-        Chart chart = drawing.createChart(anchor);
+    @Test
+    public void testOneSeriePlot() throws IOException {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        XSSFSheet sheet = (XSSFSheet) new SheetBuilder(wb, plotData).build();
+        XSSFDrawing drawing = sheet.createDrawingPatriarch();
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 1, 1, 10, 30);
+        XSSFChart chart = drawing.createChart(anchor);
 
-        ChartAxis bottomAxis = chart.getChartAxisFactory().createCategoryAxis(AxisPosition.BOTTOM);
-        ChartAxis leftAxis = chart.getChartAxisFactory().createValueAxis(AxisPosition.LEFT);
+        XDDFCategoryAxis bottomAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+        XDDFValueAxis leftAxis = chart.createValueAxis(AxisPosition.LEFT);
 
-        LineChartData lineChartData =
-                chart.getChartDataFactory().createLineChartData();
+        XDDFDataSource<String> xs = XDDFDataSourcesFactory.fromStringCellRange(sheet, CellRangeAddress.valueOf("A1:J1"));
+        XDDFNumericalDataSource<Double> ys = XDDFDataSourcesFactory.fromNumericCellRange(sheet, CellRangeAddress.valueOf("A2:J2"));
 
-        ChartDataSource<String> xs = DataSources.fromStringCellRange(sheet, CellRangeAddress.valueOf("A1:J1"));
-        ChartDataSource<Number> ys = DataSources.fromNumericCellRange(sheet, CellRangeAddress.valueOf("A2:J2"));
-        LineChartSeries series = lineChartData.addSeries(xs, ys);
+        XDDFChartData lineChartData = chart.createData(ChartTypes.LINE, bottomAxis, leftAxis);
+        XDDFChartData.Series series = lineChartData.addSeries(xs, ys);
 
         assertNotNull(series);
         assertEquals(1, lineChartData.getSeries().size());
         assertTrue(lineChartData.getSeries().contains(series));
 
-        chart.plot(lineChartData, bottomAxis, leftAxis);
+        chart.plot(lineChartData);
+        wb.close();
     }
 }

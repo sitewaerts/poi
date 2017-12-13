@@ -50,7 +50,7 @@ public final class POIDataSamples {
     /** <code>true</code> if standard system propery is not set,
      * but the data is available on the test runtime classpath */
     private boolean _sampleDataIsAvaliableOnClassPath;
-    private String _moduleDir;
+    private final String _moduleDir;
 
     /**
      *
@@ -156,7 +156,7 @@ public final class POIDataSamples {
     /**
      *
      * @param sampleFileName    the name of the test file
-     * @return
+     * @return Verifies that the file with the given name exists in the test-data directory
      * @throws RuntimeException if the file was not found
      */
     public File getFile(String sampleFileName) {
@@ -206,7 +206,7 @@ public final class POIDataSamples {
         }
         File dataDir = new File(dataDirName, _moduleDir);
         if (!dataDir.exists()) {
-            throw new RuntimeException("Data dir '" + _moduleDir + " does not exist");
+            throw new RuntimeException("Data dir '" + _moduleDir + "' does not exist");
         }
         // convert to canonical file, to make any subsequent error messages
         // clearer.

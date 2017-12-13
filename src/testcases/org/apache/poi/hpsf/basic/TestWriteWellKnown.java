@@ -24,9 +24,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
-import java.io.FileFilter;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,18 +38,16 @@ import org.apache.poi.hpsf.CustomProperties;
 import org.apache.poi.hpsf.CustomProperty;
 import org.apache.poi.hpsf.DocumentSummaryInformation;
 import org.apache.poi.hpsf.MarkUnsupportedException;
-import org.apache.poi.hpsf.MutableProperty;
-import org.apache.poi.hpsf.MutableSection;
 import org.apache.poi.hpsf.NoPropertySetStreamException;
+import org.apache.poi.hpsf.Property;
 import org.apache.poi.hpsf.PropertySet;
 import org.apache.poi.hpsf.PropertySetFactory;
+import org.apache.poi.hpsf.Section;
 import org.apache.poi.hpsf.SummaryInformation;
 import org.apache.poi.hpsf.UnexpectedPropertySetTypeException;
 import org.apache.poi.hpsf.Variant;
 import org.apache.poi.hpsf.VariantSupport;
 import org.apache.poi.hpsf.WritingNotSupportedException;
-import org.apache.poi.hpsf.wellknown.SectionIDMap;
-import org.apache.poi.poifs.filesystem.DirectoryEntry;
 import org.apache.poi.poifs.filesystem.DocumentInputStream;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.util.IOUtils;
@@ -71,70 +67,6 @@ public class TestWriteWellKnown {
     @BeforeClass
     public static void setUp() {
         VariantSupport.setLogUnsupportedTypes(false);
-    }
-
-    /**
-     * <p>This test method checks whether DocumentSummary information streams
-     * can be read. This is done by opening all "Test*" files in the 'poifs' directrory
-     * pointed to by the "POI.testdata.path" system property, trying to extract
-     * the document summary information stream in the root directory and calling
-     * its get... methods.</p>
-     */
-    @Test
-    public void testReadDocumentSummaryInformation()
-            throws FileNotFoundException, IOException,
-            NoPropertySetStreamException, MarkUnsupportedException,
-            UnexpectedPropertySetTypeException
-    {
-        POIDataSamples _samples = POIDataSamples.getHPSFInstance();
-        final File dataDir = _samples.getFile("");
-        final File[] docs = dataDir.listFiles(new FileFilter()
-        {
-            @Override
-            public boolean accept(final File file)
-            {
-                return file.isFile() && file.getName().startsWith("Test") && TestReadAllFiles.checkExclude(file);
-            }
-        });
-
-        for (final File doc : docs) {
-            NPOIFSFileSystem poifs = null;
-            try {
-                /* Read a test document <em>doc</em> into a POI filesystem. */
-                poifs = new NPOIFSFileSystem(doc, true);
-                final DirectoryEntry dir = poifs.getRoot();
-                /*
-                 * If there is a document summry information stream, read it from
-                 * the POI filesystem.
-                 */
-                if (dir.hasEntry(DocumentSummaryInformation.DEFAULT_STREAM_NAME)) {
-                    final DocumentSummaryInformation dsi = getDocumentSummaryInformation(poifs);
-    
-                    /* Execute the get... methods. */
-                    dsi.getByteCount();
-                    dsi.getByteOrder();
-                    dsi.getCategory();
-                    dsi.getCompany();
-                    dsi.getCustomProperties();
-                    // FIXME dsi.getDocparts();
-                    // FIXME dsi.getHeadingPair();
-                    dsi.getHiddenCount();
-                    dsi.getLineCount();
-                    dsi.getLinksDirty();
-                    dsi.getManager();
-                    dsi.getMMClipCount();
-                    dsi.getNoteCount();
-                    dsi.getParCount();
-                    dsi.getPresentationFormat();
-                    dsi.getScale();
-                    dsi.getSlideCount();
-                }
-            } catch (Exception e) {
-                throw new IOException("While handling file " + doc, e);
-            } finally {
-                if (poifs != null) poifs.close();
-            }
-        }
     }
 
     static final String P_APPLICATION_NAME = "ApplicationName";
@@ -483,15 +415,12 @@ public class TestWriteWellKnown {
         dsi.removeScale();
         dsi.removeSlideCount();
 
-        /*
-         * <li><p>Write the summary information stream and the document summary
-         * information stream to the POI filesystem. */
+        // Write the summary information stream and the document summary
+        // information stream to the POI filesystem.
         si.write(poifs.getRoot(), SummaryInformation.DEFAULT_STREAM_NAME);
         dsi.write(poifs.getRoot(), DocumentSummaryInformation.DEFAULT_STREAM_NAME);
 
-        /*
-         * <li><p>Write the POI filesystem to a (temporary) file <em>doc3</em>
-         * and close the latter. */
+        // Write the POI filesystem to a (temporary) file doc3 and close the latter.
         FileOutputStream out = new FileOutputStream(fileOut);
         poifs.writeFilesystem(out);
         out.close();
@@ -501,9 +430,9 @@ public class TestWriteWellKnown {
     }
     
     /*
-     * Open <em>doc3</em> for reading and check summary information
+     * Open {@code doc3} for reading and check summary information
      * and document summary information. All properties removed before must not
-     * be found in the property streams of <em>doc3</em>.
+     * be found in the property streams of {@code doc3}.
      */
     private static CustomProperties write3rdFile(File fileIn, File fileOut) throws Exception {
         NPOIFSFileSystem poifs = new NPOIFSFileSystem(fileIn, false);
@@ -571,7 +500,12 @@ public class TestWriteWellKnown {
         return si;
     }
     
-    private static DocumentSummaryInformation getDocumentSummaryInformation(NPOIFSFileSystem poifs) throws Exception {
+    static DocumentSummaryInformation getDocumentSummaryInformation(NPOIFSFileSystem poifs)
+    throws IOException, NoPropertySetStreamException, UnexpectedPropertySetTypeException, MarkUnsupportedException  {
+        if (!poifs.getRoot().hasEntry(DocumentSummaryInformation.DEFAULT_STREAM_NAME)) {
+            return null;
+        }
+
         DocumentInputStream dis = poifs.createDocumentInputStream(DocumentSummaryInformation.DEFAULT_STREAM_NAME);
         PropertySet ps = new PropertySet(dis);
         DocumentSummaryInformation dsi = new DocumentSummaryInformation(ps);
@@ -579,84 +513,8 @@ public class TestWriteWellKnown {
         return dsi;
     }
 
-    
-    
     /**
-     * <p>Tests the simplified custom properties by reading them from the
-     * available test files.</p>
-     *
-     * @throws Throwable if anything goes wrong.
-     */
-    @Test
-    public void testReadCustomPropertiesFromFiles() throws Throwable
-    {
-        final AllDataFilesTester.TestTask task = new AllDataFilesTester.TestTask()
-        {
-            @Override
-            public void runTest(final File file) throws FileNotFoundException,
-                    IOException, NoPropertySetStreamException,
-                    MarkUnsupportedException,
-                    UnexpectedPropertySetTypeException
-            {
-                /* Read a test document <em>doc</em> into a POI filesystem. */
-                NPOIFSFileSystem poifs = null;
-                try {
-                    poifs = new NPOIFSFileSystem(file);
-                    final DirectoryEntry dir = poifs.getRoot();
-                    /*
-                     * If there is a document summry information stream, read it from
-                     * the POI filesystem, else create a new one.
-                     */
-                    DocumentSummaryInformation dsi;
-                    if (dir.hasEntry(DocumentSummaryInformation.DEFAULT_STREAM_NAME)) {
-                        final DocumentInputStream dis = poifs.createDocumentInputStream(DocumentSummaryInformation.DEFAULT_STREAM_NAME);
-                        final PropertySet ps = new PropertySet(dis);
-                        dsi = new DocumentSummaryInformation(ps);
-                        dis.close();
-                    } else {
-                        dsi = PropertySetFactory.newDocumentSummaryInformation();
-                    }
-                    final CustomProperties cps = dsi.getCustomProperties();
-    
-                    if (cps == null)
-                        /* The document does not have custom properties. */
-                        return;
-    
-                    for (CustomProperty cp : cps.values()) {
-                        cp.getName();
-                        cp.getValue();
-                    }
-                } finally {
-                    if (poifs != null) poifs.close();
-                }
-            }
-        };
-
-        POIDataSamples _samples = POIDataSamples.getHPSFInstance();
-        final File dataDir = _samples.getFile("");
-        final File[] docs = dataDir.listFiles(new FileFilter()
-        {
-            @Override
-            public boolean accept(final File file)
-            {
-                return file.isFile() && file.getName().startsWith("Test") && TestReadAllFiles.checkExclude(file);
-            }
-        });
-
-        for (int i = 0; i < docs.length; i++)
-        {
-            try {
-                task.runTest(docs[i]);
-            } catch (Exception e) {
-                throw new IOException("While handling file " + docs[i], e);
-            }
-        }
-    }
-
-
-
-    /**
-     * <p>Tests basic custom property features.</p>
+     * Tests basic custom property features.
      */
     @Test
     public void testCustomerProperties()
@@ -685,7 +543,7 @@ public class TestWriteWellKnown {
 
         /* Removing the custom property must return the remove property and
          * reduce the size to 0. */
-        cp = (CustomProperty) cps.remove(KEY);
+        cp = cps.remove(KEY);
         assertEquals(KEY, cp.getName());
         assertEquals(VALUE_2, cp.getValue());
         assertEquals(0, cps.size());
@@ -694,8 +552,8 @@ public class TestWriteWellKnown {
 
 
     /**
-     * <p>Tests reading custom properties from a section including reading
-     * custom properties which are not pure.</p>
+     * Tests reading custom properties from a section including reading
+     * custom properties which are not pure.
      */
     @Test
     public void testGetCustomerProperties()
@@ -704,26 +562,26 @@ public class TestWriteWellKnown {
         final int ID_2 = 3;
         final String NAME_1 = "Schl\u00fcssel \u00e4";
         final String VALUE_1 = "Wert 1";
-        final Map<Long,String> dictionary = new HashMap<Long, String>();
+        final Map<Long,String> dictionary = new HashMap<>();
 
         DocumentSummaryInformation dsi = PropertySetFactory.newDocumentSummaryInformation();
         CustomProperties cps;
-        MutableSection s;
+        Section s;
 
         /* A document summary information set stream by default does have custom properties. */
         cps = dsi.getCustomProperties();
         assertNull(cps);
 
         /* Test an empty custom properties set. */
-        s = new MutableSection();
-        s.setFormatID(SectionIDMap.DOCUMENT_SUMMARY_INFORMATION_ID[1]);
+        s = new Section();
+        s.setFormatID(DocumentSummaryInformation.FORMAT_ID[1]);
         // s.setCodepage(CodePageUtil.CP_UNICODE);
         dsi.addSection(s);
         cps = dsi.getCustomProperties();
         assertEquals(0, cps.size());
 
         /* Add a custom property. */
-        MutableProperty p = new MutableProperty();
+        Property p = new Property();
         p.setID(ID_1);
         p.setType(Variant.VT_LPWSTR);
         p.setValue(VALUE_1);

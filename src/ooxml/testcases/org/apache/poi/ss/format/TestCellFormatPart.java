@@ -57,20 +57,23 @@ public class TestCellFormatPart extends CellFormatTestBase {
     @Test
     public void testGeneralFormat() throws Exception {
         runFormatTests("GeneralFormatTests.xlsx", new CellValue() {
+            @Override
             public Object getValue(Cell cell) {
-                int type = CellFormat.ultimateType(cell);
-                if (type == Cell.CELL_TYPE_BOOLEAN)
-                    return cell.getBooleanCellValue();
-                else if (type == Cell.CELL_TYPE_NUMERIC)
-                    return cell.getNumericCellValue();
-                else
-                    return cell.getStringCellValue();
+                switch (CellFormat.ultimateType(cell)) {
+                    case BOOLEAN:
+                        return cell.getBooleanCellValue();
+                    case NUMERIC:
+                        return cell.getNumericCellValue();
+                    default:
+                        return cell.getStringCellValue();
+                }
             }
         });
     }
 
     public void testNumberFormat() throws Exception {
         runFormatTests("NumberFormatTests.xlsx", new CellValue() {
+            @Override
             public Object getValue(Cell cell) {
                 return cell.getNumericCellValue();
             }
@@ -80,6 +83,7 @@ public class TestCellFormatPart extends CellFormatTestBase {
     @Test
     public void testNumberApproxFormat() throws Exception {
         runFormatTests("NumberFormatApproxTests.xlsx", new CellValue() {
+            @Override
             public Object getValue(Cell cell) {
                 return cell.getNumericCellValue();
             }
@@ -103,6 +107,7 @@ public class TestCellFormatPart extends CellFormatTestBase {
         LocaleUtil.setUserTimeZone(TimeZone.getTimeZone("CET"));
         try {
             runFormatTests("DateFormatTests.xlsx", new CellValue() {
+                @Override
                 public Object getValue(Cell cell) {
                     return cell.getDateCellValue();
                 }
@@ -115,6 +120,7 @@ public class TestCellFormatPart extends CellFormatTestBase {
     @Test
     public void testElapsedFormat() throws Exception {
         runFormatTests("ElapsedFormatTests.xlsx", new CellValue() {
+            @Override
             public Object getValue(Cell cell) {
                 return cell.getNumericCellValue();
             }
@@ -124,11 +130,14 @@ public class TestCellFormatPart extends CellFormatTestBase {
     @Test
     public void testTextFormat() throws Exception {
         runFormatTests("TextFormatTests.xlsx", new CellValue() {
+            @Override
             public Object getValue(Cell cell) {
-                if (CellFormat.ultimateType(cell) == Cell.CELL_TYPE_BOOLEAN)
-                    return cell.getBooleanCellValue();
-                else
-                    return cell.getStringCellValue();
+                switch(CellFormat.ultimateType(cell)) {
+                    case BOOLEAN:
+                        return cell.getBooleanCellValue();
+                    default:
+                        return cell.getStringCellValue();
+                }
             }
         });
     }
@@ -136,6 +145,7 @@ public class TestCellFormatPart extends CellFormatTestBase {
     @Test
     public void testConditions() throws Exception {
         runFormatTests("FormatConditionTests.xlsx", new CellValue() {
+            @Override
             Object getValue(Cell cell) {
                 return cell.getNumericCellValue();
             }
@@ -148,7 +158,7 @@ public class TestCellFormatPart extends CellFormatTestBase {
             throw new IllegalArgumentException(
                     "Cannot find numer in \"" + str + "\"");
 
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         // The groups in the pattern are the parts of the number
         for (int i = 1; i <= m.groupCount(); i++) {
             String part = m.group(i);

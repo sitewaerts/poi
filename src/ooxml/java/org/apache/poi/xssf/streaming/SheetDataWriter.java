@@ -20,19 +20,24 @@
 package org.apache.poi.xssf.streaming;
 
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.Iterator;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.ss.util.CellReference;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
 import org.apache.poi.util.TempFile;
 import org.apache.poi.xssf.model.SharedStringsTable;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
@@ -44,7 +49,9 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STCellType;
  * this class only writes the "sheetData" document fragment
  * so that it was renamed to "SheetDataWriter"
  */
-public class SheetDataWriter {
+public class SheetDataWriter implements Closeable {
+    private static final POILogger logger = POILogFactory.getLogger(SheetDataWriter.class);
+    
     private final File _fd;
     private final Writer _out;
     private int _rownum;
@@ -64,7 +71,7 @@ public class SheetDataWriter {
         _out = createWriter(_fd);
     }
 
-    public SheetDataWriter(SharedStringsTable sharedStringsTable) throws IOException{
+    public SheetDataWriter(SharedStringsTable sharedStringsTable) throws IOException {
         this();
         this._sharedStringSource = sharedStringsTable;
     }
@@ -85,20 +92,43 @@ public class SheetDataWriter {
      * 
      * @param  fd the file to write to
      */
-    public Writer createWriter(File fd)throws IOException {
-        return new BufferedWriter(new OutputStreamWriter(new FileOutputStream(fd), "UTF-8"));
+    public Writer createWriter(File fd) throws IOException {
+        FileOutputStream fos = new FileOutputStream(fd);
+        OutputStream decorated;
+        try {
+            decorated = decorateOutputStream(fos);
+        } catch (final IOException e) {
+            fos.close();
+            throw e;
+        }
+        return new BufferedWriter(
+                new OutputStreamWriter(decorated, "UTF-8"));
+    }
+    
+    /**
+     * Override this to translate (such as encrypt or compress) the file output stream
+     * as it is being written to disk.
+     * The default behavior is to to pass the stream through unmodified.
+     *
+     * @param fos  the stream to decorate
+     * @return a decorated stream
+     * @throws IOException
+     * @see #decorateInputStream(FileInputStream)
+     */
+    protected OutputStream decorateOutputStream(FileOutputStream fos) throws IOException {
+        return fos;
     }
 
     /**
      * flush and close the temp data writer. 
      * This method <em>must</em> be invoked before calling {@link #getWorksheetXMLInputStream()}
      */
-    public void close() throws IOException{
+    public void close() throws IOException {
         _out.flush();
         _out.close();
     }
 
-    File getTempFile(){
+    protected File getTempFile() {
         return _fd;
     }
     
@@ -107,7 +137,27 @@ public class SheetDataWriter {
      */
     public InputStream getWorksheetXMLInputStream() throws IOException {
         File fd = getTempFile();
-        return new FileInputStream(fd);
+        FileInputStream fis = new FileInputStream(fd);
+        try {
+            return decorateInputStream(fis);
+        } catch (IOException e) {
+            fis.close();
+            throw e;
+        }
+    }
+    
+    /**
+     * Override this to translate (such as decrypt or expand) the file input stream
+     * as it is being read from disk.
+     * The default behavior is to to pass the stream through unmodified.
+     *
+     * @param fis  the stream to decorate
+     * @return a decorated stream
+     * @throws IOException
+     * @see #decorateOutputStream(FileOutputStream)
+     */
+    protected InputStream decorateInputStream(FileInputStream fis) throws IOException {
+        return fis;
     }
 
     public int getNumberOfFlushedRows() {
@@ -128,7 +178,9 @@ public class SheetDataWriter {
 
     @Override
     protected void finalize() throws Throwable {
-        _fd.delete();
+        if (!_fd.delete()) {
+            logger.log(POILogger.ERROR, "Can't delete temporary encryption file: "+_fd);
+        }
 
         super.finalize();
     }
@@ -155,23 +207,27 @@ public class SheetDataWriter {
     }
 
     void beginRow(int rownum, SXSSFRow row) throws IOException {
-        _out.write("<row r=\"" + (rownum + 1) + "\"");
-        if (row.hasCustomHeight())
-            _out.write(" customHeight=\"true\"  ht=\"" + row.getHeightInPoints() + "\"");
-        if (row.getZeroHeight())
-            _out.write(" hidden=\"true\"");
+        _out.write("<row");
+        writeAttribute("r", Integer.toString(rownum + 1));
+        if (row.hasCustomHeight()) {
+            writeAttribute("customHeight", "true");
+            writeAttribute("ht", Float.toString(row.getHeightInPoints()));
+        }
+        if (row.getZeroHeight()) {
+            writeAttribute("hidden", "true");
+        }
         if (row.isFormatted()) {
-            _out.write(" s=\"" + row.getRowStyleIndex() + "\"");
-            _out.write(" customFormat=\"1\"");
+            writeAttribute("s", Integer.toString(row.getRowStyleIndex()));
+            writeAttribute("customFormat", "1");
         }
         if (row.getOutlineLevel() != 0) {
-            _out.write(" outlineLevel=\"" + row.getOutlineLevel() + "\"");
+            writeAttribute("outlineLevel", Integer.toString(row.getOutlineLevel()));
         }
         if(row.getHidden() != null) {
-            _out.write(" hidden=\"" + (row.getHidden() ? "1" : "0") + "\"");
+            writeAttribute("hidden", row.getHidden() ? "1" : "0");
         }
         if(row.getCollapsed() != null) {
-            _out.write(" collapsed=\"" + (row.getCollapsed() ? "1" : "0") + "\"");
+            writeAttribute("collapsed", row.getCollapsed() ? "1" : "0");
         }
         
         _out.write(">\n");
@@ -187,49 +243,53 @@ public class SheetDataWriter {
             return;
         }
         String ref = new CellReference(_rownum, columnIndex).formatAsString();
-        _out.write("<c r=\"" + ref + "\"");
+        _out.write("<c");
+        writeAttribute("r", ref);
         CellStyle cellStyle = cell.getCellStyle();
         if (cellStyle.getIndex() != 0) {
             // need to convert the short to unsigned short as the indexes can be up to 64k
             // ideally we would use int for this index, but that would need changes to some more 
             // APIs
-            _out.write(" s=\"" + (cellStyle.getIndex() & 0xffff) + "\"");
+            writeAttribute("s", Integer.toString(cellStyle.getIndex() & 0xffff));
         }
-        int cellType = cell.getCellType();
+        CellType cellType = cell.getCellType();
         switch (cellType) {
-            case Cell.CELL_TYPE_BLANK: {
-                _out.write(">");
+            case BLANK: {
+                _out.write('>');
                 break;
             }
-            case Cell.CELL_TYPE_FORMULA: {
-                _out.write(">");
-                _out.write("<f>");
+            case FORMULA: {
+                _out.write("><f>");
                 outputQuotedString(cell.getCellFormula());
                 _out.write("</f>");
                 switch (cell.getCachedFormulaResultType()) {
-                    case Cell.CELL_TYPE_NUMERIC:
+                    case NUMERIC:
                         double nval = cell.getNumericCellValue();
                         if (!Double.isNaN(nval)) {
-                            _out.write("<v>" + nval + "</v>");
+                            _out.write("<v>");
+                            _out.write(Double.toString(nval));
+                            _out.write("</v>");
                         }
+                        break;
+                    default:
                         break;
                 }
                 break;
             }
-            case Cell.CELL_TYPE_STRING: {
+            case STRING: {
                 if (_sharedStringSource != null) {
                     XSSFRichTextString rt = new XSSFRichTextString(cell.getStringCellValue());
                     int sRef = _sharedStringSource.addEntry(rt.getCTRst());
 
-                    _out.write(" t=\"" + STCellType.S.toString() + "\">");
-                    _out.write("<v>");
+                    writeAttribute("t", STCellType.S.toString());
+                    _out.write("><v>");
                     _out.write(String.valueOf(sRef));
                     _out.write("</v>");
                 } else {
-                    _out.write(" t=\"inlineStr\">");
-                    _out.write("<is><t");
+                    writeAttribute("t", "inlineStr");
+                    _out.write("><is><t");
                     if (hasLeadingTrailingSpaces(cell.getStringCellValue())) {
-                        _out.write(" xml:space=\"preserve\"");
+                        writeAttribute("xml:space", "preserve");
                     }
                     _out.write(">");
                     outputQuotedString(cell.getStringCellValue());
@@ -237,30 +297,43 @@ public class SheetDataWriter {
                 }
                 break;
             }
-            case Cell.CELL_TYPE_NUMERIC: {
-                _out.write(" t=\"n\">");
-                _out.write("<v>" + cell.getNumericCellValue() + "</v>");
+            case NUMERIC: {
+                writeAttribute("t", "n");
+                _out.write("><v>");
+                _out.write(Double.toString(cell.getNumericCellValue()));
+                _out.write("</v>");
                 break;
             }
-            case Cell.CELL_TYPE_BOOLEAN: {
-                _out.write(" t=\"b\">");
-                _out.write("<v>" + (cell.getBooleanCellValue() ? "1" : "0") + "</v>");
+            case BOOLEAN: {
+                writeAttribute("t", "b");
+                _out.write("><v>");
+                _out.write(cell.getBooleanCellValue() ? "1" : "0");
+                _out.write("</v>");
                 break;
             }
-            case Cell.CELL_TYPE_ERROR: {
+            case ERROR: {
                 FormulaError error = FormulaError.forInt(cell.getErrorCellValue());
 
-                _out.write(" t=\"e\">");
-                _out.write("<v>" + error.getString() + "</v>");
+                writeAttribute("t", "e");
+                _out.write("><v>");
+                _out.write(error.getString());
+                _out.write("</v>");
                 break;
             }
             default: {
-                throw new RuntimeException("Huh?");
+                throw new IllegalStateException("Invalid cell type: " + cellType);
             }
         }
         _out.write("</c>");
     }
 
+    private void writeAttribute(String name, String value) throws IOException {
+        _out.write(' ');
+        _out.write(name);
+        _out.write("=\"");
+        _out.write(value);
+        _out.write('\"');
+    }
 
     /**
      * @return  whether the string has leading / trailing spaces that
@@ -276,7 +349,7 @@ public class SheetDataWriter {
     }
 
     //Taken from jdk1.3/src/javax/swing/text/html/HTMLWriter.java
-     protected void outputQuotedString(String s) throws IOException {
+    protected void outputQuotedString(String s) throws IOException {
         if (s == null || s.length() == 0) {
             return;
         }
@@ -288,71 +361,61 @@ public class SheetDataWriter {
             char c = chars[counter];
             switch (c) {
                 case '<':
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     last = counter + 1;
                     _out.write("&lt;");
                     break;
                 case '>':
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     last = counter + 1;
                     _out.write("&gt;");
                     break;
                 case '&':
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     last = counter + 1;
                     _out.write("&amp;");
                     break;
                 case '"':
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     last = counter + 1;
                     _out.write("&quot;");
                     break;
                 // Special characters
                 case '\n':
-                case '\r':
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     _out.write("&#xa;");
                     last = counter + 1;
                     break;
+                case '\r':
+                    writeLastChars(_out, chars, last, counter);
+                    _out.write("&#xd;");
+                    last = counter + 1;
+                    break;
                 case '\t':
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     _out.write("&#x9;");
                     last = counter + 1;
                     break;
                 case 0xa0:
-                    if (counter > last) {
-                        _out.write(chars, last, counter - last);
-                    }
+                    writeLastChars(_out, chars, last, counter);
                     _out.write("&#xa0;");
                     last = counter + 1;
                     break;
                 default:
                     // YK: XmlBeans silently replaces all ISO control characters ( < 32) with question marks.
-                    // the same rule applies to unicode surrogates and "not a character" symbols.
-                    if( c < ' ' || Character.isLowSurrogate(c) || Character.isHighSurrogate(c) ||
-                            ('\uFFFE' <= c && c <= '\uFFFF')) {
-                        if (counter > last) {
-                            _out.write(chars, last, counter - last);
-                        }
+                    // the same rule applies to "not a character" symbols.
+                    if (replaceWithQuestionMark(c)) {
+                        writeLastChars(_out, chars, last, counter);
                         _out.write('?');
                         last = counter + 1;
                     }
+                    else if (Character.isHighSurrogate(c) || Character.isLowSurrogate(c)) {
+                        writeLastChars(_out, chars, last, counter);
+                        _out.write(c);
+                        last = counter + 1;
+                    }
                     else if (c > 127) {
-                        if (counter > last) {
-                            _out.write(chars, last, counter - last);
-                        }
+                        writeLastChars(_out, chars, last, counter);
                         last = counter + 1;
                         // If the character is outside of ascii, write the
                         // numeric value.
@@ -368,12 +431,27 @@ public class SheetDataWriter {
         }
     }
 
+    private static void writeLastChars(Writer out, char[] chars, int last, int counter) throws IOException {
+        if (counter > last) {
+            out.write(chars, last, counter - last);
+        }
+    }
+
+    static boolean replaceWithQuestionMark(char c) {
+        return c < ' ' || ('\uFFFE' <= c && c <= '\uFFFF');
+    }
+     
     /**
      * Deletes the temporary file that backed this sheet on disk.
      * @return true if the file was deleted, false if it wasn't.
      */
     boolean dispose() throws IOException {
-        _out.close();
-        return _fd.delete();
+        final boolean ret;
+        try {
+            _out.close();
+        } finally {
+            ret = _fd.delete();
+        }
+        return ret;
     }
 }

@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.util.IOUtils;
 
 /**
  * Converts the text meta-data file into a <tt>FunctionMetadataRegistry</tt>
@@ -35,6 +36,9 @@ import org.apache.poi.ss.formula.ptg.Ptg;
  * @author Josh Micich
  */
 final class FunctionMetadataReader {
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 100_000;
 
 	private static final String METADATA_FILE_NAME = "functionMetadata.txt";
 
@@ -50,7 +54,7 @@ final class FunctionMetadataReader {
 		// except in these cases
 		"LOG10", "ATAN2", "DAYS360", "SUMXMY2", "SUMX2MY2", "SUMX2PY2",
 	};
-	private static final Set<String> DIGIT_ENDING_FUNCTION_NAMES_SET = new HashSet<String>(Arrays.asList(DIGIT_ENDING_FUNCTION_NAMES));
+	private static final Set<String> DIGIT_ENDING_FUNCTION_NAMES_SET = new HashSet<>(Arrays.asList(DIGIT_ENDING_FUNCTION_NAMES));
 
 	public static FunctionMetadataRegistry createRegistry() {
 	    try {
@@ -141,7 +145,7 @@ final class FunctionMetadataReader {
 			// (all unspecified params are assumed to be the same as the last)
 			nItems --;
 		}
-		byte[] result = new byte[nItems];
+		byte[] result = IOUtils.safelyAllocate(nItems, MAX_RECORD_LENGTH);
 		for (int i = 0; i < nItems; i++) {
 			result[i] = parseOperandTypeCode(array[i]);
 		}

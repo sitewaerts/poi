@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.util.Internal;
 import org.apache.poi.xdgf.exceptions.XDGFException;
 import org.apache.poi.xdgf.xml.XDGFXMLDocumentPart;
@@ -44,21 +43,13 @@ public class XDGFMasters extends XDGFXMLDocumentPart {
     MastersType _mastersObject;
 
     // key: id of master
-    protected Map<Long, XDGFMaster> _masters = new HashMap<Long, XDGFMaster>();
+    protected Map<Long, XDGFMaster> _masters = new HashMap<>();
 
     /**
      * @since POI 3.14-Beta1
      */
     public XDGFMasters(PackagePart part, XDGFDocument document) {
         super(part, document);
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XDGFMasters(PackagePart part, PackageRelationship rel, XDGFDocument document) {
-        this(part, document);
     }
     
     @Internal
@@ -77,7 +68,7 @@ public class XDGFMasters extends XDGFXMLDocumentPart {
                 throw new POIXMLException(e);
             }
 
-            Map<String, MasterType> masterSettings = new HashMap<String, MasterType>();
+            Map<String, MasterType> masterSettings = new HashMap<>();
             for (MasterType master: _mastersObject.getMasterArray()) {
                 masterSettings.put(master.getRel().getId(), master);
             }

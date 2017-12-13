@@ -31,20 +31,20 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 /**
  * Experimental class to offer rudimentary read-only processing of
  * of the contentblock of an SDT/ContentControl.
- * <p/>
- * <p/>
- * <p/>
+ * <p>
+ * <p>
+ * <p>
  * WARNING - APIs expected to change rapidly
  */
 public class XWPFSDTContent implements ISDTContent {
 
     // private final IBody part;
     // private final XWPFDocument document;
-    private List<XWPFParagraph> paragraphs = new ArrayList<XWPFParagraph>();
-    private List<XWPFTable> tables = new ArrayList<XWPFTable>();
-    private List<XWPFRun> runs = new ArrayList<XWPFRun>();
-    private List<XWPFSDT> contentControls = new ArrayList<XWPFSDT>();
-    private List<ISDTContents> bodyElements = new ArrayList<ISDTContents>();
+    private List<XWPFParagraph> paragraphs = new ArrayList<>();
+    private List<XWPFTable> tables = new ArrayList<>();
+    private List<XWPFRun> runs = new ArrayList<>();
+    private List<XWPFSDT> contentControls = new ArrayList<>();
+    private List<ISDTContents> bodyElements = new ArrayList<>();
 
     public XWPFSDTContent(CTSdtContentRun sdtRun, IBody part, IRunBody parent) {
         for (CTR ctr : sdtRun.getRArray()) {
@@ -77,6 +77,7 @@ public class XWPFSDTContent implements ISDTContent {
                 bodyElements.add(run);
             }
         }
+        cursor.dispose();
     }
 
     public String getText() {
@@ -94,10 +95,10 @@ public class XWPFSDTContent implements ISDTContent {
                 text.append(((XWPFSDT) o).getContent().getText());
                 addNewLine = true;
             } else if (o instanceof XWPFRun) {
-                text.append(((XWPFRun) o).toString());
+                text.append(o);
                 addNewLine = false;
             }
-            if (addNewLine == true && i < bodyElements.size() - 1) {
+            if (addNewLine && i < bodyElements.size() - 1) {
                 text.append("\n");
             }
         }
@@ -125,7 +126,7 @@ public class XWPFSDTContent implements ISDTContent {
 
     private void appendParagraph(XWPFParagraph paragraph, StringBuilder text) {
         for (IRunElement run : paragraph.getRuns()) {
-            text.append(run.toString());
+            text.append(run);
         }
     }
 

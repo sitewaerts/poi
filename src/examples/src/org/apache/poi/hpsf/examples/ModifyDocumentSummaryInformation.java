@@ -19,17 +19,12 @@ package org.apache.poi.hpsf.examples;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.Date;
 
 import org.apache.poi.hpsf.CustomProperties;
 import org.apache.poi.hpsf.DocumentSummaryInformation;
-import org.apache.poi.hpsf.MarkUnsupportedException;
-import org.apache.poi.hpsf.NoPropertySetStreamException;
 import org.apache.poi.hpsf.PropertySetFactory;
 import org.apache.poi.hpsf.SummaryInformation;
-import org.apache.poi.hpsf.UnexpectedPropertySetTypeException;
-import org.apache.poi.hpsf.WritingNotSupportedException;
 import org.apache.poi.poifs.filesystem.DirectoryEntry;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 
@@ -69,9 +64,6 @@ import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
  * <li><p>Write the POI filesystem back to the original file.</p></li>
  *
  * </ol>
- *
- * @author Rainer Klute <a
- *         href="mailto:klute@rainer-klute.de">klute@rainer-klute.de</a>
  */
 public class ModifyDocumentSummaryInformation {
 
@@ -79,16 +71,8 @@ public class ModifyDocumentSummaryInformation {
      * <p>Main method - see class description.</p>
      *
      * @param args The command-line parameters.
-     * @throws IOException
-     * @throws MarkUnsupportedException
-     * @throws NoPropertySetStreamException
-     * @throws UnexpectedPropertySetTypeException
-     * @throws WritingNotSupportedException
      */
-    public static void main(final String[] args) throws IOException,
-            NoPropertySetStreamException, MarkUnsupportedException,
-            UnexpectedPropertySetTypeException, WritingNotSupportedException
-    {
+    public static void main(final String[] args) throws Exception {
         /* Read the name of the POI filesystem to modify from the command line.
          * For brevity to boundary check is performed on the command-line
          * arguments. */

@@ -16,11 +16,10 @@
 ==================================================================== */
 package org.apache.poi.poifs.crypt;
 
-
 /**
  * Used when checking if a key is valid for a document 
  */
-public abstract class EncryptionVerifier {
+public abstract class EncryptionVerifier implements Cloneable {
     private byte[] salt;
     private byte[] encryptedVerifier;
     private byte[] encryptedVerifierHash;
@@ -37,50 +36,16 @@ public abstract class EncryptionVerifier {
         return salt;
     }
 
-    /**
-     * The method name is misleading - you'll get the encrypted verifier, not the plain verifier
-     * @deprecated use getEncryptedVerifier()
-     */
-    @Deprecated
-    public byte[] getVerifier() {
-        return encryptedVerifier;
-    }
-
     public byte[] getEncryptedVerifier() {
         return encryptedVerifier;
     }    
     
-    /**
-     * The method name is misleading - you'll get the encrypted verifier hash, not the plain verifier hash
-     * @deprecated use getEnryptedVerifierHash
-     */
-    @Deprecated
-    public byte[] getVerifierHash() {
-        return encryptedVerifierHash;
-    }
-
     public byte[] getEncryptedVerifierHash() {
         return encryptedVerifierHash;
     }    
     
     public int getSpinCount() {
         return spinCount;
-    }
-
-    public int getCipherMode() {
-        return chainingMode.ecmaId;
-    }
-
-    public int getAlgorithm() {
-        return cipherAlgorithm.ecmaId;
-    }
-
-    /**
-     * @deprecated use getCipherAlgorithm().jceId
-     */
-    @Deprecated
-    public String getAlgorithmName() {
-        return cipherAlgorithm.jceId;
     }
 
     public byte[] getEncryptedKey() {
@@ -131,5 +96,13 @@ public abstract class EncryptionVerifier {
         this.hashAlgorithm = hashAlgorithm;
     }
     
-    
+    @Override
+    public EncryptionVerifier clone() throws CloneNotSupportedException {
+        EncryptionVerifier other = (EncryptionVerifier)super.clone();
+        other.salt = (salt == null) ? null : salt.clone();
+        other.encryptedVerifier = (encryptedVerifier == null) ? null : encryptedVerifier.clone();
+        other.encryptedVerifierHash = (encryptedVerifierHash == null) ? null : encryptedVerifierHash.clone();
+        other.encryptedKey = (encryptedKey == null) ? null : encryptedKey.clone();
+        return other;
+    }
 }

@@ -16,6 +16,8 @@
 ==================================================================== */
 package org.apache.poi.hsmf.extractor;
 
+import static org.apache.poi.util.StringUtil.startsWithIgnoreCase;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,13 +42,6 @@ import org.apache.poi.util.StringUtil.StringsIterator;
 public class OutlookTextExtactor extends POIOLE2TextExtractor {
    public OutlookTextExtactor(MAPIMessage msg) {
       super(msg);
-   }
-   /**
-    * Use {@link #OutlookTextExtactor(DirectoryNode)} instead
-    */
-   @Deprecated
-   public OutlookTextExtactor(DirectoryNode poifsDir, POIFSFileSystem fs) throws IOException {
-      this(new MAPIMessage(poifsDir, fs));
    }
    public OutlookTextExtactor(DirectoryNode poifsDir) throws IOException {
       this(new MAPIMessage(poifsDir));
@@ -130,7 +125,7 @@ public class OutlookTextExtactor extends POIOLE2TextExtractor {
             // Failing that try via the raw headers 
             String[] headers = msg.getHeaders();
             for(String header: headers) {
-               if(header.toLowerCase(Locale.ROOT).startsWith("date:")) {
+               if(startsWithIgnoreCase(header, "date:")) {
                   s.append(
                         "Date:" + 
                         header.substring(header.indexOf(':')+1) +
@@ -151,13 +146,13 @@ public class OutlookTextExtactor extends POIOLE2TextExtractor {
       // Display attachment names
       // To get the attachments, use ExtractorFactory
       for(AttachmentChunks att : msg.getAttachmentFiles()) {
-         StringChunk name = att.attachLongFileName;
-         if (name == null) name = att.attachFileName;
+         StringChunk name = att.getAttachLongFileName();
+         if (name == null) name = att.getAttachFileName();
          String attName = name == null ? null : name.getValue();
           
-         if(att.attachMimeTag != null && 
-               att.attachMimeTag.getValue() != null) {
-             attName = att.attachMimeTag.getValue() + " = " + attName; 
+         if(att.getAttachMimeTag() != null && 
+               att.getAttachMimeTag().getValue() != null) {
+             attName = att.getAttachMimeTag().getValue() + " = " + attName; 
          }
          s.append("Attachment: " + attName + "\n");
       }

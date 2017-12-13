@@ -18,6 +18,7 @@ package org.apache.poi.xslf.usermodel;
 
 import java.net.URI;
 
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackagePartName;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
@@ -25,6 +26,7 @@ import org.apache.poi.openxml4j.opc.TargetMode;
 import org.apache.poi.sl.usermodel.Hyperlink;
 import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTHyperlink;
 
 public class XSLFHyperlink implements Hyperlink<XSLFShape,XSLFTextParagraph> {
@@ -48,11 +50,11 @@ public class XSLFHyperlink implements Hyperlink<XSLFShape,XSLFTextParagraph> {
 
     @Override
     public String getAddress() {
-        if (!_link.isSetId()) {
+        String id = _link.getId();
+        if (id == null || id.isEmpty()) {
             return _link.getAction();
         }
 
-        String id = _link.getId();
         URI targetURI = _sheet.getPackagePart().getRelationship(id).getTargetURI();
         
         return targetURI.toASCIIString();
@@ -69,24 +71,31 @@ public class XSLFHyperlink implements Hyperlink<XSLFShape,XSLFTextParagraph> {
     }
 
     @Override
-    public int getType() {
+    public HyperlinkType getType() {
         String action = _link.getAction();
         if (action == null) {
             action = "";
         }
         if (action.equals("ppaction://hlinksldjump") || action.startsWith("ppaction://hlinkshowjump")) {
-            return LINK_DOCUMENT;
+            return HyperlinkType.DOCUMENT;
         }
-        
+
         String address = getAddress();
         if (address == null) {
             address = "";
         }
         if (address.startsWith("mailto:")) {
-            return LINK_EMAIL;
+            return HyperlinkType.EMAIL;
         } else {
-            return LINK_URL;
+            return HyperlinkType.URL;
         }
+    }
+
+    @Deprecated
+    @Removal(version = "4.2")
+    @Override
+    public HyperlinkType getTypeEnum() {
+        return getType();
     }
 
     @Override

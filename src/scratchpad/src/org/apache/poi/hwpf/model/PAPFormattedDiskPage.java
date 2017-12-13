@@ -17,13 +17,14 @@
 
 package org.apache.poi.hwpf.model;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.poi.hwpf.model.io.HWPFOutputStream;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.LittleEndian;
 
@@ -48,40 +49,18 @@ public final class PAPFormattedDiskPage extends FormattedDiskPage {
     private static final int BX_SIZE = 13;
     private static final int FC_SIZE = 4;
 
-    private ArrayList<PAPX> _papxList = new ArrayList<PAPX>();
+    private ArrayList<PAPX> _papxList = new ArrayList<>();
     private ArrayList<PAPX> _overFlow;
 
-    /**
-     * @deprecated Use {@link #PAPFormattedDiskPage()} instead
-     */
-    public PAPFormattedDiskPage( byte[] dataStream )
-    {
-        this();
-    }
 
-    public PAPFormattedDiskPage()
-    {
-    }
 
-    /**
-     * Creates a PAPFormattedDiskPage from a 512 byte array
-     * 
-     * @deprecated Use
-     *             {@link #PAPFormattedDiskPage(byte[], byte[], int, CharIndexTranslator)}
-     *             instead
-     */
-    public PAPFormattedDiskPage( byte[] documentStream, byte[] dataStream,
-            int offset, int fcMin, TextPieceTable tpt )
-    {
-        this( documentStream, dataStream, offset, tpt );
-    }
+    public PAPFormattedDiskPage() { }
 
     /**
      * Creates a PAPFormattedDiskPage from a 512 byte array
      */
     public PAPFormattedDiskPage( byte[] documentStream, byte[] dataStream,
-            int offset, CharIndexTranslator translator )
-    {
+            int offset, CharIndexTranslator translator ) {
         super( documentStream, offset );
         for ( int x = 0; x < _crun; x++ )
         {
@@ -156,18 +135,18 @@ public final class PAPFormattedDiskPage extends FormattedDiskPage {
      */
     protected byte[] getGrpprl(int index)
     {
-        int papxOffset = 2 * LittleEndian.getUnsignedByte(_fkp, _offset + (((_crun + 1) * FC_SIZE) + (index * BX_SIZE)));
-        int size = 2 * LittleEndian.getUnsignedByte(_fkp, _offset + papxOffset);
+        int papxOffset = 2 * LittleEndian.getUByte(_fkp, _offset + (((_crun + 1) * FC_SIZE) + (index * BX_SIZE)));
+        int size = 2 * LittleEndian.getUByte(_fkp, _offset + papxOffset);
         if(size == 0)
         {
-            size = 2 * LittleEndian.getUnsignedByte(_fkp, _offset + ++papxOffset);
+            size = 2 * LittleEndian.getUByte(_fkp, _offset + ++papxOffset);
         }
         else
         {
             size--;
         }
 
-        byte[] papx = new byte[size];
+        byte[] papx = IOUtils.safelyAllocate(size, 512);
         System.arraycopy(_fkp, _offset + ++papxOffset, papx, 0, size);
         return papx;
     }
@@ -182,7 +161,7 @@ public final class PAPFormattedDiskPage extends FormattedDiskPage {
      * @throws IOException
      *             if an I/O error occurs.
      */
-    protected byte[] toByteArray( HWPFOutputStream dataStream,
+    protected byte[] toByteArray( ByteArrayOutputStream dataStream,
             CharIndexTranslator translator ) throws IOException
     {
         byte[] buf = new byte[512];
@@ -246,7 +225,7 @@ public final class PAPFormattedDiskPage extends FormattedDiskPage {
         // see if we couldn't fit some
         if ( index != size )
         {
-            _overFlow = new ArrayList<PAPX>();
+            _overFlow = new ArrayList<>();
             _overFlow.addAll( _papxList.subList( index, size ) );
         }
 
@@ -296,7 +275,7 @@ public final class PAPFormattedDiskPage extends FormattedDiskPage {
 
                 byte[] hugePapx = new byte[grpprl.length - 2];
                 System.arraycopy( grpprl, 2, hugePapx, 0, grpprl.length - 2 );
-                int dataStreamOffset = dataStream.getOffset();
+                int dataStreamOffset = dataStream.size();
                 dataStream.write( hugePapx );
 
                 // grpprl = grpprl containing only a sprmPHugePapx2
@@ -361,8 +340,6 @@ public final class PAPFormattedDiskPage extends FormattedDiskPage {
     {
       int pheOffset = _offset + 1 + (((_crun + 1) * 4) + (index * 13));
 
-      ParagraphHeight phe = new ParagraphHeight(_fkp, pheOffset);
-
-      return phe;
+        return new ParagraphHeight(_fkp, pheOffset);
     }
 }

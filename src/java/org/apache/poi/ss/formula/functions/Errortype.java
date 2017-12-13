@@ -22,15 +22,15 @@ import org.apache.poi.ss.formula.eval.EvaluationException;
 import org.apache.poi.ss.formula.eval.NumberEval;
 import org.apache.poi.ss.formula.eval.OperandResolver;
 import org.apache.poi.ss.formula.eval.ValueEval;
-import org.apache.poi.ss.usermodel.ErrorConstants;
+import org.apache.poi.ss.usermodel.FormulaError;
 
 /**
  * Implementation for the ERROR.TYPE() Excel function.
  * <p>
- * <b>Syntax:</b><br/>
+ * <b>Syntax:</b><br>
  * <b>ERROR.TYPE</b>(<b>errorValue</b>)</p>
  * <p>
- * Returns a number corresponding to the error type of the supplied argument.<p/>
+ * Returns a number corresponding to the error type of the supplied argument.<p>
  * <p>
  *    <table border="1" cellpadding="1" cellspacing="1" summary="Return values for ERROR.TYPE()">
  *      <tr><td>errorValue</td><td>Return Value</td></tr>
@@ -64,16 +64,17 @@ public final class Errortype extends Fixed1ArgFunction {
 	}
 
 	private int translateErrorCodeToErrorTypeValue(int errorCode) {
-		switch (errorCode) {
-			case ErrorConstants.ERROR_NULL:  return 1;
-			case ErrorConstants.ERROR_DIV_0: return 2;
-			case ErrorConstants.ERROR_VALUE: return 3;
-			case ErrorConstants.ERROR_REF:   return 4;
-			case ErrorConstants.ERROR_NAME:  return 5;
-			case ErrorConstants.ERROR_NUM:   return 6;
-			case ErrorConstants.ERROR_NA :   return 7;
+		switch (FormulaError.forInt(errorCode)) {
+			case NULL:  return 1;
+			case DIV0:  return 2;
+			case VALUE: return 3;
+			case REF:   return 4;
+			case NAME:  return 5;
+			case NUM:   return 6;
+			case NA:    return 7;
+			default:
+		        throw new IllegalArgumentException("Invalid error code (" + errorCode + ")");
 		}
-		throw new IllegalArgumentException("Invalid error code (" + errorCode + ")");
 	}
 
 }

@@ -25,23 +25,26 @@ import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.ptg.Ref3DPtg;
 import org.apache.poi.ss.formula.ptg.RefPtg;
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianInput;
 import org.apache.poi.util.LittleEndianInputStream;
 import org.apache.poi.util.LittleEndianOutput;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
+import org.apache.poi.util.RecordFormatException;
 import org.apache.poi.util.StringUtil;
 
 /**
- * ftPictFmla (0x0009)<br/>
+ * ftPictFmla (0x0009)<p>
  * A sub-record within the OBJ record which stores a reference to an object
  * stored in a separate entry within the OLE2 compound file.
- *
- * @author Daniel Noll
  */
 public final class EmbeddedObjectRefSubRecord extends SubRecord implements Cloneable {
 	private static POILogger logger = POILogFactory.getLogger(EmbeddedObjectRefSubRecord.class);
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 100_000;
+
 	public static final short sid = 0x0009;
 
 	private static final byte[] EMPTY_BYTE_ARRAY = { };
@@ -174,7 +177,7 @@ public final class EmbeddedObjectRefSubRecord extends SubRecord implements Clone
 		if (size == 0) {
 			return EMPTY_BYTE_ARRAY;
 		}
-		byte[] result = new byte[size];
+		byte[] result = IOUtils.safelyAllocate(size, MAX_RECORD_LENGTH);
 		in.readFully(result);
 		return result;
 	}
@@ -271,7 +274,8 @@ public final class EmbeddedObjectRefSubRecord extends SubRecord implements Clone
 		switch(idOffset - (pos - 6)) { // 6 for 3 shorts: sid, dataSize, idOffset
 			case 1:
 				out.writeByte(field_4_unknownByte == null ? 0x00 : field_4_unknownByte.intValue());
-				pos ++;
+				pos++;
+				break;
 			case 0:
 				break;
 			default:
@@ -317,7 +321,7 @@ public final class EmbeddedObjectRefSubRecord extends SubRecord implements Clone
 		if (field_2_refPtg == null) {
 			sb.append("    .f3unknown     = ").append(HexDump.toHex(field_2_unknownFormulaData)).append("\n");
 		} else {
-			sb.append("    .formula       = ").append(field_2_refPtg.toString()).append("\n");
+			sb.append("    .formula       = ").append(field_2_refPtg).append("\n");
 		}
 		if (field_4_ole_classname != null) {
 			sb.append("    .unicodeFlag   = ").append(field_3_unicode_flag).append("\n");

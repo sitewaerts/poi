@@ -41,6 +41,7 @@ import javax.swing.JLabel;
 import org.apache.poi.ss.ITestDataProvider;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Row.MissingCellPolicy;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.util.LocaleUtil;
@@ -51,7 +52,7 @@ import org.apache.poi.util.POILogger;
  * This class is a base class for spreadsheet-based tests, such as are used for
  * cell formatting.  This reads tests from the spreadsheet, as well as reading
  * flags that can be used to paramterize these tests.
- * <p/>
+ * <p>
  * Each test has four parts: The expected result (column A), the format string
  * (column B), the value to format (column C), and a comma-separated list of
  * categores that this test falls in. Normally all tests are run, but if the
@@ -102,7 +103,7 @@ public class CellFormatTestBase {
 
         readFlags(workbook);
 
-        Set<String> runCategories = new TreeSet<String>(
+        Set<String> runCategories = new TreeSet<>(
                 String.CASE_INSENSITIVE_ORDER);
         String runCategoryList = flagString("Categories", "");
         if (runCategoryList != null) {
@@ -141,7 +142,7 @@ public class CellFormatTestBase {
     protected void openWorkbook(String workbookName)
             throws IOException {
         workbook = _testDataProvider.openSampleWorkbook(workbookName);
-        workbook.setMissingCellPolicy(Row.CREATE_NULL_AS_BLANK);
+        workbook.setMissingCellPolicy(MissingCellPolicy.CREATE_NULL_AS_BLANK);
         testFile = workbookName;
     }
 
@@ -154,7 +155,7 @@ public class CellFormatTestBase {
      */
     private void readFlags(Workbook wb) {
         Sheet flagSheet = wb.getSheet("Flags");
-        testFlags = new TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER);
+        testFlags = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         if (flagSheet != null) {
             int end = flagSheet.getLastRowNum();
             // Skip the header row, therefore "+ 1"

@@ -20,22 +20,40 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.List;
 
+import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.POIDataSamples;
+import org.apache.poi.hssf.OldExcelFormatException;
+import org.apache.poi.hssf.record.RecordInputStream;
 import org.apache.poi.util.LocaleUtil;
+import org.apache.poi.util.RecordFormatException;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
 
 public class TestReSave extends BaseXLSIteratingTest {
-	static {
-		// these are likely ok to fail
-		EXCLUDED.add("password.xls"); 
-		EXCLUDED.add("43493.xls");	// HSSFWorkbook cannot open it as well
-		EXCLUDED.add("46904.xls"); 
-		EXCLUDED.add("51832.xls");	// password 
-        EXCLUDED.add("44958_1.xls");   // known bad file
-	}
-	
+    @BeforeClass
+    public static void setup() {
+        EXCLUDED.clear();
+        EXCLUDED.put("35897-type4.xls", EncryptedDocumentException.class); // unsupported crypto api header 
+        EXCLUDED.put("51832.xls", EncryptedDocumentException.class);
+        EXCLUDED.put("xor-encryption-abc.xls", EncryptedDocumentException.class); 
+        EXCLUDED.put("password.xls", EncryptedDocumentException.class); 
+        EXCLUDED.put("46904.xls", OldExcelFormatException.class);
+        EXCLUDED.put("59074.xls", OldExcelFormatException.class);
+        EXCLUDED.put("testEXCEL_2.xls", OldExcelFormatException.class);  // Biff 2 / Excel 2, pre-OLE2
+        EXCLUDED.put("testEXCEL_3.xls", OldExcelFormatException.class);  // Biff 3 / Excel 3, pre-OLE2
+        EXCLUDED.put("testEXCEL_4.xls", OldExcelFormatException.class);  // Biff 4 / Excel 4, pre-OLE2
+        EXCLUDED.put("testEXCEL_5.xls", OldExcelFormatException.class);  // Biff 5 / Excel 5
+        EXCLUDED.put("60284.xls", OldExcelFormatException.class); // Biff 5 / Excel 5
+        EXCLUDED.put("testEXCEL_95.xls", OldExcelFormatException.class); // Biff 5 / Excel 95
+        EXCLUDED.put("60284.xls", OldExcelFormatException.class); // Biff 5 / Excel 95
+        EXCLUDED.put("43493.xls", RecordInputStream.LeftoverDataException.class);  // HSSFWorkbook cannot open it as well
+        EXCLUDED.put("44958_1.xls", RecordInputStream.LeftoverDataException.class);
+        EXCLUDED.put("XRefCalc.xls", RuntimeException.class);            // "Buffer overrun"
+        EXCLUDED.put("61300.xls", RecordFormatException.class);
+    }
+
 	@Override
 	void runOneFile(File fileIn) throws Exception {
 		// avoid running on files leftover from previous failed runs
@@ -55,16 +73,11 @@ public class TestReSave extends BaseXLSIteratingTest {
 				// also try BiffViewer on the saved file
                 new TestBiffViewer().runOneFile(reSavedFile);
 
-    			try {
-        			// had one case where the re-saved could not be re-saved!
-        			ReSave.main(new String[] { reSavedFile.getAbsolutePath() });
-    			} finally {
-    				// clean up the re-re-saved file
-    			    new File(fileIn.getParentFile(), reSavedFile.getName().replace(".xls", "-saved.xls")).delete();
-    			}
+    			// had one case where the re-saved could not be re-saved!
+    			ReSave.main(new String[] { "-bos", reSavedFile.getAbsolutePath() });
 			} finally {
 				// clean up the re-saved file
-				reSavedFile.delete();
+				assertTrue(!reSavedFile.exists() || reSavedFile.delete());
 			}
 
 		} finally {
@@ -72,18 +85,14 @@ public class TestReSave extends BaseXLSIteratingTest {
 		}
 	}
 
-	//Only used for local testing
-	//@Test
-	public void testOneFile() throws Exception {
+    @Ignore("Only used for local testing")
+    @Test
+    public void testOneFile() throws Exception {
         String dataDirName = System.getProperty(POIDataSamples.TEST_PROPERTY);
         if(dataDirName == null) {
             dataDirName = "test-data";
         }
 
-		List<String> failed = new ArrayList<String>();
-		runOneFile(new File(dataDirName + "/spreadsheet", "49931.xls"));
-
-		assertTrue("Expected to have no failed except the ones excluded, but had: " + failed, 
-				failed.isEmpty());
-	}
+        runOneFile(new File(dataDirName + "/spreadsheet", "49931.xls"));
+    }
 }

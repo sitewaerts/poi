@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianConsts;
 import org.apache.poi.util.LittleEndianOutputStream;
@@ -34,19 +35,22 @@ import org.apache.poi.util.StringUtil;
  */
 public class Ole10Native {
 
+
     public static final String OLE10_NATIVE = "\u0001Ole10Native";
     protected static final String ISO1 = "ISO-8859-1";
-  
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000_000;
+
     // (the fields as they appear in the raw record:)
     private int totalSize;             // 4 bytes, total size of record not including this field
     private short flags1 = 2;          // 2 bytes, unknown, mostly [02 00]
     private String label;              // ASCIIZ, stored in this field without the terminating zero
     private String fileName;           // ASCIIZ, stored in this field without the terminating zero
-    private short flags2 = 0;          // 2 bytes, unknown, mostly [00 00]
+    private short flags2;          // 2 bytes, unknown, mostly [00 00]
     private short unknown1 = 3;        // see below
     private String command;            // ASCIIZ, stored in this field without the terminating zero
     private byte[] dataBuffer;         // varying size, the actual native data
-    private short flags3 = 0;          // some final flags? or zero terminators?, sometimes not there
+    private short flags3;          // some final flags? or zero terminators?, sometimes not there
   
     /**
      * the field encoding mode - merely a try-and-error guess ...
@@ -63,7 +67,7 @@ public class Ole10Native {
         /**
          * the data is stored raw after the length field and the flags1 field
          */
-        compact;
+        compact
     }
     
     private EncodingMode mode;
@@ -97,7 +101,7 @@ public class Ole10Native {
     public static Ole10Native createFromEmbeddedOleObject(DirectoryNode directory) throws IOException, Ole10NativeException {
        DocumentEntry nativeEntry = 
           (DocumentEntry)directory.getEntry(OLE10_NATIVE);
-       byte[] data = new byte[nativeEntry.getSize()];
+       byte[] data = IOUtils.safelyAllocate(nativeEntry.getSize(), MAX_RECORD_LENGTH);
        int readBytes = directory.createDocumentInputStream(nativeEntry).read(data);
        assert(readBytes == data.length);
   
@@ -113,20 +117,6 @@ public class Ole10Native {
        setCommand(command);
        setDataBuffer(data);
        mode = EncodingMode.parsed;
-    }
-
-    /**
-     * Creates an instance and fills the fields based on the data in the given buffer.
-     *
-     * @param data   The buffer containing the Ole10Native record
-     * @param offset The start offset of the record in the buffer
-     * @param plain as of POI 3.11 this parameter is ignored
-     * @throws Ole10NativeException on invalid or unexcepted data format
-     * 
-     * @deprecated parameter plain is ignored, use {@link #Ole10Native(byte[],int)}
-     */
-    public Ole10Native(byte[] data, int offset, boolean plain) throws Ole10NativeException {
-        this(data, offset);
     }
     
     /**
@@ -206,8 +196,11 @@ public class Ole10Native {
             dataSize = totalSize;
             break;
         }
-        
-        dataBuffer = new byte[dataSize];
+
+        if ((long)dataSize + (long)ofs > (long)data.length) { //cast to avoid overflow
+            throw new Ole10NativeException("Invalid Ole10Native: declared data length > available data");
+        }
+        dataBuffer = IOUtils.safelyAllocate(dataSize, MAX_RECORD_LENGTH);
         System.arraycopy(data, ofs, dataBuffer, 0, dataSize);
         ofs += dataSize;
     }
@@ -407,6 +400,6 @@ public class Ole10Native {
     }
 
     public void setDataBuffer(byte dataBuffer[]) {
-        this.dataBuffer = dataBuffer;
+        this.dataBuffer = dataBuffer.clone();
     }
 }

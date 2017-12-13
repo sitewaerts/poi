@@ -28,6 +28,7 @@ import java.util.Map;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Font;
@@ -37,6 +38,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 
 
 /**
@@ -67,21 +69,38 @@ public class SheetUtil {
      *
      *  See Bugzilla #50021
      */
-    private static final FormulaEvaluator dummyEvaluator = new FormulaEvaluator(){
+    private static final FormulaEvaluator dummyEvaluator = new FormulaEvaluator() {
+        @Override
         public void clearAllCachedResultValues(){}
+        @Override
         public void notifySetFormula(Cell cell) {}
+        @Override
         public void notifyDeleteCell(Cell cell) {}
+        @Override
         public void notifyUpdateCell(Cell cell) {}
+        @Override
         public CellValue evaluate(Cell cell) {return null;  }
+        @Override
         public Cell evaluateInCell(Cell cell) { return null; }
+        @Override
         public void setupReferencedWorkbooks(Map<String, FormulaEvaluator> workbooks) {}
+        @Override
         public void setDebugEvaluationOutputForNextEval(boolean value) {}
+        @Override
         public void setIgnoreMissingWorkbooks(boolean ignore) {}
-        
+        @Override
         public void evaluateAll() {}
-        public int evaluateFormulaCell(Cell cell) {
-            return cell.getCachedFormulaResultType();
-        }
+        @Override
+        public CellType evaluateFormulaCell(Cell cell) { return cell.getCachedFormulaResultType(); }
+        /**
+         * @since POI 3.15 beta 3
+         * @deprecated POI 3.15 beta 3. Will be deleted when we make the CellType enum transition. See bug 59791.
+         */
+        @Deprecated
+        @Removal(version = "4.2")
+        @Internal(since="POI 3.15 beta 3")
+        @Override
+        public CellType evaluateFormulaCellEnum(Cell cell) { return evaluateFormulaCell(cell); }
     };
 
     /**
@@ -108,7 +127,7 @@ public class SheetUtil {
         // We should only be checking merged regions if useMergedCells is true. Why are we doing this for-loop?
         int colspan = 1;
         for (CellRangeAddress region : sheet.getMergedRegions()) {
-            if (containsCell(region, row.getRowNum(), column)) {
+            if (region.isInRange(row.getRowNum(), column)) {
                 if (!useMergedCells) {
                     // If we're not using merged cells, skip this one and move on to the next.
                     return -1;
@@ -119,39 +138,40 @@ public class SheetUtil {
         }
 
         CellStyle style = cell.getCellStyle();
-        int cellType = cell.getCellType();
+        CellType cellType = cell.getCellType();
 
         // for formula cells we compute the cell width for the cached formula result
-        if(cellType == Cell.CELL_TYPE_FORMULA) cellType = cell.getCachedFormulaResultType();
+        if (cellType == CellType.FORMULA)
+            cellType = cell.getCachedFormulaResultType();
 
         Font font = wb.getFontAt(style.getFontIndex());
 
         double width = -1;
-        if (cellType == Cell.CELL_TYPE_STRING) {
+        if (cellType == CellType.STRING) {
             RichTextString rt = cell.getRichStringCellValue();
             String[] lines = rt.getString().split("\\n");
-            for (int i = 0; i < lines.length; i++) {
-                String txt = lines[i] + defaultChar;
+            for (String line : lines) {
+                String txt = line + defaultChar;
 
                 AttributedString str = new AttributedString(txt);
                 copyAttributes(font, str, 0, txt.length());
 
-                if (rt.numFormattingRuns() > 0) {
+                /*if (rt.numFormattingRuns() > 0) {
                     // TODO: support rich text fragments
-                }
+                }*/
 
                 width = getCellWidth(defaultCharWidth, colspan, style, width, str);
             }
         } else {
             String sval = null;
-            if (cellType == Cell.CELL_TYPE_NUMERIC) {
+            if (cellType == CellType.NUMERIC) {
                 // Try to get it formatted to look the same as excel
                 try {
                     sval = formatter.formatCellValue(cell, dummyEvaluator);
                 } catch (Exception e) {
                     sval = String.valueOf(cell.getNumericCellValue());
                 }
-            } else if (cellType == Cell.CELL_TYPE_BOOLEAN) {
+            } else if (cellType == CellType.BOOLEAN) {
                 sval = String.valueOf(cell.getBooleanCellValue()).toUpperCase(Locale.ROOT);
             }
             if(sval != null) {
@@ -172,7 +192,7 @@ public class SheetUtil {
      * @param defaultCharWidth the width of a character using the default font in a workbook
      * @param colspan the number of columns that is spanned by the cell (1 if the cell is not part of a merged region)
      * @param style the cell style, which contains text rotation and indention information needed to compute the cell width
-     * @param width the minimum best-fit width. This algorithm will only return values greater than or equal to the minimum width.
+     * @param minWidth the minimum best-fit width. This algorithm will only return values greater than or equal to the minimum width.
      * @param str the text contained in the cell
      * @return the best fit cell width
      */
@@ -198,8 +218,7 @@ public class SheetUtil {
         }
         // frameWidth accounts for leading spaces which is excluded from bounds.getWidth()
         final double frameWidth = bounds.getX() + bounds.getWidth();
-        final double width = Math.max(minWidth, ((frameWidth / colspan) / defaultCharWidth) + style.getIndention());
-        return width;
+        return Math.max(minWidth, ((frameWidth / colspan) / defaultCharWidth) + style.getIndention());
     }
 
     /**
@@ -252,13 +271,12 @@ public class SheetUtil {
         AttributedString str = new AttributedString(String.valueOf(defaultChar));
         copyAttributes(defaultFont, str, 0, 1);
         TextLayout layout = new TextLayout(str.getIterator(), fontRenderContext);
-        int defaultCharWidth = (int) layout.getAdvance();
-        return defaultCharWidth;
+        return (int) layout.getAdvance();
     }
 
     /**
      * Compute width of a single cell in a row
-     * Convenience method for {@link getCellWidth}
+     * Convenience method for {@link #getCellWidth}
      *
      * @param row the row that contains the cell of interest
      * @param column the column number of the cell whose width is to be calculated
@@ -300,20 +318,16 @@ public class SheetUtil {
         copyAttributes(font, str, 0, "1w".length());
 
         TextLayout layout = new TextLayout(str.getIterator(), fontRenderContext);
-        if(layout.getBounds().getWidth() > 0) {
-            return true;
-        }
-
-        return false;
+        return (layout.getBounds().getWidth() > 0);
     }
 
     /**
      * Copy text attributes from the supplied Font to Java2D AttributedString
      */
-    private static void copyAttributes(Font font, AttributedString str, int startIdx, int endIdx) {
+    private static void copyAttributes(Font font, AttributedString str, @SuppressWarnings("SameParameterValue") int startIdx, int endIdx) {
         str.addAttribute(TextAttribute.FAMILY, font.getFontName(), startIdx, endIdx);
         str.addAttribute(TextAttribute.SIZE, (float)font.getFontHeightInPoints());
-        if (font.getBoldweight() == Font.BOLDWEIGHT_BOLD) str.addAttribute(TextAttribute.WEIGHT, TextAttribute.WEIGHT_BOLD, startIdx, endIdx);
+        if (font.getBold()) str.addAttribute(TextAttribute.WEIGHT, TextAttribute.WEIGHT_BOLD, startIdx, endIdx);
         if (font.getItalic() ) str.addAttribute(TextAttribute.POSTURE, TextAttribute.POSTURE_OBLIQUE, startIdx, endIdx);
         if (font.getUnderline() == Font.U_SINGLE ) str.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON, startIdx, endIdx);
     }
@@ -325,9 +339,34 @@ public class SheetUtil {
      * @param rowIx the row to check
      * @param colIx the column to check
      * @return true if the range contains the cell [rowIx, colIx]
+     * @deprecated 3.15 beta 2. Use {@link CellRangeAddressBase#isInRange(int, int)}.
      */
+    @Deprecated
     public static boolean containsCell(CellRangeAddress cr, int rowIx, int colIx) {
         return cr.isInRange(rowIx,  colIx);
+    }
+
+    /**
+     * Return the cell, without taking account of merged regions.
+     * <p>
+     * Use {@link #getCellWithMerges(Sheet, int, int)} if you want the top left
+     * cell from merged regions instead when the reference is a merged cell.
+     * <p>
+     * Use this where you want to know if the given cell is explicitly defined
+     * or not.
+     *
+     * @param sheet The workbook sheet to look at.
+     * @param rowIx The 0-based index of the row.
+     * @param colIx The 0-based index of the cell.
+     * @return cell at the given location, or null if not defined
+     * @throws NullPointerException if sheet is null
+     */
+    public static Cell getCell(Sheet sheet, int rowIx, int colIx) {
+        Row r = sheet.getRow(rowIx);
+        if (r != null) {
+            return r.getCell(colIx);
+        }
+        return null;
     }
 
     /**
@@ -340,22 +379,22 @@ public class SheetUtil {
      *  then will return the cell itself.
      * <p>If there is no cell defined at the given co-ordinates, will return
      *  null.
+     *
+     * @param sheet The workbook sheet to look at.
+     * @param rowIx The 0-based index of the row.
+     * @param colIx The 0-based index of the cell.
+     * @return cell at the given location, its base merged cell, or null if not defined
+     * @throws NullPointerException if sheet is null
      */
     public static Cell getCellWithMerges(Sheet sheet, int rowIx, int colIx) {
-        Row r = sheet.getRow(rowIx);
-        if (r != null) {
-            Cell c = r.getCell(colIx);
-            if (c != null) {
-                // Normal, non-merged cell
-                return c;
-            }
-        }
+        final Cell c = getCell(sheet, rowIx, colIx);
+        if (c != null) return c;
         
         for (CellRangeAddress mergedRegion : sheet.getMergedRegions()) {
             if (mergedRegion.isInRange(rowIx, colIx)) {
                 // The cell wanted is in this merged range
                 // Return the primary (top-left) cell for the range
-                r = sheet.getRow(mergedRegion.getFirstRow());
+                Row r = sheet.getRow(mergedRegion.getFirstRow());
                 if (r != null) {
                     return r.getCell(mergedRegion.getFirstColumn());
                 }

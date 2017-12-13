@@ -69,7 +69,7 @@ public class DirectoryNode
                   final OPOIFSFileSystem filesystem,
                   final DirectoryNode parent)
     {
-       this(property, parent, filesystem, (NPOIFSFileSystem)null);
+       this(property, parent, filesystem, null);
     }
 
     /**
@@ -84,7 +84,7 @@ public class DirectoryNode
                   final NPOIFSFileSystem nfilesystem,
                   final DirectoryNode parent)
     {
-       this(property, parent, (OPOIFSFileSystem)null, nfilesystem);
+       this(property, parent, null, nfilesystem);
     }
 
     private DirectoryNode(final DirectoryProperty property,
@@ -107,14 +107,14 @@ public class DirectoryNode
                 property.getName()
             });
         }
-        _byname     = new HashMap<String, Entry>();
-        _entries    = new ArrayList<Entry>();
+        _byname     = new HashMap<>();
+        _entries    = new ArrayList<>();
         Iterator<Property> iter = property.getChildren();
 
         while (iter.hasNext())
         {
             Property child     = iter.next();
-            Entry    childNode = null;
+            Entry    childNode;
 
             if (child.isDirectory())
             {
@@ -479,6 +479,38 @@ public class DirectoryNode
     }
 
     /**
+     * Set the contents of a document, creating if needed, 
+     *  otherwise updating. Returns the created / updated DocumentEntry
+     *
+     * @param name the name of the new or existing DocumentEntry
+     * @param stream the InputStream from which to populate the DocumentEntry
+     *
+     * @return the new or updated DocumentEntry
+     *
+     * @exception IOException
+     */
+
+    public DocumentEntry createOrUpdateDocument(final String name,
+                                                final InputStream stream)
+        throws IOException
+    {
+        if (! hasEntry(name)) {
+            return createDocument(name, stream);
+        } else {
+            DocumentNode existing = (DocumentNode)getEntry(name);
+            if (_nfilesystem != null) {
+                NPOIFSDocument nDoc = new NPOIFSDocument(existing);
+                nDoc.replaceContents(stream);
+                return existing;
+            } else {
+                // Do it the hard way for Old POIFS...
+                deleteEntry(existing);
+                return createDocument(name, stream);
+            }
+        }
+    }
+    
+    /**
      * Gets the storage clsid of the directory entry
      *
      * @return storage Class ID
@@ -554,16 +586,11 @@ public class DirectoryNode
      * @return an Iterator; may not be null, but may have an empty
      * back end store
      */
-    public Iterator<Object> getViewableIterator()
-    {
-        List<Object> components = new ArrayList<Object>();
+    public Iterator<Object> getViewableIterator() {
+        List<Object> components = new ArrayList<>();
 
         components.add(getProperty());
-        Iterator<Entry> iter = _entries.iterator();
-        while (iter.hasNext())
-        {
-            components.add(iter.next());
-        }
+        components.addAll(_entries);
         return components.iterator();
     }
 

@@ -24,14 +24,12 @@ import org.apache.poi.util.LittleEndianOutput;
 import java.util.ArrayList;
 
 /**
- * Title:        Extended Static String Table (0x00FF)<p/>
+ * Title:        Extended Static String Table (0x00FF)<p>
  * Description: This record is used for a quick lookup into the SST record. This
  *              record breaks the SST table into a set of buckets. The offsets
  *              to these buckets within the SST record are kept as well as the
- *              position relative to the start of the SST record.
- * REFERENCE:  PG 313 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)<P>
- * @author Andrew C. Oliver (acoliver at apache dot org)
- * @author Jason Height (jheight at apache dot org)
+ *              position relative to the start of the SST record.<p>
+ * REFERENCE:  PG 313 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)
  */
 public final class ExtSSTRecord extends ContinuableRecord {
     public final static short sid = 0x00FF;
@@ -48,8 +46,12 @@ public final class ExtSSTRecord extends ContinuableRecord {
         /** unused - supposed to be zero */
         private short field_3_zero;
 
-        /** Creates new ExtSSTInfoSubRecord */
-
+        /**
+         * Creates new ExtSSTInfoSubRecord
+         * 
+         * @param streamPos stream pointer to the SST record
+         * @param bucketSstOffset ... don't really understand this yet
+         */
         public InfoSubRecord(int streamPos, int bucketSstOffset) {
             field_1_stream_pos        = streamPos;
             field_2_bucket_sst_offset = bucketSstOffset;
@@ -91,7 +93,7 @@ public final class ExtSSTRecord extends ContinuableRecord {
         _stringsPerBucket = in.readShort();
 
         int nInfos = in.remaining() / InfoSubRecord.ENCODED_SIZE;
-        ArrayList<InfoSubRecord> lst = new ArrayList<InfoSubRecord>(nInfos);
+        ArrayList<InfoSubRecord> lst = new ArrayList<>(nInfos);
 
         while (in.available() > 0) {
             InfoSubRecord info = new InfoSubRecord(in);
@@ -146,7 +148,7 @@ public final class ExtSSTRecord extends ContinuableRecord {
         return _sstInfos;
     }
 
-    public static final int getNumberOfInfoRecsForStrings(int numStrings) {
+    public static int getNumberOfInfoRecsForStrings(int numStrings) {
       int infoRecs = (numStrings / DEFAULT_BUCKET_SIZE);
       if ((numStrings % DEFAULT_BUCKET_SIZE) != 0)
         infoRecs ++;
@@ -157,8 +159,14 @@ public final class ExtSSTRecord extends ContinuableRecord {
       return infoRecs;
     }
 
-    /** Given a number of strings (in the sst), returns the size of the extsst record*/
-    public static final int getRecordSizeForStrings(int numStrings) {
+    /**
+     * Given a number of strings (in the sst), returns the size of the extsst record
+     * 
+     * @param numStrings the number of strings
+     * 
+     * @return the size of the extsst record
+     */
+    public static int getRecordSizeForStrings(int numStrings) {
         return 4 + 2 + getNumberOfInfoRecsForStrings(numStrings) * 8;
     }
 

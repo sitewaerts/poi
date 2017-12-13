@@ -37,7 +37,7 @@ public final class ParagraphSprmCompressor
   {
     // page numbers links to Word97-2007BinaryFileFormat(doc)Specification.pdf, accessible from microsoft.com 
 
-    List<byte[]> sprmList = new ArrayList<byte[]>();
+    List<byte[]> sprmList = new ArrayList<>();
     int size = 0;
 
     // Page 50 of public specification begins
@@ -388,7 +388,7 @@ public final class ParagraphSprmCompressor
         {
             // sprmPRsid
             byte[] value = new byte[4];
-            LittleEndian.putUInt( value, newPAP.getRsid() );
+            LittleEndian.putUInt( value, 0, newPAP.getRsid() );
             size += SprmUtils.addSprm( (short) 0x6467, 0, value, sprmList );
         }
 

@@ -50,7 +50,7 @@ import org.apache.poi.util.POILogger;
  * data and so on.
  */
 public final class POIFSChunkParser {
-   private static POILogger logger = POILogFactory.getLogger(POIFSChunkParser.class);
+   private final static POILogger logger = POILogFactory.getLogger(POIFSChunkParser.class);
 
    public static ChunkGroup[] parse(NPOIFSFileSystem fs) throws IOException {
       return parse(fs.getRoot());
@@ -58,7 +58,7 @@ public final class POIFSChunkParser {
    public static ChunkGroup[] parse(DirectoryNode node) throws IOException {
       Chunks mainChunks = new Chunks();
       
-      ArrayList<ChunkGroup> groups = new ArrayList<ChunkGroup>();
+      ArrayList<ChunkGroup> groups = new ArrayList<>();
       groups.add(mainChunks);
 
       // Find our top level children
@@ -140,7 +140,7 @@ public final class POIFSChunkParser {
             // Name in the wrong format
             return;
          }
-         if(entryName.indexOf('_') == -1) {
+         if(! entryName.contains("_")) {
             // Name in the wrong format
             return;
          }
@@ -211,7 +211,7 @@ public final class POIFSChunkParser {
                 chunk.readValue(inp);
                 grouping.record(chunk);
              } catch(IOException e) {
-            	 logger.log(POILogger.ERROR, "Error reading from part " + entry.getName() + " - " + e.toString());
+            	 logger.log(POILogger.ERROR, "Error reading from part " + entry.getName() + " - " + e);
              } finally {
                  if (inp != null) inp.close();
              }

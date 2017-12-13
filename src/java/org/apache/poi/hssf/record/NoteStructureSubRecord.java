@@ -18,18 +18,16 @@
 package org.apache.poi.hssf.record;
 
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndianInput;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.RecordFormatException;
 
 /**
- * ftNts (0x000D)<p/>
- * Represents a NoteStructure sub record.
+ * ftNts (0x000D)<p>
+ * Represents a NoteStructure sub record.<p>
  *
- * <p>
  * The docs say nothing about it. The length of this record is always 26 bytes.
- * </p>
- *
- * @author Yegor Kozlov
  */
 public final class NoteStructureSubRecord extends SubRecord implements Cloneable {
     public final static short sid = 0x0D;
@@ -49,13 +47,16 @@ public final class NoteStructureSubRecord extends SubRecord implements Cloneable
 
     /**
      * Read the record data from the supplied <code>RecordInputStream</code>
+     * 
+     * @param in the input to read from
+     * @param size the provided size - must be 22
      */
     public NoteStructureSubRecord(LittleEndianInput in, int size) {
         if (size != ENCODED_SIZE) {
             throw new RecordFormatException("Unexpected size (" + size + ")");
         }
         //just grab the raw data
-        byte[] buf = new byte[size];
+        byte[] buf = IOUtils.safelyAllocate(size, ENCODED_SIZE);
         in.readFully(buf);
         reserved = buf;
     }
@@ -64,6 +65,7 @@ public final class NoteStructureSubRecord extends SubRecord implements Cloneable
      * Convert this record to string.
      * Used by BiffViewer and other utilities.
      */
+    @Override
     public String toString()
     {
         StringBuffer buffer = new StringBuffer();
@@ -80,13 +82,15 @@ public final class NoteStructureSubRecord extends SubRecord implements Cloneable
      *
      * @param out the stream to serialize into
      */
+    @Override
     public void serialize(LittleEndianOutput out) {
         out.writeShort(sid);
         out.writeShort(reserved.length);
         out.write(reserved);
     }
 
-	protected int getDataSize() {
+	@Override
+    protected int getDataSize() {
         return reserved.length;
     }
 

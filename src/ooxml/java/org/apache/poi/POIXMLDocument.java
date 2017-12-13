@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PushbackInputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,10 +34,11 @@ import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.openxml4j.opc.PackageRelationshipCollection;
-import org.apache.poi.poifs.common.POIFSConstants;
-import org.apache.poi.util.IOUtils;
 import org.apache.xmlbeans.impl.common.SystemCache;
 
+/**
+ * This holds the common functionality for all POI OOXML Document classes.
+ */
 public abstract class POIXMLDocument extends POIXMLDocumentPart implements Closeable {
     public static final String DOCUMENT_CREATOR = "Apache POI";
 
@@ -66,8 +66,8 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
         init(pkg);
     }
     
-    private void init(OPCPackage pkg) {
-        this.pkg = pkg;
+    private void init(OPCPackage p) {
+        this.pkg = p;
         
         // Workaround for XMLBEANS-512 - ensure that when we parse
         //  the file, we start with a fresh XML Parser each time,
@@ -76,18 +76,26 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
     }
 
     /**
-     * Wrapper to open a package, returning an IOException
-     *  in the event of a problem.
-     * Works around shortcomings in java's this() constructor calls
+     * Wrapper to open a package, which works around shortcomings in java's this() constructor calls
+     * 
+     * @param path the path to the document
+     * @return the new OPCPackage
+     * 
+     * @exception IOException if there was a problem opening the document
      */
     public static OPCPackage openPackage(String path) throws IOException {
         try {
             return OPCPackage.open(path);
         } catch (InvalidFormatException e) {
-            throw new IOException(e.toString());
+            throw new IOException(e.toString(), e);
         }
     }
 
+    /**
+     * Get the assigned OPCPackage
+     *
+     * @return the assigned OPCPackage
+     */
     public OPCPackage getPackage() {
         return this.pkg;
     }
@@ -97,9 +105,19 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
     }
 
     /**
-     * Retrieves all the PackageParts which are defined as
-     *  relationships of the base document with the
-     *  specified content type.
+     * Retrieves all the PackageParts which are defined as relationships of the base document with the
+     * specified content type.
+     * 
+     * @param contentType the content type
+     * 
+     * @return all the base document PackageParts which match the content type
+     * 
+     * @throws InvalidFormatException when the relationships or the parts contain errors
+     * 
+     * @see org.apache.poi.xssf.usermodel.XSSFRelation
+     * @see org.apache.poi.xslf.usermodel.XSLFRelation
+     * @see org.apache.poi.xwpf.usermodel.XWPFRelation
+     * @see org.apache.poi.xdgf.usermodel.XDGFRelation
      */
     protected PackagePart[] getRelatedByType(String contentType) throws InvalidFormatException {
         PackageRelationshipCollection partsC =
@@ -115,42 +133,10 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
     }
 
     /**
-     * Checks that the supplied InputStream (which MUST
-     *  support mark and reset, or be a PushbackInputStream)
-     *  has a OOXML (zip) header at the start of it.
-     * If your InputStream does not support mark / reset,
-     *  then wrap it in a PushBackInputStream, then be
-     *  sure to always use that, and not the original!
-     * @param inp An InputStream which supports either mark/reset, or is a PushbackInputStream
-     */
-    public static boolean hasOOXMLHeader(InputStream inp) throws IOException {
-        // We want to peek at the first 4 bytes
-        inp.mark(4);
-
-        byte[] header = new byte[4];
-        int bytesRead = IOUtils.readFully(inp, header);
-
-        // Wind back those 4 bytes
-        if(inp instanceof PushbackInputStream) {
-            PushbackInputStream pin = (PushbackInputStream)inp;
-            pin.unread(header, 0, bytesRead);
-        } else {
-            inp.reset();
-        }
-
-        // Did it match the ooxml zip signature?
-        return (
-                bytesRead == 4 &&
-                header[0] == POIFSConstants.OOXML_FILE_HEADER[0] &&
-                header[1] == POIFSConstants.OOXML_FILE_HEADER[1] &&
-                header[2] == POIFSConstants.OOXML_FILE_HEADER[2] &&
-                header[3] == POIFSConstants.OOXML_FILE_HEADER[3]
-        );
-    }
-
-    /**
      * Get the document properties. This gives you access to the
      *  core ooxml properties, and the extended ooxml properties.
+     *  
+     * @return the document properties
      */
     public POIXMLProperties getProperties() {
         if(properties == null) {
@@ -165,11 +151,15 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
 
     /**
      * Get the document's embedded files.
+     * 
+     * @return the document's embedded files
+     * 
+     * @throws OpenXML4JException if the embedded parts can't be determined
      */
     public abstract List<PackagePart> getAllEmbedds() throws OpenXML4JException;
 
     protected final void load(POIXMLFactory factory) throws IOException {
-        Map<PackagePart, POIXMLDocumentPart> context = new HashMap<PackagePart, POIXMLDocumentPart>();
+        Map<PackagePart, POIXMLDocumentPart> context = new HashMap<>();
         try {
             read(factory, context);
         } catch (OpenXML4JException e){
@@ -182,7 +172,14 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
     /**
      * Closes the underlying {@link OPCPackage} from which this
      *  document was read, if there is one
+     *
+     * <p>Once this has been called, no further
+     *  operations, updates or reads should be performed on the
+     *  document.
+     *
+     * @throws IOException for writable packages, if an IO exception occur during the saving process.
      */
+    @Override
     public void close() throws IOException {
         if (pkg != null) {
             if (pkg.getPackageAccess() == PackageAccess.READ) {
@@ -200,20 +197,32 @@ public abstract class POIXMLDocument extends POIXMLDocumentPart implements Close
      * Note - if the Document was opened from a {@link File} rather
      *  than an {@link InputStream}, you <b>must</b> write out to
      *  a different file, overwriting via an OutputStream isn't possible.
+     *  
+     * If {@code stream} is a {@link java.io.FileOutputStream} on a networked drive
+     * or has a high cost/latency associated with each written byte,
+     * consider wrapping the OutputStream in a {@link java.io.BufferedOutputStream}
+     * to improve write performance.
      * 
      * @param stream - the java OutputStream you wish to write the file to
      *
      * @exception IOException if anything can't be written.
      */
+    @SuppressWarnings("resource")
     public final void write(OutputStream stream) throws IOException {
+        OPCPackage p = getPackage();
+        if(p == null) {
+            throw new IOException("Cannot write data, document seems to have been closed already");
+        }
+        
         //force all children to commit their changes into the underlying OOXML Package
-        Set<PackagePart> context = new HashSet<PackagePart>();
+        // TODO Shouldn't they be committing to the new one instead?
+        Set<PackagePart> context = new HashSet<>();
         onSave(context);
         context.clear();
 
         //save extended and custom properties
         getProperties().commit();
 
-        getPackage().save(stream);
+        p.save(stream);
     }
 }

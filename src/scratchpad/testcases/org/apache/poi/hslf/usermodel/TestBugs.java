@@ -17,6 +17,8 @@
 
 package org.apache.poi.hslf.usermodel;
 
+import static org.apache.poi.POITestCase.assertContains;
+import static org.apache.poi.POITestCase.assertStartsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -24,12 +26,20 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.text.AttributedCharacterIterator;
 import java.text.AttributedCharacterIterator.Attribute;
+import java.text.CharacterIterator;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -38,6 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.poi.POIDataSamples;
+import org.apache.poi.common.usermodel.fonts.FontGroup;
 import org.apache.poi.ddf.AbstractEscherOptRecord;
 import org.apache.poi.ddf.EscherArrayProperty;
 import org.apache.poi.ddf.EscherColorRef;
@@ -46,18 +58,27 @@ import org.apache.poi.hslf.HSLFTestDataSamples;
 import org.apache.poi.hslf.exceptions.OldPowerPointFormatException;
 import org.apache.poi.hslf.extractor.PowerPointExtractor;
 import org.apache.poi.hslf.model.HeadersFooters;
+import org.apache.poi.hslf.record.DocInfoListContainer;
 import org.apache.poi.hslf.record.Document;
 import org.apache.poi.hslf.record.Record;
+import org.apache.poi.hslf.record.RecordTypes;
 import org.apache.poi.hslf.record.SlideListWithText;
 import org.apache.poi.hslf.record.SlideListWithText.SlideAtomsSet;
 import org.apache.poi.hslf.record.TextHeaderAtom;
+import org.apache.poi.hslf.record.VBAInfoAtom;
+import org.apache.poi.hslf.record.VBAInfoContainer;
 import org.apache.poi.hssf.usermodel.DummyGraphics2d;
+import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
+import org.apache.poi.poifs.macros.VBAMacroReader;
+import org.apache.poi.sl.draw.DrawFactory;
 import org.apache.poi.sl.draw.DrawPaint;
 import org.apache.poi.sl.draw.DrawTextParagraph;
+import org.apache.poi.sl.usermodel.ColorStyle;
 import org.apache.poi.sl.usermodel.PaintStyle;
 import org.apache.poi.sl.usermodel.PaintStyle.SolidPaint;
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
 import org.apache.poi.sl.usermodel.Placeholder;
+import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.sl.usermodel.SlideShow;
 import org.apache.poi.sl.usermodel.SlideShowFactory;
@@ -65,6 +86,7 @@ import org.apache.poi.sl.usermodel.TextBox;
 import org.apache.poi.sl.usermodel.TextParagraph;
 import org.apache.poi.sl.usermodel.TextParagraph.TextAlign;
 import org.apache.poi.sl.usermodel.TextRun;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.StringUtil;
 import org.apache.poi.util.Units;
@@ -128,7 +150,7 @@ public final class TestBugs {
         HSLFSlideShow ppt = open("42474-2.ppt");
 
         //map slide number and starting phrase of its notes
-        Map<Integer, String> notesMap = new HashMap<Integer, String>();
+        Map<Integer, String> notesMap = new HashMap<>();
         notesMap.put(Integer.valueOf(4), "For  decades before calculators");
         notesMap.put(Integer.valueOf(5), "Several commercial applications");
         notesMap.put(Integer.valueOf(6), "There are three variations of LNS that are discussed here");
@@ -142,8 +164,8 @@ public final class TestBugs {
                 assertNotNull(notes);
                 String text = HSLFTextParagraph.getRawText(notes.getTextParagraphs().get(0));
                 String startingPhrase = notesMap.get(slideNumber);
-                assertTrue("Notes for slide " + slideNumber + " must start with " +
-                        startingPhrase , text.startsWith(startingPhrase));
+                assertStartsWith("Notes for slide " + slideNumber + " must start with starting phrase",
+                        text, startingPhrase);
             }
         }
 
@@ -286,15 +308,15 @@ public final class TestBugs {
         List<List<HSLFTextParagraph>> paras = slide.get(0).getTextParagraphs();
         assertEquals(4, paras.size());
 
-        Set<String> txt = new HashSet<String>();
-        txt.add("\u201CHAPPY BIRTHDAY SCOTT\u201D");
-        txt.add("Have a HAPPY DAY");
-        txt.add("PS Nobody is allowed to hassle Scott TODAY\u2026");
-        txt.add("Drinks will be in the Boardroom at 5pm today to celebrate Scott\u2019s B\u2019Day\u2026  See you all there!");
+        Set<String> expected = new HashSet<>();
+        expected.add("\u201CHAPPY BIRTHDAY SCOTT\u201D");
+        expected.add("Have a HAPPY DAY");
+        expected.add("PS Nobody is allowed to hassle Scott TODAY\u2026");
+        expected.add("Drinks will be in the Boardroom at 5pm today to celebrate Scott\u2019s B\u2019Day\u2026  See you all there!");
 
         for (List<HSLFTextParagraph> para : paras) {
             String text = HSLFTextParagraph.getRawText(para);
-            assertTrue(text, txt.contains(text));
+            assertTrue(text, expected.contains(text));
         }
 
         ppt.close();
@@ -322,7 +344,7 @@ public final class TestBugs {
         assertEquals("Second run", HSLFTextParagraph.getRawText(slTr.get(2)));
 
         // Check the shape based text runs
-        List<HSLFTextParagraph> lst = new ArrayList<HSLFTextParagraph>();
+        List<HSLFTextParagraph> lst = new ArrayList<>();
         for (HSLFShape shape : slide.getShapes()) {
             if (shape instanceof HSLFTextShape){
                 List<HSLFTextParagraph> textRun = ((HSLFTextShape)shape).getTextParagraphs();
@@ -447,12 +469,16 @@ public final class TestBugs {
         // get slides
         for (HSLFSlide slide : ppt.getSlides()) {
             for (HSLFShape shape : slide.getShapes()) {
-                if (!(shape instanceof HSLFTextBox)) continue;
+                if (!(shape instanceof HSLFTextBox)) {
+                    continue;
+                }
                 HSLFTextBox tb = (HSLFTextBox) shape;
                 // work with TextBox
                 String str = tb.getText();
 
-                if (!str.contains("$$DATE$$")) continue;
+                if (!str.contains("$$DATE$$")) {
+                    continue;
+                }
                 str = str.replace("$$DATE$$", new Date().toString());
                 tb.setText(str);
 
@@ -493,7 +519,9 @@ public final class TestBugs {
 
         int tha = 0;
         for (Record r : s1.getSlideRecords()) {
-            if (r instanceof TextHeaderAtom) tha++;
+            if (r instanceof TextHeaderAtom) {
+                tha++;
+            }
         }
         assertEquals(2, tha);
 
@@ -506,7 +534,9 @@ public final class TestBugs {
         // Will have skipped the empty one
         int str = 0;
         for (List<HSLFTextParagraph> tr : _slides.get(0).getTextParagraphs()) {
-            if (! tr.get(0).isDrawingBased()) str++;
+            if (! tr.get(0).isDrawingBased()) {
+                str++;
+            }
         }
         assertEquals(2, str);
         
@@ -739,7 +769,7 @@ public final class TestBugs {
     public void bug47904() throws IOException {
         HSLFSlideShow ppt1 = new HSLFSlideShow();
         HSLFSlideMaster sm = ppt1.getSlideMasters().get(0);
-        HSLFAutoShape as = (HSLFAutoShape)sm.getShapes().get(0);
+        HSLFAutoShape as = (HSLFAutoShape)sm.getPlaceholder(Placeholder.TITLE);
         HSLFTextParagraph tp = as.getTextParagraphs().get(0);
         HSLFTextRun tr = tp.getTextRuns().get(0);
         tr.setFontFamily("Tahoma");
@@ -747,8 +777,9 @@ public final class TestBugs {
         tr.setFontSize(44.);
         tr.setFontColor(Color.red);
         tp.setTextAlign(TextAlign.RIGHT);
-        ppt1.createSlide().addTitle().setText("foobaa");
-        
+        HSLFTextBox tb = ppt1.createSlide().addTitle();
+        tb.setText("foobaa");
+
         HSLFSlideShow ppt2 = HSLFTestDataSamples.writeOutAndReadBack(ppt1);
         ppt1.close();
         
@@ -818,7 +849,7 @@ public final class TestBugs {
         for (List<HSLFTextParagraph> paraList : sl.getTextParagraphs()) {
             for (HSLFTextParagraph htp : paraList) {
                 for (HSLFTextRun htr : htp) {
-                    String actFamily = htr.getFontFamily();
+                    String actFamily = htr.getFontFamily(FontGroup.EAST_ASIAN);
                     assertEquals(expFamily, actFamily);
                 }
             }
@@ -844,11 +875,13 @@ public final class TestBugs {
         assertEquals(hlRun.getEndIndex(), hlShape.getEndIndex());
 
         OutputStream nullOutput = new OutputStream(){
+            @Override
             public void write(int b) throws IOException {}
         };
         
         final boolean found[] = { false }; 
         DummyGraphics2d dgfx = new DummyGraphics2d(new PrintStream(nullOutput)){
+            @Override
             public void drawString(AttributedCharacterIterator iterator, float x, float y) {
                 // For the test file, common sl draws textruns one by one and not mixed
                 // so we evaluate the whole iterator
@@ -856,12 +889,12 @@ public final class TestBugs {
                 StringBuffer sb = new StringBuffer();
                 
                 for (char c = iterator.first();
-                        c != AttributedCharacterIterator.DONE;
+                        c != CharacterIterator.DONE;
                         c = iterator.next()) {
                     sb.append(c);
                     attributes = iterator.getAttributes();
                 }
-
+    
                 if ("Jakarta HSSF".equals(sb.toString())) {
                     // this is a test for a manually modified ppt, for real hyperlink label
                     // one would need to access the screen tip record
@@ -879,9 +912,130 @@ public final class TestBugs {
         
         ppt.close();
     }
+
+    @Test
+    public void bug59056() throws IOException {
+        HSLFSlideShow ppt = open("54541_cropped_bitmap.ppt");
+        
+        for (HSLFShape shape : ppt.getSlides().get(0).getShapes()) {
+            BufferedImage img = new BufferedImage(500, 300, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = img.createGraphics();
+            Rectangle2D box = new Rectangle2D.Double(50,50,300,100);
+            graphics.setPaint(Color.red);
+            graphics.fill(box);
+            box = new Rectangle2D.Double(box.getX()+1,box.getY()+1,box.getWidth()-2,box.getHeight()-2);
+            DrawFactory.getInstance(graphics).drawShape(graphics, shape, box);
+            graphics.dispose();
+            // ImageIO.write(img, "png", new File("bla"+shape.getShapeId()+".png"));
+        }
+            
+        ppt.close();
+        
+    }
     
     private static HSLFSlideShow open(String fileName) throws IOException {
         File sample = HSLFTestDataSamples.getSampleFile(fileName);
         return (HSLFSlideShow)SlideShowFactory.create(sample);
+    }
+
+    @Test
+    public void bug55983() throws IOException {
+        HSLFSlideShow ppt1 = new HSLFSlideShow();
+        HSLFSlide sl = ppt1.createSlide();
+        sl.getBackground().getFill().setForegroundColor(Color.blue);
+        HSLFFreeformShape fs = sl.createFreeform();
+        Ellipse2D.Double el = new Ellipse2D.Double(0,0,300,200);
+        fs.setAnchor(new Rectangle2D.Double(100,100,300,200));
+        fs.setPath(new Path2D.Double(el));
+        Color cExp = new Color(50,100,150,200);
+        fs.setFillColor(cExp);
+        
+        HSLFSlideShow ppt2 = HSLFTestDataSamples.writeOutAndReadBack(ppt1);
+        ppt1.close();
+        
+        sl = ppt2.getSlides().get(0);
+        fs = (HSLFFreeformShape)sl.getShapes().get(0);
+        Color cAct = fs.getFillColor();
+        assertEquals(cExp.getRed(), cAct.getRed());
+        assertEquals(cExp.getGreen(), cAct.getGreen());
+        assertEquals(cExp.getBlue(), cAct.getBlue());
+        assertEquals(cExp.getAlpha(), cAct.getAlpha(), 1);
+        
+        PaintStyle ps = fs.getFillStyle().getPaint();
+        assertTrue(ps instanceof SolidPaint);
+        ColorStyle cs = ((SolidPaint)ps).getSolidColor();
+        cAct = cs.getColor();
+        assertEquals(cExp.getRed(), cAct.getRed());
+        assertEquals(cExp.getGreen(), cAct.getGreen());
+        assertEquals(cExp.getBlue(), cAct.getBlue());
+        assertEquals(255, cAct.getAlpha());
+        assertEquals(cExp.getAlpha()*100000./255., cs.getAlpha(), 1);
+        
+        ppt2.close();
+    }
+
+    @Test
+    public void bug59302() throws IOException {
+        //add extraction from PPT
+        Map<String, String> macros = getMacrosFromHSLF("59302.ppt");
+        assertNotNull("couldn't find macros", macros);
+        assertNotNull("couldn't find second module", macros.get("Module2"));
+        assertContains(macros.get("Module2"), "newMacro in Module2");
+
+        assertNotNull("couldn't find first module", macros.get("Module1"));
+        assertContains(macros.get("Module1"), "Italicize");
+
+        macros = getMacrosFromHSLF("SimpleMacro.ppt");
+        assertNotNull(macros.get("Module1"));
+        assertContains(macros.get("Module1"), "This is a macro slideshow");
+    }
+
+    //It isn't pretty, but it works...
+    private Map<String, String> getMacrosFromHSLF(String fileName) throws IOException {
+        InputStream is = null;
+        NPOIFSFileSystem npoifs = null;
+        try {
+            is = new FileInputStream(POIDataSamples.getSlideShowInstance().getFile(fileName));
+            npoifs = new NPOIFSFileSystem(is);
+            //TODO: should we run the VBAMacroReader on this npoifs?
+            //TBD: We know that ppt typically don't store macros in the regular place,
+            //but _can_ they?
+
+            HSLFSlideShow ppt = new HSLFSlideShow(npoifs);
+
+            //get macro persist id
+            DocInfoListContainer list = (DocInfoListContainer)ppt.getDocumentRecord().findFirstOfType(RecordTypes.List.typeID);
+            VBAInfoContainer vbaInfo = (VBAInfoContainer)list.findFirstOfType(RecordTypes.VBAInfo.typeID);
+            VBAInfoAtom vbaAtom = (VBAInfoAtom)vbaInfo.findFirstOfType(RecordTypes.VBAInfoAtom.typeID);
+            long persistId = vbaAtom.getPersistIdRef();
+            for (HSLFObjectData objData : ppt.getEmbeddedObjects()) {
+                if (objData.getExOleObjStg().getPersistId() == persistId) {
+                    VBAMacroReader mr = new VBAMacroReader(objData.getData());
+                    try {
+                        return mr.readMacros();
+                    } finally {
+                        mr.close();
+                    }
+                }
+            }
+            
+            ppt.close();
+
+        } finally {
+            IOUtils.closeQuietly(npoifs);
+            IOUtils.closeQuietly(is);
+        }
+        return null;
+    }
+
+    /**
+     * Bug 60294: Add "unknown" ShapeType for 4095
+     */
+    @Test
+    public void bug60294() throws IOException {
+        HSLFSlideShow ppt = open("60294.ppt");
+        List<HSLFShape> shList = ppt.getSlides().get(0).getShapes();
+        assertEquals(ShapeType.NOT_PRIMITIVE, shList.get(2).getShapeType());
+        ppt.close();
     }
 }

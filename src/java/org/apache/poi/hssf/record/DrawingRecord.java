@@ -19,7 +19,7 @@ package org.apache.poi.hssf.record;
 
 import org.apache.poi.util.LittleEndianOutput;
 /**
- * DrawingRecord (0x00EC)<p/>
+ * DrawingRecord (0x00EC)
  */
 public final class DrawingRecord extends StandardRecord implements Cloneable {
     public static final short sid = 0x00EC;
@@ -37,6 +37,9 @@ public final class DrawingRecord extends StandardRecord implements Cloneable {
         recordData = in.readRemainder();
     }
 
+    /**
+     * @deprecated POI 3.9
+     */
     @Deprecated
     public void processContinueRecord(byte[] record) {
         //don't merge continue record with the drawing record, it must be serialized separately
@@ -53,11 +56,6 @@ public final class DrawingRecord extends StandardRecord implements Cloneable {
 
     public short getSid() {
         return sid;
-    }
-
-    @Deprecated
-    public byte[] getData() {
-        return recordData;
     }
 
     public byte[] getRecordData(){

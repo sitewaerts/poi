@@ -24,9 +24,9 @@ import org.apache.poi.ss.formula.eval.OperandResolver;
 import org.apache.poi.ss.formula.eval.ValueEval;
 
 /**
- * Implementation for Excel VALUE() function.<p/>
+ * Implementation for Excel VALUE() function.<p>
  *
- * <b>Syntax</b>:<br/> <b>VALUE</b>(<b>text</b>)<br/>
+ * <b>Syntax</b>:<br> <b>VALUE</b>(<b>text</b>)<br>
  *
  * Converts the text argument to a number. Leading and/or trailing whitespace is
  * ignored. Currency symbols and thousands separators are stripped out.
@@ -37,7 +37,7 @@ public final class Value extends Fixed1ArgFunction {
 
 	/** "1,0000" is valid, "1,00" is not */
 	private static final int MIN_DISTANCE_BETWEEN_THOUSANDS_SEPARATOR = 4;
-	private static final Double ZERO = new Double(0.0);
+	private static final Double ZERO = Double.valueOf(0.0);
 
 	public ValueEval evaluate(int srcRowIndex, int srcColumnIndex, ValueEval arg0) {
 		ValueEval veText;
@@ -113,7 +113,7 @@ public final class Value extends Fixed1ArgFunction {
 		boolean foundDecimalPoint = false;
 		int lastThousandsSeparatorIndex = Short.MIN_VALUE;
 
-		StringBuffer sb = new StringBuffer(len);
+		StringBuilder sb = new StringBuilder(len);
 		for (; i < len; i++) {
 			char ch = strText.charAt(i);
 			if (Character.isDigit(ch)) {

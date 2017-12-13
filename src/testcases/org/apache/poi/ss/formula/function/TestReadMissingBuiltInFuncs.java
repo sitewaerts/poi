@@ -23,9 +23,9 @@ import static org.junit.Assert.fail;
 import java.lang.reflect.InvocationTargetException;
 
 import org.apache.poi.hssf.HSSFTestDataSamples;
-import org.apache.poi.hssf.record.RecordFormatException;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.util.RecordFormatException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -159,10 +159,9 @@ public final class TestReadMissingBuiltInFuncs {
 	}
 
 	private String getCellFormula(int rowIx) {
-		String result = _sheet.getRow(rowIx).getCell(0).getCellFormula();
-//		if (false) {
+        //		if (false) {
 //			System.err.println(result);
 //		}
-		return result;
+		return _sheet.getRow(rowIx).getCell(0).getCellFormula();
 	}
 }

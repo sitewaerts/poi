@@ -22,10 +22,15 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.junit.Test;
 
 public class TestXSSFSheetMergeRegions {
+
+    private static final POILogger LOG = POILogFactory.getLogger(TestXSSFSheetMergeRegions.class);
+
     @Test
     public void testMergeRegionsSpeed() throws IOException {
         final XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("57893-many-merges.xlsx");
@@ -39,11 +44,19 @@ public class TestXSSFSheetMergeRegions {
                 if(millis < 2000) {
                     break;
                 }
-                System.out.println("Retry " + i + " because run-time is too high: " + millis);
+                LOG.log(POILogger.INFO,"Retry " + i + " because run-time is too high: " + millis);
             }
-            
+
+            boolean inGump = false;
+            String version = System.getProperty("version.id");
+            if(version != null && version.startsWith("gump-")) {
+                inGump = true;
+            }
+
             // This time is typically ~800ms, versus ~7800ms to iterate getMergedRegion(int).
-            assertTrue("Should have taken <2000 ms to iterate 50k merged regions but took " + millis, millis < 2000);
+            // when running in Gump, the VM is very slow, so we should allow much more time
+            assertTrue("Should have taken <2000 ms to iterate 50k merged regions but took " + millis,
+                    inGump ? millis < 8000 : millis < 2000);
         } finally {
             wb.close();
         }

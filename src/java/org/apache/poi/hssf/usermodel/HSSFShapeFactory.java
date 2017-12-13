@@ -17,13 +17,25 @@
 
 package org.apache.poi.hssf.usermodel;
 
-import org.apache.poi.ddf.*;
-import org.apache.poi.hssf.record.*;
-import org.apache.poi.poifs.filesystem.DirectoryNode;
-
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.poi.ddf.EscherClientDataRecord;
+import org.apache.poi.ddf.EscherContainerRecord;
+import org.apache.poi.ddf.EscherOptRecord;
+import org.apache.poi.ddf.EscherProperties;
+import org.apache.poi.ddf.EscherProperty;
+import org.apache.poi.ddf.EscherRecord;
+import org.apache.poi.ddf.EscherTextboxRecord;
+import org.apache.poi.hssf.record.CommonObjectDataSubRecord;
+import org.apache.poi.hssf.record.EmbeddedObjectRefSubRecord;
+import org.apache.poi.hssf.record.EscherAggregate;
+import org.apache.poi.hssf.record.ObjRecord;
+import org.apache.poi.hssf.record.Record;
+import org.apache.poi.hssf.record.SubRecord;
+import org.apache.poi.hssf.record.TextObjectRecord;
+import org.apache.poi.poifs.filesystem.DirectoryNode;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * Factory class for producing Excel Shapes from Escher records
@@ -58,7 +70,7 @@ public class HSSFShapeFactory {
             ObjRecord objRecord = null;
             TextObjectRecord txtRecord = null;
 
-            for (EscherRecord record : container.getChildRecords()) {
+            for (EscherRecord record : container) {
                 switch (record.getRecordId()) {
                     case EscherClientDataRecord.RECORD_ID:
                         objRecord = (ObjRecord) shapeToObj.get(record);
@@ -66,7 +78,12 @@ public class HSSFShapeFactory {
                     case EscherTextboxRecord.RECORD_ID:
                         txtRecord = (TextObjectRecord) shapeToObj.get(record);
                         break;
+                    default:
+                        break;
                 }
+            }
+            if (objRecord == null) {
+                throw new RecordFormatException("EscherClientDataRecord can't be found.");
             }
             if (isEmbeddedObject(objRecord)) {
                 HSSFObjectData objectData = new HSSFObjectData(container, objRecord, root);
@@ -115,9 +132,7 @@ public class HSSFShapeFactory {
     }
 
     private static boolean isEmbeddedObject(ObjRecord obj) {
-        Iterator<SubRecord> subRecordIter = obj.getSubRecords().iterator();
-        while (subRecordIter.hasNext()) {
-            SubRecord sub = subRecordIter.next();
+        for (SubRecord sub : obj.getSubRecords()) {
             if (sub instanceof EmbeddedObjectRefSubRecord) {
                 return true;
             }

@@ -16,12 +16,15 @@
 ==================================================================== */
 package org.apache.poi.hwpf.usermodel;
 
+import static org.apache.poi.POITestCase.assertContains;
+import static org.apache.poi.POITestCase.assertNotContained;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -37,27 +40,24 @@ import org.apache.poi.hwpf.extractor.Word6Extractor;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.hwpf.model.FieldsDocumentPart;
 import org.apache.poi.hwpf.model.FileInformationBlock;
-import org.apache.poi.hwpf.model.PicturesTable;
 import org.apache.poi.hwpf.model.PlexOfField;
 import org.apache.poi.hwpf.model.SubdocumentType;
-import org.apache.poi.hwpf.model.io.HWPFOutputStream;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
+import org.junit.Test;
 
 import junit.framework.TestCase;
 
 /**
- * Test different problems reported in Apache Bugzilla
- * 
- * @author Nick Burch (nick at torchbox dot com)
- * @author Sergey Vladimirov (vlsergey {at} gmail {dot} com)
+ * Test different problems reported in the Apache Bugzilla
+ *  against HWPF
  */
-public class TestBugs extends TestCase
-{
-    private static final POILogger logger = POILogFactory
-            .getLogger(TestBugs.class);
+public class TestBugs{
+
+    private static final POILogger logger = POILogFactory.getLogger(TestBugs.class);
 
     public static void assertEqualsIgnoreNewline(String expected, String actual )
     {
@@ -103,15 +103,6 @@ public class TestBugs extends TestCase
         }
     }
 
-    private static void fixed(String bugzillaId )
-    {
-        throw new Error(
-                "Bug "
-                        + bugzillaId
-                        + " seems to be fixed. "
-                        + "Please resolve the issue in Bugzilla and remove fail() from the test");
-    }
-
     private String getText(String samplefile) throws IOException {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile(samplefile);
         WordExtractor extractor = new WordExtractor(doc);
@@ -119,6 +110,7 @@ public class TestBugs extends TestCase
             return extractor.getText();
         } finally {
             extractor.close();
+            doc.close();
         }
     }
     
@@ -129,13 +121,14 @@ public class TestBugs extends TestCase
             return extractor.getText();
         } finally {
             extractor.close();
+            doc.close();
         }
     }
 
     /**
      * Bug 33519 - HWPF fails to read a file
-     * @throws IOException 
      */
+    @Test
     public void test33519() throws IOException
     {
         assertNotNull(getText("Bug33519.doc"));
@@ -143,8 +136,8 @@ public class TestBugs extends TestCase
 
     /**
      * Bug 34898 - WordExtractor doesn't read the whole string from the file
-     * @throws IOException 
      */
+    @Test
     public void test34898() throws IOException
     {
         assertEqualsIgnoreNewline("\u30c7\u30a3\u30ec\u30af\u30c8\u30ea", getText("Bug34898.doc").trim());
@@ -153,8 +146,8 @@ public class TestBugs extends TestCase
     /**
      * [RESOLVED INVALID] 41898 - Word 2003 pictures cannot be extracted
      */
-    public void test41898()
-    {
+    @Test
+    public void test41898() throws IOException {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug41898.doc");
         List<Picture> pics = doc.getPicturesTable().getAllPictures();
 
@@ -180,13 +173,14 @@ public class TestBugs extends TestCase
         OfficeDrawing officeDrawing = officeDrawings.iterator().next();
         assertNotNull(officeDrawing);
         assertEquals(1044, officeDrawing.getShapeId());
+        doc.close();
     }
 
     /**
      * Bug 44331 - HWPFDocument.write destroys fields
-     * @throws IOException 
      */
     @SuppressWarnings("deprecation")
+    @Test
     public void test44431() throws IOException
     {
         HWPFDocument doc1 = HWPFTestDataSamples.openSampleFile("Bug44431.doc");
@@ -194,27 +188,25 @@ public class TestBugs extends TestCase
         WordExtractor extractor1 = new WordExtractor(doc1);
         try {
             HWPFDocument doc2 = HWPFTestDataSamples.writeOutAndReadBack(doc1);
-            
-            WordExtractor extractor2 = new WordExtractor(doc2);
-            try {
+
+            try (WordExtractor extractor2 = new WordExtractor(doc2)) {
                 assertEqualsIgnoreNewline(extractor1.getFooterText(), extractor2.getFooterText());
                 assertEqualsIgnoreNewline(extractor1.getHeaderText(), extractor2.getHeaderText());
-                assertEqualsIgnoreNewline(Arrays.toString(extractor1.getParagraphText() ),
+                assertEqualsIgnoreNewline(Arrays.toString(extractor1.getParagraphText()),
                         Arrays.toString(extractor2.getParagraphText()));
-        
+
                 assertEqualsIgnoreNewline(extractor1.getText(), extractor2.getText());
-            } finally {
-                extractor2.close();
             }
         } finally {
             extractor1.close();
+            doc1.close();
         }
     }
 
     /**
      * Bug 44331 - HWPFDocument.write destroys fields
-     * @throws IOException 
      */
+    @Test
     public void test44431_2() throws IOException
     {
         assertEqualsIgnoreNewline("File name=FieldsTest.doc\n" + 
@@ -241,10 +233,11 @@ public class TestBugs extends TestCase
 
     /**
      * Bug 45473 - HWPF cannot read file after save
-     * @throws IOException 
      */
+    @Test
     public void test45473() throws IOException
     {
+        // Fetch the current text
         HWPFDocument doc1 = HWPFTestDataSamples.openSampleFile("Bug45473.doc");
         WordExtractor wordExtractor = new WordExtractor(doc1);
         final String text1;
@@ -252,8 +245,11 @@ public class TestBugs extends TestCase
             text1 = wordExtractor.getText().trim();
         } finally {
             wordExtractor.close();
+            doc1.close();
         }
 
+        // Re-load, then re-save and re-check
+        doc1 = HWPFTestDataSamples.openSampleFile("Bug45473.doc");
         HWPFDocument doc2 = HWPFTestDataSamples.writeOutAndReadBack(doc1);
         WordExtractor wordExtractor2 = new WordExtractor(doc2);
         final String text2;
@@ -261,6 +257,7 @@ public class TestBugs extends TestCase
             text2 = wordExtractor2.getText().trim();
         } finally {
             wordExtractor2.close();
+            doc1.close();
         }
 
         // the text in the saved document has some differences in line
@@ -271,8 +268,8 @@ public class TestBugs extends TestCase
     /**
      * Bug 46220 - images are not properly extracted
      */
-    public void test46220()
-    {
+    @Test
+    public void test46220() throws IOException {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug46220.doc");
         // reference checksums as in Bugzilla
         String[] md5 = { "851be142bce6d01848e730cb6903f39e",
@@ -288,31 +285,32 @@ public class TestBugs extends TestCase
             // use Apache Commons Codec utils to compute md5
             assertEqualsIgnoreNewline(md5[i], DigestUtils.md5Hex(data));
         }
+        doc.close();
     }
 
     /**
      * [RESOLVED FIXED] Bug 46817 - Regression: Text from some table cells
      * missing
-     * @throws IOException 
      */
+    @Test
     public void test46817() throws IOException
     {
         String text = getText("Bug46817.doc").trim();
 
-        assertTrue(text.contains("Nazwa wykonawcy"));
-        assertTrue(text.contains("kujawsko-pomorskie"));
-        assertTrue(text.contains("ekomel@ekomel.com.pl"));
+        assertContains(text, "Nazwa wykonawcy");
+        assertContains(text, "kujawsko-pomorskie");
+        assertContains(text, "ekomel@ekomel.com.pl");
     }
 
     /**
      * [FAILING] Bug 47286 - Word documents saves in wrong format if source
      * contains form elements
-     * 
-     * @throws IOException
      */
     @SuppressWarnings("deprecation")
+    @Test
     public void test47286() throws IOException
     {
+        // Fetch the current text
         HWPFDocument doc1 = HWPFTestDataSamples.openSampleFile("Bug47286.doc");
         WordExtractor wordExtractor = new WordExtractor(doc1);
         final String text1;
@@ -320,8 +318,11 @@ public class TestBugs extends TestCase
             text1 = wordExtractor.getText().trim();
         } finally {
             wordExtractor.close();
+            doc1.close();
         }
 
+        // Re-load, then re-save and re-check
+        doc1 = HWPFTestDataSamples.openSampleFile("Bug47286.doc");
         HWPFDocument doc2 = HWPFTestDataSamples.writeOutAndReadBack(doc1);
         WordExtractor wordExtractor2 = new WordExtractor(doc2);
         final String text2;
@@ -329,6 +330,7 @@ public class TestBugs extends TestCase
             text2 = wordExtractor2.getText().trim();
         } finally {
             wordExtractor2.close();
+            doc1.close();
         }
 
         // the text in the saved document has some differences in line
@@ -351,6 +353,7 @@ public class TestBugs extends TestCase
      * [RESOLVED FIXED] Bug 47287 - StringIndexOutOfBoundsException in
      * CharacterRun.replaceText()
      */
+    @Test
     public void test47287()
     {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug47287.doc");
@@ -415,28 +418,29 @@ public class TestBugs extends TestCase
 
         String docText = r.text();
 
-        assertTrue(docText.contains("1-1"));
-        assertTrue(docText.contains("1-12"));
+        assertContains(docText, "1-1");
+        assertContains(docText, "1-12");
 
-        assertFalse(docText.contains("1-13"));
-        assertFalse(docText.contains("1-15"));
+        assertNotContained(docText, "1-13");
+        assertNotContained(docText, "1-15");
     }
 
     /**
      * [RESOLVED FIXED] Bug 47731 - Word Extractor considers text copied from
      * some website as an embedded object
      */
+    @Test
     public void test47731() throws Exception
     {
         String foundText = getText("Bug47731.doc");
 
-        assertTrue(foundText
-                .contains("Soak the rice in water for three to four hours"));
+        assertContains(foundText, "Soak the rice in water for three to four hours");
     }
 
     /**
      * Bug 4774 - text extracted by WordExtractor is broken
      */
+    @Test
     public void test47742() throws Exception
     {
         // (1) extract text from MS Word document via POI
@@ -444,22 +448,20 @@ public class TestBugs extends TestCase
 
         // (2) read text from text document (retrieved by saving the word
         // document as text file using encoding UTF-8)
-        InputStream is = POIDataSamples.getDocumentInstance()
-                .openResourceAsStream("Bug47742-text.txt");
-        try {
+        try (InputStream is = POIDataSamples.getDocumentInstance()
+                .openResourceAsStream("Bug47742-text.txt")) {
             byte[] expectedBytes = IOUtils.toByteArray(is);
-            String expectedText = new String(expectedBytes, "utf-8" )
+            String expectedText = new String(expectedBytes, "utf-8")
                     .substring(1); // strip-off the unicode marker
-    
+
             assertEqualsIgnoreNewline(expectedText, foundText);
-        } finally {
-            is.close();
         }
     }
 
     /**
      * Bug 47958 - Exception during Escher walk of pictures
      */
+    @Test
     public void test47958()
     {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug47958.doc");
@@ -470,6 +472,7 @@ public class TestBugs extends TestCase
      * [RESOLVED FIXED] Bug 48065 - Problems with save output of HWPF (losing
      * formatting)
      */
+    @Test
     public void test48065()
     {
         HWPFDocument doc1 = HWPFTestDataSamples.openSampleFile("Bug48065.doc");
@@ -485,55 +488,27 @@ public class TestBugs extends TestCase
         assertTableStructures(expected, actual);
     }
 
+    @Test
     public void test49933() throws IOException
     {
         String text = getTextOldFile("Bug49933.doc");
 
-        assertTrue( text.contains( "best.wine.jump.ru" ) );
+        assertContains(text, "best.wine.jump.ru");
     }
 
     /**
      * Bug 50936 - Exception parsing MS Word 8.0 file
      */
-    public void test50936_1()
+    @Test
+    public void test50936() throws Exception
     {
-        HWPFDocument hwpfDocument = HWPFTestDataSamples
-                .openSampleFile("Bug50936_1.doc");
-        hwpfDocument.getPicturesTable().getAllPictures();
-    }
+        String[] filenames = {"Bug50936_1.doc", "Bug50936_2.doc", "Bug50936_3.doc"};
+        for (String filename : filenames) {
+            HWPFDocument hwpfDocument = HWPFTestDataSamples.openSampleFile(filename);
 
-    /**
-     * Bug 50936 - Exception parsing MS Word 8.0 file
-     */
-    public void test50936_2()
-    {
-        HWPFDocument hwpfDocument = HWPFTestDataSamples
-                .openSampleFile("Bug50936_2.doc");
-        hwpfDocument.getPicturesTable().getAllPictures();
-    }
-
-    /**
-     * Bug 50936 - Exception parsing MS Word 8.0 file
-     */
-    public void test50936_3()
-    {
-        HWPFDocument hwpfDocument = HWPFTestDataSamples
-                .openSampleFile("Bug50936_3.doc");
-        hwpfDocument.getPicturesTable().getAllPictures();
-    }
-
-    /**
-     * [FAILING] Bug 50955 - error while retrieving the text file
-     * @throws IOException 
-     */
-    public void test50955() throws IOException
-    {
-        try {
-            getTextOldFile("Bug50955.doc");
-
-            fixed("50955");
-        } catch (IllegalStateException e) {
-            // expected here
+            assertNotNull(filename, hwpfDocument.getPicturesTable().getAllPictures());
+        
+            hwpfDocument.close();
         }
     }
 
@@ -541,6 +516,7 @@ public class TestBugs extends TestCase
      * [RESOLVED FIXED] Bug 51604 - replace text fails for doc (poi 3.8 beta
      * release from download site )
      */
+    @Test
     public void test51604()
     {
         HWPFDocument document = HWPFTestDataSamples
@@ -569,28 +545,15 @@ public class TestBugs extends TestCase
     /**
      * [RESOLVED FIXED] Bug 51604 - replace text fails for doc (poi 3.8 beta
      * release from download site )
-     * 
-     * @throws IOException
-     * @throws FileNotFoundException
      */
+    @Test
     public void test51604p2() throws Exception
     {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug51604.doc");
 
         Range range = doc.getRange();
         int numParagraph = range.numParagraphs();
-        for (int i = 0; i < numParagraph; i++ )
-        {
-            Paragraph paragraph = range.getParagraph(i);
-            int numCharRuns = paragraph.numCharacterRuns();
-            for (int j = 0; j < numCharRuns; j++ )
-            {
-                CharacterRun charRun = paragraph.getCharacterRun(j);
-                String text = charRun.text();
-                if (text.contains("Header" ) )
-                    charRun.replaceText(text, "added");
-            }
-        }
+        replaceText(range, numParagraph);
 
         doc = HWPFTestDataSamples.writeOutAndReadBack(doc);
         final FileInformationBlock fileInformationBlock = doc
@@ -608,10 +571,27 @@ public class TestBugs extends TestCase
         assertEquals(doc.getText().length(), totalLength);
     }
 
+    private void replaceText(Range range, int numParagraph) {
+        for (int i = 0; i < numParagraph; i++ )
+        {
+            Paragraph paragraph = range.getParagraph(i);
+            int numCharRuns = paragraph.numCharacterRuns();
+            for (int j = 0; j < numCharRuns; j++ )
+            {
+                CharacterRun charRun = paragraph.getCharacterRun(j);
+                String text = charRun.text();
+                if (text.contains("Header" ) ) {
+                    charRun.replaceText(text, "added");
+                }
+            }
+        }
+    }
+
     /**
      * [RESOLVED FIXED] Bug 51604 - replace text fails for doc (poi 3.8 beta
      * release from download site )
      */
+    @Test
     public void test51604p3() throws Exception
     {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug51604.doc");
@@ -621,7 +601,7 @@ public class TestBugs extends TestCase
         System.arraycopy(doc.getTableStream(), doc.getFileInformationBlock()
                 .getFcDop(), originalData, 0, originalData.length);
 
-        HWPFOutputStream outputStream = new HWPFOutputStream();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         doc.getDocProperties().writeTo(outputStream);
         final byte[] oldData = outputStream.toByteArray();
 
@@ -630,22 +610,11 @@ public class TestBugs extends TestCase
 
         Range range = doc.getRange();
         int numParagraph = range.numParagraphs();
-        for (int i = 0; i < numParagraph; i++ )
-        {
-            Paragraph paragraph = range.getParagraph(i);
-            int numCharRuns = paragraph.numCharacterRuns();
-            for (int j = 0; j < numCharRuns; j++ )
-            {
-                CharacterRun charRun = paragraph.getCharacterRun(j);
-                String text = charRun.text();
-                if (text.contains("Header" ) )
-                    charRun.replaceText(text, "added");
-            }
-        }
+        replaceText(range, numParagraph);
 
         doc = HWPFTestDataSamples.writeOutAndReadBack(doc);
 
-        outputStream = new HWPFOutputStream();
+        outputStream = new ByteArrayOutputStream();
         doc.getDocProperties().writeTo(outputStream);
         final byte[] newData = outputStream.toByteArray();
 
@@ -656,25 +625,24 @@ public class TestBugs extends TestCase
      * [RESOLVED FIXED] Bug 51671 - HWPFDocument.write based on NPOIFSFileSystem
      * throws a NullPointerException
      */
+    @Test
     public void test51671() throws Exception
     {
         InputStream is = POIDataSamples.getDocumentInstance()
                 .openResourceAsStream("empty.doc");
-        NPOIFSFileSystem npoifsFileSystem = new NPOIFSFileSystem(is);
-        try {
+        try (NPOIFSFileSystem npoifsFileSystem = new NPOIFSFileSystem(is)) {
             HWPFDocument hwpfDocument = new HWPFDocument(
                     npoifsFileSystem.getRoot());
             hwpfDocument.write(new ByteArrayOutputStream());
-        } finally {
-            npoifsFileSystem.close();
+            hwpfDocument.close();
         }
     }
 
     /**
      * Bug 51678 - Extracting text from Bug51524.zip is slow Bug 51524 -
      * PapBinTable constructor is slow
-     * @throws IOException 
      */
+    @Test
     public void test51678And51524() throws IOException
     {
         // YK: the test will run only if the poi.test.remote system property is
@@ -686,11 +654,8 @@ public class TestBugs extends TestCase
             HWPFDocument hwpfDocument = HWPFTestDataSamples
                     .openRemoteFile(href);
 
-            WordExtractor wordExtractor = new WordExtractor(hwpfDocument);
-            try {
+            try (WordExtractor wordExtractor = new WordExtractor(hwpfDocument)) {
                 wordExtractor.getText();
-            } finally {
-                wordExtractor.close();
             }
         }
     }
@@ -699,6 +664,7 @@ public class TestBugs extends TestCase
      * [FIXED] Bug 51902 - Picture.fillRawImageContent -
      * ArrayIndexOutOfBoundsException
      */
+    @Test
     public void testBug51890()
     {
         HWPFDocument doc = HWPFTestDataSamples.openSampleFile("Bug51890.doc");
@@ -715,6 +681,7 @@ public class TestBugs extends TestCase
      * [RESOLVED FIXED] Bug 51834 - Opening and Writing .doc file results in
      * corrupt document
      */
+    @Test
     public void testBug51834() throws Exception
     {
         /*
@@ -729,6 +696,7 @@ public class TestBugs extends TestCase
     /**
      * Bug 51944 - PAPFormattedDiskPage.getPAPX - IndexOutOfBounds
      */
+    @Test
     public void testBug51944() throws Exception
     {
         HWPFOldDocument doc = HWPFTestDataSamples.openOldSampleFile("Bug51944.doc");
@@ -739,6 +707,7 @@ public class TestBugs extends TestCase
      * Bug 52032 - [BUG] & [partial-PATCH] HWPF - ArrayIndexOutofBoundsException
      * with no stack trace (broken after revision 1178063)
      */
+    @Test
     public void testBug52032_1() throws Exception
     {
         assertNotNull(getText("Bug52032_1.doc"));
@@ -748,6 +717,7 @@ public class TestBugs extends TestCase
      * Bug 52032 - [BUG] & [partial-PATCH] HWPF - ArrayIndexOutofBoundsException
      * with no stack trace (broken after revision 1178063)
      */
+    @Test
     public void testBug52032_2() throws Exception
     {
         assertNotNull(getText("Bug52032_2.doc"));
@@ -757,6 +727,7 @@ public class TestBugs extends TestCase
      * Bug 52032 - [BUG] & [partial-PATCH] HWPF - ArrayIndexOutofBoundsException
      * with no stack trace (broken after revision 1178063)
      */
+    @Test
     public void testBug52032_3() throws Exception
     {
         assertNotNull(getText("Bug52032_3.doc"));
@@ -765,6 +736,7 @@ public class TestBugs extends TestCase
     /**
      * Bug 53380 - ArrayIndexOutOfBounds Exception parsing word 97 document
      */
+    @Test
     public void testBug53380_1() throws Exception
     {
         assertNotNull(getText("Bug53380_1.doc"));
@@ -773,6 +745,7 @@ public class TestBugs extends TestCase
     /**
      * Bug 53380 - ArrayIndexOutOfBounds Exception parsing word 97 document
      */
+    @Test
     public void testBug53380_2() throws Exception
     {
         assertNotNull(getText("Bug53380_2.doc"));
@@ -781,6 +754,7 @@ public class TestBugs extends TestCase
     /**
      * Bug 53380 - ArrayIndexOutOfBounds Exception parsing word 97 document
      */
+    @Test
     public void testBug53380_3() throws Exception
     {
         assertNotNull(getText("Bug53380_3.doc"));
@@ -789,6 +763,7 @@ public class TestBugs extends TestCase
     /**
      * Bug 53380 - ArrayIndexOutOfBounds Exception parsing word 97 document
      */
+    @Test
     public void testBug53380_4() throws Exception
     {
         assertNotNull(getText("Bug53380_4.doc"));
@@ -800,54 +775,51 @@ public class TestBugs extends TestCase
      * 
      * Disabled pending a fix for the bug
      */
-    public void DISABLEDtest56880() throws Exception {
+    @Test
+    public void test56880() throws Exception {
         HWPFDocument doc =
                 HWPFTestDataSamples.openSampleFile("56880.doc");
         assertEqualsIgnoreNewline("Check Request", doc.getRange().text());
     }
-
     
-    // These are the values the are explected to be read when the file
+    /**
+     * Bug 61268 - NegativeArraySizeException parsing word 97 document
+     */
+    @Test
+    public void testBug61268() throws Exception
+    {
+        assertNotNull(getText("Bug61268.doc"));
+    }
+    
+    // These are the values the are expected to be read when the file
     // is checked.
-    private int section1LeftMargin = 1440;
-    private int section1RightMargin = 1440;
-    private int section1TopMargin = 1440;
-    private int section1BottomMargin = 1440;
-    private int section1NumColumns = 1;
+    private final int section1LeftMargin = 1440;
+    private final int section1RightMargin = 1440;
+    private final int section1TopMargin = 1440;
+    private final int section1BottomMargin = 1440;
+    private final int section1NumColumns = 1;
     private int section2LeftMargin = 1440;
     private int section2RightMargin = 1440;
     private int section2TopMargin = 1440;
     private int section2BottomMargin = 1440;
-    private int section2NumColumns = 3;
+    private final int section2NumColumns = 3;
     
+    @Test
+    @SuppressWarnings("SuspiciousNameCombination")
     public void testHWPFSections() {
-        HWPFDocument document = null;
-        Paragraph para = null;
-        Section section = null;
-        Range overallRange = null;
-        int numParas = 0;
-        int numSections = 0;
-        document = HWPFTestDataSamples.openSampleFile("Bug53453Section.doc");
-        overallRange = document.getOverallRange();
-        numParas = overallRange.numParagraphs();
+        HWPFDocument document = HWPFTestDataSamples.openSampleFile("Bug53453Section.doc");
+        Range overallRange = document.getOverallRange();
+        int numParas = overallRange.numParagraphs();
         for(int i = 0; i < numParas; i++) {
-            para = overallRange.getParagraph(i);
-            numSections = para.numSections();
+            Paragraph para = overallRange.getParagraph(i);
+            int numSections = para.numSections();
             for(int j = 0; j < numSections; j++) {
-                section = para.getSection(j);
+                Section section = para.getSection(j);
                 if(para.text().trim().equals("Section1")) {
-                    assertEquals(section1BottomMargin, section.getMarginBottom());
-                    assertEquals(section1LeftMargin, section.getMarginLeft());
-                    assertEquals(section1RightMargin, section.getMarginRight());
-                    assertEquals(section1TopMargin, section.getMarginTop());
-                    assertEquals(section1NumColumns, section.getNumColumns());
+                    assertSection1Margin(section);
                 }
                 else if(para.text().trim().equals("Section2")) {
-                    assertEquals(section2BottomMargin, section.getMarginBottom());
-                    assertEquals(section2LeftMargin, section.getMarginLeft());
-                    assertEquals(section2RightMargin, section.getMarginRight());
-                    assertEquals(section2TopMargin, section.getMarginTop());
-                    assertEquals(section2NumColumns, section.getNumColumns());
+                    assertSection2Margin(section);
                     
                     // Change the margin widths
                     this.section2BottomMargin = (int)(1.5 * AbstractWordUtils.TWIPS_PER_INCH);
@@ -867,27 +839,68 @@ public class TestBugs extends TestCase
         overallRange = document.getOverallRange();
         numParas = overallRange.numParagraphs();
         for(int i = 0; i < numParas; i++) {
-            para = overallRange.getParagraph(i);
-            numSections = para.numSections();
+            Paragraph para = overallRange.getParagraph(i);
+            int numSections = para.numSections();
             for(int j = 0; j < numSections; j++) {
-                section = para.getSection(j);
+                Section section = para.getSection(j);
                 if(para.text().trim().equals("Section1")) {
                     // No changes to the margins in Section1
-                    assertEquals(section1BottomMargin, section.getMarginBottom());
-                    assertEquals(section1LeftMargin, section.getMarginLeft());
-                    assertEquals(section1RightMargin, section.getMarginRight());
-                    assertEquals(section1TopMargin, section.getMarginTop());
-                    assertEquals(section1NumColumns, section.getNumColumns());
+                    assertSection1Margin(section);
                 }
                 else if(para.text().trim().equals("Section2")) {
                     // The margins in Section2 have kept the new settings.
-                    assertEquals(section2BottomMargin, section.getMarginBottom());
-                    assertEquals(section2LeftMargin, section.getMarginLeft());
-                    assertEquals(section2RightMargin, section.getMarginRight());
-                    assertEquals(section2TopMargin, section.getMarginTop());
-                    assertEquals(section2NumColumns, section.getNumColumns());
+                    assertSection2Margin(section);
                 }
             }
         }
+    }
+
+    @SuppressWarnings("Duplicates")
+    private void assertSection1Margin(Section section) {
+        assertEquals(section1BottomMargin, section.getMarginBottom());
+        assertEquals(section1LeftMargin, section.getMarginLeft());
+        assertEquals(section1RightMargin, section.getMarginRight());
+        assertEquals(section1TopMargin, section.getMarginTop());
+        assertEquals(section1NumColumns, section.getNumColumns());
+    }
+
+    @SuppressWarnings("Duplicates")
+    private void assertSection2Margin(Section section) {
+        assertEquals(section2BottomMargin, section.getMarginBottom());
+        assertEquals(section2LeftMargin, section.getMarginLeft());
+        assertEquals(section2RightMargin, section.getMarginRight());
+        assertEquals(section2TopMargin, section.getMarginTop());
+        assertEquals(section2NumColumns, section.getNumColumns());
+    }
+
+    @Test
+    public void testRegressionIn315beta2() {
+        HWPFDocument hwpfDocument = HWPFTestDataSamples.openSampleFile("cap.stanford.edu_profiles_viewbiosketch_facultyid=4009&name=m_maciver.doc");
+        assertNotNull(hwpfDocument);
+    }
+
+    @Test(expected=ArrayIndexOutOfBoundsException.class)
+    public void test57603SevenRowTable() throws Exception {
+        HWPFDocument hwpfDocument = HWPFTestDataSamples.openSampleFile("57603-seven_columns.doc");
+        HWPFDocument hwpfDocument2 = HWPFTestDataSamples.writeOutAndReadBack(hwpfDocument);
+        assertNotNull(hwpfDocument2);
+        hwpfDocument2.close();
+        hwpfDocument.close();
+    }
+    
+    @Test(expected=ArrayIndexOutOfBoundsException.class)
+    public void test57843() throws IOException {
+        File f = POIDataSamples.getDocumentInstance().getFile("57843.doc");
+        try (POIFSFileSystem fs = new POIFSFileSystem(f, true)) {
+            HWPFOldDocument doc = new HWPFOldDocument(fs);
+            assertNotNull(doc);
+            doc.close();
+        }
+    }
+
+    @Test
+    public void testCommonCrawlRegression() throws IOException {
+        HWPFDocument document = HWPFTestDataSamples.openSampleFile("ca.kwsymphony.www_education_School_Concert_Seat_Booking_Form_2011-12.doc");
+        document.close();
     }
 }

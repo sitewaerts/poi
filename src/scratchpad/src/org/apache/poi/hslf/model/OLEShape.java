@@ -33,16 +33,17 @@ import org.apache.poi.hslf.usermodel.HSLFShape;
 import org.apache.poi.hslf.usermodel.HSLFSlideShow;
 import org.apache.poi.hslf.usermodel.HSLFTextParagraph;
 import org.apache.poi.sl.usermodel.ShapeContainer;
+import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 
 
 /**
  * A shape representing embedded OLE obejct.
- *
- * @author Yegor Kozlov
  */
 public final class OLEShape extends HSLFPictureShape {
-    protected ExEmbed _exEmbed;
+    private static final POILogger LOG = POILogFactory.getLogger(OLEShape.class);
+
+    private ExEmbed _exEmbed;
 
     /**
      * Create a new <code>OLEShape</code>
@@ -135,7 +136,7 @@ public final class OLEShape extends HSLFPictureShape {
             }
         }
         if (data==null) {
-            logger.log(POILogger.WARN, "OLE data not found");
+            LOG.log(POILogger.WARN, "OLE data not found");
         }
 
         return data;
@@ -162,7 +163,7 @@ public final class OLEShape extends HSLFPictureShape {
 
             ExObjList lst = ppt.getDocumentRecord().getExObjList(false);
             if(lst == null){
-                logger.log(POILogger.WARN, "ExObjList not found");
+                LOG.log(POILogger.WARN, "ExObjList not found");
                 return null;
             }
 
@@ -184,7 +185,8 @@ public final class OLEShape extends HSLFPictureShape {
      * @return the instance name of the embedded object
      */
     public String getInstanceName(){
-        return getExEmbed().getMenuName();
+        ExEmbed ee = getExEmbed();
+        return (ee == null) ? null : ee.getMenuName();
     }
 
     /**
@@ -194,7 +196,8 @@ public final class OLEShape extends HSLFPictureShape {
      * @return the full name of the embedded object
      */
     public String getFullName(){
-        return getExEmbed().getClipboardName();
+        ExEmbed ee = getExEmbed();
+        return (ee == null) ? null : ee.getClipboardName();
     }
 
     /**
@@ -205,6 +208,7 @@ public final class OLEShape extends HSLFPictureShape {
      * @return the ProgID
      */
     public String getProgID(){
-        return getExEmbed().getProgId();
+        ExEmbed ee = getExEmbed();
+        return (ee == null) ? null : ee.getProgId();
     }
 }

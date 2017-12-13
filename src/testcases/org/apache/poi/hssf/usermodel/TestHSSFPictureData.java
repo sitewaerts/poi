@@ -20,7 +20,6 @@ package org.apache.poi.hssf.usermodel;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -43,11 +42,10 @@ public final class TestHSSFPictureData extends TestCase{
         HSSFWorkbook wb = HSSFTestDataSamples.openSampleWorkbook("SimpleWithImages.xls");
 
         @SuppressWarnings("unchecked") // TODO - add getFormat() to interface PictureData and genericise wb.getAllPictures()
-        List<HSSFPictureData> lst = (List<HSSFPictureData>)(List<?>)wb.getAllPictures();
+        List<HSSFPictureData> lst = wb.getAllPictures();
         //assertEquals(2, lst.size());
 
-        for (Iterator it = lst.iterator(); it.hasNext(); ) {
-            HSSFPictureData pict = (HSSFPictureData)it.next();
+        for (final HSSFPictureData pict : lst) {
             String ext = pict.suggestFileExtension();
             byte[] data = pict.getData();
             if (ext.equals("jpeg")){
@@ -76,7 +74,7 @@ public final class TestHSSFPictureData extends TestCase{
         HSSFWorkbook wb = HSSFTestDataSamples.openSampleWorkbook("53446.xls");
 
         @SuppressWarnings("unchecked")
-        List<HSSFPictureData> lst = (List<HSSFPictureData>)(List<?>)wb.getAllPictures();
+        List<HSSFPictureData> lst = wb.getAllPictures();
         assertEquals(1, lst.size());
 
         HSSFPictureData pict = lst.get(0);
@@ -100,7 +98,7 @@ public final class TestHSSFPictureData extends TestCase{
         HSSFWorkbook wb = HSSFTestDataSamples.openSampleWorkbook("SheetWithDrawing.xls");
 
         @SuppressWarnings("unchecked") // TODO - add getFormat() to interface PictureData and genericise wb.getAllPictures()
-        List<HSSFPictureData> lst = (List<HSSFPictureData>)(List<?>)wb.getAllPictures();
+        List<HSSFPictureData> lst = wb.getAllPictures();
         for(HSSFPictureData pict : lst){
             assertNotNull(pict);
         }

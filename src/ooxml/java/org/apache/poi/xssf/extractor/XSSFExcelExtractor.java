@@ -26,10 +26,12 @@ import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Comment;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.HeaderFooter;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFRelation;
@@ -53,17 +55,11 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
     private Locale locale;
     private XSSFWorkbook workbook;
     private boolean includeSheetNames = true;
-    private boolean formulasNotResults = false;
-    private boolean includeCellComments = false;
+    private boolean formulasNotResults;
+    private boolean includeCellComments;
     private boolean includeHeadersFooters = true;
     private boolean includeTextBoxes = true;
 
-    /**
-     * @deprecated  Use {@link #XSSFExcelExtractor(org.apache.poi.openxml4j.opc.OPCPackage)} instead.
-     */
-    public XSSFExcelExtractor(String path) throws XmlException, OpenXML4JException, IOException {
-        this(new XSSFWorkbook(path));
-    }
     public XSSFExcelExtractor(OPCPackage container) throws XmlException, OpenXML4JException, IOException {
         this(new XSSFWorkbook(container));
     }
@@ -78,12 +74,10 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
             System.err.println("  XSSFExcelExtractor <filename.xlsx>");
             System.exit(1);
         }
-        POIXMLTextExtractor extractor =
-                new XSSFExcelExtractor(args[0]);
-        try {
+
+        try (OPCPackage pkg = OPCPackage.create(args[0]);
+             POIXMLTextExtractor extractor = new XSSFExcelExtractor(pkg)) {
             System.out.println(extractor.getText());
-        } finally {
-            extractor.close();
         }
     }
 
@@ -114,7 +108,7 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
     }
     /**
      * Should text within textboxes be included? Default is true
-     * @param includeTextBoxes
+     * @param includeTextBoxes True if textboxes should be included, false if not.
      */
     public void setIncludeTextBoxes(boolean includeTextBoxes){
         this.includeTextBoxes = includeTextBoxes;
@@ -139,11 +133,11 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
             formatter = new DataFormatter(locale);
         }
 
-        StringBuffer text = new StringBuffer();
-        for(int i=0; i<workbook.getNumberOfSheets(); i++) {
-            XSSFSheet sheet = workbook.getSheetAt(i);
+        StringBuilder text = new StringBuilder(64);
+        for(Sheet sh : workbook) {
+            XSSFSheet sheet = (XSSFSheet) sh;
             if(includeSheetNames) {
-                text.append(workbook.getSheetName(i)).append("\n");
+                text.append(sheet.getSheetName()).append("\n");
             }
 
             // Header(s), if present
@@ -166,19 +160,19 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
                     Cell cell = ri.next();
 
                     // Is it a formula one?
-                    if(cell.getCellType() == Cell.CELL_TYPE_FORMULA) {
+                    if(cell.getCellType() == CellType.FORMULA) {
                         if (formulasNotResults) {
                             String contents = cell.getCellFormula();
                             checkMaxTextSize(text, contents);
                             text.append(contents);
                         } else {
-                            if (cell.getCachedFormulaResultType() == Cell.CELL_TYPE_STRING) {
+                            if (cell.getCachedFormulaResultType() == CellType.STRING) {
                                 handleStringCell(text, cell);
                             } else {
                                 handleNonStringCell(text, cell, formatter);
                             }
                         }
-                    } else if(cell.getCellType() == Cell.CELL_TYPE_STRING) {
+                    } else if(cell.getCellType() == CellType.STRING) {
                         handleStringCell(text, cell);
                     } else {
                         handleNonStringCell(text, cell, formatter);
@@ -233,19 +227,19 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
         return text.toString();
     }
 
-    private void handleStringCell(StringBuffer text, Cell cell) {
+    private void handleStringCell(StringBuilder text, Cell cell) {
         String contents = cell.getRichStringCellValue().getString();
         checkMaxTextSize(text, contents);
         text.append(contents);
     }
 
-    private void handleNonStringCell(StringBuffer text, Cell cell, DataFormatter formatter) {
-        int type = cell.getCellType();
-        if (type == Cell.CELL_TYPE_FORMULA) {
+    private void handleNonStringCell(StringBuilder text, Cell cell, DataFormatter formatter) {
+        CellType type = cell.getCellType();
+        if (type == CellType.FORMULA) {
             type = cell.getCachedFormulaResultType();
         }
 
-        if (type == Cell.CELL_TYPE_NUMERIC) {
+        if (type == CellType.NUMERIC) {
             CellStyle cs = cell.getCellStyle();
 
             if (cs != null && cs.getDataFormatString() != null) {
@@ -259,8 +253,10 @@ public class XSSFExcelExtractor extends POIXMLTextExtractor
 
         // No supported styling applies to this cell
         String contents = ((XSSFCell)cell).getRawValue();
-        checkMaxTextSize(text, contents);
-        text.append( contents );
+        if (contents != null) {
+            checkMaxTextSize(text, contents);
+            text.append(contents);
+        }
     }
 
     private String extractHeaderFooter(HeaderFooter hf) {

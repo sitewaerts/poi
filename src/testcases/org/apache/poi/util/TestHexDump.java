@@ -22,16 +22,32 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestHexDump {
+
+    private static PrintStream SYSTEM_OUT;
+
+    @BeforeClass
+    public static void setUp() throws UnsupportedEncodingException {
+        SYSTEM_OUT = System.out;
+        System.setOut(new PrintStream(new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+
+            }
+        }, false, "UTF-8"));
+    }
+
+    @AfterClass
+    public static void tearDown() {
+        System.setOut(SYSTEM_OUT);
+    }
+
     @Test
     public void testDump() throws IOException {
         byte[] testArray = testArray();
@@ -125,13 +141,12 @@ public class TestHexDump {
                 }
             }
             obj[17] = chrs.toString();
-            format.append("%18$s"+HexDump.EOL);
+            format.append("%18$s").append(HexDump.EOL);
 
             String str = String.format(LocaleUtil.getUserLocale(), format.toString(), obj);
             strExp.append(str);
         }
-        byte bytesExp[] = strExp.toString().getBytes(HexDump.UTF8);
-        return bytesExp;
+        return strExp.toString().getBytes(HexDump.UTF8);
     }
 
     @Test
@@ -157,7 +172,7 @@ public class TestHexDump {
 
         assertEquals("FFFF", HexDump.toHex((short)0xFFFF));
 
-        assertEquals("00000000000004D2", HexDump.toHex(1234l));
+        assertEquals("00000000000004D2", HexDump.toHex(1234L));
 
         assertEquals("0xFE", HexDump.byteToHex(-2));
         assertEquals("0x25", HexDump.byteToHex(37));
@@ -185,18 +200,28 @@ public class TestHexDump {
 
     @Test(expected=ArrayIndexOutOfBoundsException.class)
     public void testDumpToStringOutOfIndex1() throws Exception {
-        HexDump.dump(new byte[ 1 ], 0, -1);
+        HexDump.dump(new byte[1], 0, -1);
     }
 
     @Test(expected=ArrayIndexOutOfBoundsException.class)
     public void testDumpToStringOutOfIndex2() throws Exception {
-        HexDump.dump(new byte[ 1 ], 0, 2);
+        HexDump.dump(new byte[1], 0, 2);
     }
 
+    @Test(expected=ArrayIndexOutOfBoundsException.class)
     public void testDumpToStringOutOfIndex3() throws Exception {
-        HexDump.dump(new byte[ 1 ], 0, 1);
+        HexDump.dump(new byte[1], 0, 1);
     }
 
+    @Test
+    public void testDumpToStringNoDataEOL1() throws Exception {
+        HexDump.dump(new byte[0], 0, 1);
+    }
+
+    @Test
+    public void testDumpToStringNoDataEOL2() throws Exception {
+        HexDump.dump(new byte[0], 0, 0);
+    }
 
     @Test
     public void testDumpToPrintStream() throws IOException {
@@ -242,11 +267,8 @@ public class TestHexDump {
     public void testMain() throws Exception {
         File file = TempFile.createTempFile("HexDump", ".dat");
         try {
-            FileOutputStream out = new FileOutputStream(file);
-            try {
+            try (FileOutputStream out = new FileOutputStream(file)) {
                 IOUtils.copy(new ByteArrayInputStream("teststring".getBytes(LocaleUtil.CHARSET_1252)), out);
-            } finally {
-                out.close();
             }
             assertTrue(file.exists());
             assertTrue(file.length() > 0);

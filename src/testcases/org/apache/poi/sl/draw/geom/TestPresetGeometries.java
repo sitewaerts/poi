@@ -22,12 +22,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.awt.geom.GeneralPath;
+import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.Map;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestPresetGeometries {
@@ -39,12 +40,13 @@ public class TestPresetGeometries {
         for(String name : shapes.keySet()) {
             CustomGeometry geom = shapes.get(name);
             Context ctx = new Context(geom, new Rectangle2D.Double(0, 0, 100, 100), new IAdjustableShape() {
+                @Override
                 public Guide getAdjustValue(String presetName) {
                     return null;
                 }
             });
             for(Path p : geom){
-                GeneralPath path = p.getPath(ctx);
+                Path2D path = p.getPath(ctx);
                 assertNotNull(path);
             }
         }
@@ -66,6 +68,7 @@ public class TestPresetGeometries {
         PresetGeometries._inst = null;
     }
 
+    @Ignore("problem solved? Turn back on if this debugging is still in process.")
     @Test
     public void testCheckXMLParser() throws Exception{
         // Gump reports a strange error because of an unavailable XML Parser, let's try to find out where 

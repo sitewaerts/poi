@@ -18,10 +18,7 @@ package org.apache.poi.openxml4j.opc;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.TreeMap;
+import java.util.*;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.InvalidOperationException;
@@ -43,7 +40,7 @@ import org.w3c.dom.NodeList;
 public final class PackageRelationshipCollection implements
         Iterable<PackageRelationship> {
 
-    private static POILogger logger = POILogFactory.getLogger(PackageRelationshipCollection.class);
+    private final static POILogger logger = POILogFactory.getLogger(PackageRelationshipCollection.class);
 
     /**
      * Package relationships ordered by ID.
@@ -54,6 +51,12 @@ public final class PackageRelationshipCollection implements
      * Package relationships ordered by type.
      */
     private TreeMap<String, PackageRelationship> relationshipsByType;
+
+    /**
+     * A lookup of internal relationships to avoid
+     */
+    private HashMap<String, PackageRelationship> internalRelationshipsByTargetName = new HashMap<>();
+
 
     /**
      * This relationshipPart.
@@ -74,7 +77,7 @@ public final class PackageRelationshipCollection implements
      * Reference to the package.
      */
     private OPCPackage container;
-    
+
     /**
      * The ID number of the next rID# to generate, or -1
      *  if that is still to be determined.
@@ -85,8 +88,8 @@ public final class PackageRelationshipCollection implements
      * Constructor.
      */
     PackageRelationshipCollection() {
-        relationshipsByID = new TreeMap<String, PackageRelationship>();
-        relationshipsByType = new TreeMap<String, PackageRelationship>();
+        relationshipsByID = new TreeMap<>();
+        relationshipsByType = new TreeMap<>();
     }
 
     /**
@@ -149,7 +152,7 @@ public final class PackageRelationshipCollection implements
         this();
 
         if (container == null)
-            throw new IllegalArgumentException("container");
+            throw new IllegalArgumentException("container needs to be specified");
 
         // Check if the specified part is not a relationship part
         if (part != null && part.isRelationshipPart())
@@ -230,6 +233,9 @@ public final class PackageRelationshipCollection implements
                 sourcePart, targetUri, targetMode, relationshipType, id);
         relationshipsByID.put(rel.getId(), rel);
         relationshipsByType.put(rel.getRelationshipType(), rel);
+        if (targetMode == TargetMode.INTERNAL){
+            internalRelationshipsByTargetName.put(targetUri.toASCIIString(), rel);
+        }
         return rel;
     }
 
@@ -245,22 +251,9 @@ public final class PackageRelationshipCollection implements
             if (rel != null) {
                 relationshipsByID.remove(rel.getId());
                 relationshipsByType.values().remove(rel);
+                internalRelationshipsByTargetName.values().remove(rel);
             }
         }
-    }
-
-    /**
-     * Remove a relationship by its reference.
-     *
-     * @param rel
-     *            The relationship to delete.
-     */
-    public void removeRelationship(PackageRelationship rel) {
-        if (rel == null)
-            throw new IllegalArgumentException("rel");
-
-        relationshipsByID.values().remove(rel);
-        relationshipsByType.values().remove(rel);
     }
 
     /**
@@ -273,13 +266,13 @@ public final class PackageRelationshipCollection implements
         if (index < 0 || index > relationshipsByID.values().size())
             throw new IllegalArgumentException("index");
 
-        PackageRelationship retRel = null;
         int i = 0;
         for (PackageRelationship rel : relationshipsByID.values()) {
             if (index == i++)
                 return rel;
         }
-        return retRel;
+
+        return null;
     }
 
     /**
@@ -379,9 +372,7 @@ public final class PackageRelationshipCollection implements
      * @return All relationships of the type specified by the filter.
      */
     public PackageRelationshipCollection getRelationships(String typeFilter) {
-        PackageRelationshipCollection coll = new PackageRelationshipCollection(
-                this, typeFilter);
-        return coll;
+        return new PackageRelationshipCollection(this, typeFilter);
     }
 
     /**
@@ -401,7 +392,7 @@ public final class PackageRelationshipCollection implements
      *         specified type contain in this collection.
      */
     public Iterator<PackageRelationship> iterator(String typeFilter) {
-        ArrayList<PackageRelationship> retArr = new ArrayList<PackageRelationship>();
+        ArrayList<PackageRelationship> retArr = new ArrayList<>();
         for (PackageRelationship rel : relationshipsByID.values()) {
             if (rel.getRelationshipType().equals(typeFilter))
                 retArr.add(rel);
@@ -415,6 +406,11 @@ public final class PackageRelationshipCollection implements
     public void clear() {
         relationshipsByID.clear();
         relationshipsByType.clear();
+        internalRelationshipsByTargetName.clear();
+    }
+
+    public PackageRelationship findExistingInternalRelation(PackagePart packagePart) {
+        return internalRelationshipsByTargetName.get(packagePart.getPartName().getName());
     }
 
     @Override

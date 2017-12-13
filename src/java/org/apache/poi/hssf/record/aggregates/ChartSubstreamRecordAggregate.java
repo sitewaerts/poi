@@ -24,10 +24,8 @@ import org.apache.poi.hssf.model.RecordStream;
 import org.apache.poi.hssf.record.*;
 
 /**
- * Manages the all the records associated with a chart sub-stream.<br/>
+ * Manages the all the records associated with a chart sub-stream.<p>
  * Includes the initial {@link BOFRecord} and final {@link EOFRecord}.
- *
- * @author Josh Micich
  */
 public final class ChartSubstreamRecordAggregate extends RecordAggregate {
 
@@ -40,7 +38,7 @@ public final class ChartSubstreamRecordAggregate extends RecordAggregate {
 
 	public ChartSubstreamRecordAggregate(RecordStream rs) {
 		_bofRec = (BOFRecord) rs.getNext();
-		List<RecordBase> temp = new ArrayList<RecordBase>();
+		List<RecordBase> temp = new ArrayList<>();
 		while (rs.peekNextClass() != EOFRecord.class) {
 			if (PageSettingsBlock.isComponentRecord(rs.peekNextSid())) {
 				if (_psBlock != null) {

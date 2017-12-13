@@ -26,7 +26,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PushbackInputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -51,12 +50,10 @@ import org.apache.poi.poifs.storage.BATBlock.BATBlockAndIndex;
 import org.apache.poi.poifs.storage.BlockAllocationTableReader;
 import org.apache.poi.poifs.storage.BlockAllocationTableWriter;
 import org.apache.poi.poifs.storage.HeaderBlock;
-import org.apache.poi.poifs.storage.HeaderBlockConstants;
 import org.apache.poi.poifs.storage.HeaderBlockWriter;
 import org.apache.poi.util.CloseIgnoringInputStream;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.Internal;
-import org.apache.poi.util.LongField;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 
@@ -69,7 +66,10 @@ import org.apache.poi.util.POILogger;
 public class NPOIFSFileSystem extends BlockStore
     implements POIFSViewable, Closeable
 {
-	private static final POILogger LOG = POILogFactory.getLogger(NPOIFSFileSystem.class);
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
+    private static final POILogger LOG = POILogFactory.getLogger(NPOIFSFileSystem.class);
 
     /**
      * Convenience method for clients that want to avoid the auto-close behaviour of the constructor.
@@ -98,15 +98,16 @@ public class NPOIFSFileSystem extends BlockStore
     {
         _header         = new HeaderBlock(bigBlockSize);
         _property_table = new NPropertyTable(_header);
-        _mini_store     = new NPOIFSMiniStore(this, _property_table.getRoot(), new ArrayList<BATBlock>(), _header);
-        _xbat_blocks    = new ArrayList<BATBlock>();
-        _bat_blocks     = new ArrayList<BATBlock>();
+        _mini_store     = new NPOIFSMiniStore(this, _property_table.getRoot(), new ArrayList<>(), _header);
+        _xbat_blocks    = new ArrayList<>();
+        _bat_blocks     = new ArrayList<>();
         _root           = null;
         
         if(newFS) {
            // Data needs to initially hold just the header block,
            //  a single bat block, and an empty properties section
-           _data        = new ByteArrayBackedDataSource(new byte[bigBlockSize.getBigBlockSize()*3]);
+           _data        = new ByteArrayBackedDataSource(IOUtils.safelyAllocate(
+                   bigBlockSize.getBigBlockSize()*3, MAX_RECORD_LENGTH));
         }
     }
     
@@ -233,29 +234,21 @@ public class NPOIFSFileSystem extends BlockStore
           
           // Now process the various entries
           readCoreContents();
-       } catch(IOException e) {
-          // Until we upgrade to Java 7, and can do a MultiCatch, we 
-          //  need to keep these two catch blocks in sync on their cleanup
-          if (closeChannelOnError && channel != null) {
-              channel.close();
-              channel = null;
-          }
-          throw e;
-       } catch(RuntimeException e) {
-          // Comes from Iterators etc.
-          // TODO Decide if we can handle these better whilst
-          //  still sticking to the iterator contract
+       } catch(IOException | RuntimeException e) {
+           // Comes from Iterators etc.
+           // TODO Decide if we can handle these better whilst
+           //  still sticking to the iterator contract
            if (closeChannelOnError && channel != null) {
                channel.close();
                channel = null;
            }
-          throw e;
+           throw e;
        }
     }
     
     /**
      * Create a POIFSFileSystem from an <tt>InputStream</tt>.  Normally the stream is read until
-     * EOF.  The stream is always closed.<p/>
+     * EOF.  The stream is always closed.<p>
      *
      * Some streams are usable after reaching EOF (typically those that return <code>true</code>
      * for <tt>markSupported()</tt>).  In the unlikely case that the caller has such a stream
@@ -352,48 +345,6 @@ public class NPOIFSFileSystem extends BlockStore
     }
 
     /**
-     * Checks that the supplied InputStream (which MUST
-     *  support mark and reset, or be a PushbackInputStream)
-     *  has a POIFS (OLE2) header at the start of it.
-     * If your InputStream does not support mark / reset,
-     *  then wrap it in a PushBackInputStream, then be
-     *  sure to always use that and not the original!
-     *  
-     *  After the method call, the InputStream is at the
-     *  same position as of the time of entering the method.
-     *  
-     * @param inp An InputStream which supports either mark/reset, or is a PushbackInputStream
-     */
-    public static boolean hasPOIFSHeader(InputStream inp) throws IOException {
-        // We want to peek at the first 8 bytes
-        inp.mark(8);
-
-        byte[] header = new byte[8];
-        int bytesRead = IOUtils.readFully(inp, header);
-        LongField signature = new LongField(HeaderBlockConstants._signature_offset, header);
-
-        // Wind back those 8 bytes
-        if(inp instanceof PushbackInputStream) {
-            PushbackInputStream pin = (PushbackInputStream)inp;
-            pin.unread(header, 0, bytesRead);
-        } else {
-            inp.reset();
-        }
-
-        // Did it match the signature?
-        return (signature.get() == HeaderBlockConstants._signature);
-    }
-    
-    /**
-     * Checks if the supplied first 8 bytes of a stream / file
-     *  has a POIFS (OLE2) header.
-     */
-    public static boolean hasPOIFSHeader(byte[] header8Bytes) {
-        LongField signature = new LongField(HeaderBlockConstants._signature_offset, header8Bytes);
-        return (signature.get() == HeaderBlockConstants._signature);
-    }
-    
-    /**
      * Read and process the PropertiesTable and the
      *  FAT / XFAT blocks, so that we're ready to
      *  work with the file
@@ -441,7 +392,7 @@ public class NPOIFSFileSystem extends BlockStore
        
        // Finally read the Small Stream FAT (SBAT) blocks
        BATBlock sfat;
-       List<BATBlock> sbats = new ArrayList<BATBlock>();
+       List<BATBlock> sbats = new ArrayList<>();
        _mini_store     = new NPOIFSMiniStore(this, _property_table.getRoot(), sbats, _header);
        nextAt = _header.getSBATStart();
        for(int i=0; i<_header.getSBATCount() && nextAt != POIFSConstants.END_OF_CHAIN; i++) {
@@ -478,12 +429,14 @@ public class NPOIFSFileSystem extends BlockStore
     @Override
     protected ByteBuffer getBlockAt(final int offset) throws IOException {
        // The header block doesn't count, so add one
-       long blockWanted = offset + 1;
+       long blockWanted = offset + 1L;
        long startAt = blockWanted * bigBlockSize.getBigBlockSize();
        try {
            return _data.read(bigBlockSize.getBigBlockSize(), startAt);
        } catch (IndexOutOfBoundsException e) {
-           throw new IndexOutOfBoundsException("Block " + offset + " not found - " + e);
+           IndexOutOfBoundsException wrapped = new IndexOutOfBoundsException("Block " + offset + " not found");
+           wrapped.initCause(e);
+           throw wrapped;
        }
     }
     
@@ -497,7 +450,7 @@ public class NPOIFSFileSystem extends BlockStore
           return getBlockAt(offset);
        } catch(IndexOutOfBoundsException e) {
           // The header block doesn't count, so add one
-          long startAt = (offset+1) * bigBlockSize.getBigBlockSize();
+          long startAt = (offset+1L) * bigBlockSize.getBigBlockSize();
           // Allocate and write
           ByteBuffer buffer = ByteBuffer.allocate(getBigBlockSize());
           _data.write(buffer, startAt);
@@ -699,7 +652,6 @@ public class NPOIFSFileSystem extends BlockStore
      *
      * @exception IOException
      */
-
     public DocumentEntry createDocument(final String name, final int size,
                                         final POIFSWriterListener writer)
         throws IOException
@@ -724,14 +676,48 @@ public class NPOIFSFileSystem extends BlockStore
     }
     
     /**
+     * Set the contents of a document in the root directory,
+     *  creating if needed, otherwise updating
+     *
+     * @param stream the InputStream from which the document's data
+     *               will be obtained
+     * @param name the name of the new or existing POIFSDocument
+     *
+     * @return the new or updated DocumentEntry
+     *
+     * @exception IOException on error populating the POIFSDocument
+     */
+
+    public DocumentEntry createOrUpdateDocument(final InputStream stream,
+                                                final String name)
+        throws IOException
+    {
+        return getRoot().createOrUpdateDocument(name, stream);
+    }
+    
+    /**
+     * Does the filesystem support an in-place write via
+     *  {@link #writeFilesystem()} ? If false, only writing out to
+     *  a brand new file via {@link #writeFilesystem(OutputStream)}
+     *  is supported.
+     */
+    public boolean isInPlaceWriteable() {
+        if(_data instanceof FileBackedDataSource) {
+            if ( ((FileBackedDataSource)_data).isWriteable() ) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
      * Write the filesystem out to the open file. Will thrown an
      *  {@link IllegalArgumentException} if opened from an 
      *  {@link InputStream}.
      * 
      * @exception IOException thrown on errors writing to the stream
      */
-    public void writeFilesystem() throws IOException
-    {
+    public void writeFilesystem() throws IOException {
        if(_data instanceof FileBackedDataSource) {
           // Good, correct type
        } else {
@@ -757,10 +743,7 @@ public class NPOIFSFileSystem extends BlockStore
      *
      * @exception IOException thrown on errors writing to the stream
      */
-
-    public void writeFilesystem(final OutputStream stream)
-        throws IOException
-    {
+    public void writeFilesystem(final OutputStream stream) throws IOException {
        // Have the datasource updated
        syncWithDataSource();
        
@@ -816,31 +799,19 @@ public class NPOIFSFileSystem extends BlockStore
      *
      * @exception IOException
      */
-
-    public static void main(String args[])
-        throws IOException
-    {
-        if (args.length != 2)
-        {
+    public static void main(String args[]) throws IOException {
+        if (args.length != 2) {
             System.err.println(
                 "two arguments required: input filename and output filename");
             System.exit(1);
         }
-        FileInputStream  istream = new FileInputStream(args[ 0 ]);
-        try {
-            FileOutputStream ostream = new FileOutputStream(args[ 1 ]);
-            try {
-                NPOIFSFileSystem fs = new NPOIFSFileSystem(istream);
-                try {
+
+        try (FileInputStream istream = new FileInputStream(args[0])) {
+            try (FileOutputStream ostream = new FileOutputStream(args[1])) {
+                try (NPOIFSFileSystem fs = new NPOIFSFileSystem(istream)) {
                     fs.writeFilesystem(ostream);
-                } finally {
-                    fs.close();
                 }
-            } finally {
-                ostream.close();
             }
-        } finally {
-            istream.close();
         }
     }
 
@@ -849,8 +820,7 @@ public class NPOIFSFileSystem extends BlockStore
      *
      * @return the root entry
      */
-    public DirectoryNode getRoot()
-    {
+    public DirectoryNode getRoot() {
         if (_root == null) {
            _root = new DirectoryNode(_property_table.getRoot(), this, null);
         }
@@ -867,11 +837,8 @@ public class NPOIFSFileSystem extends BlockStore
      * @exception IOException if the document does not exist or the
      *            name is that of a DirectoryEntry
      */
-
     public DocumentInputStream createDocumentInputStream(
-            final String documentName)
-        throws IOException
-    {
+            final String documentName) throws IOException {
     	return getRoot().createDocumentInputStream(documentName);
     }
 
@@ -880,8 +847,7 @@ public class NPOIFSFileSystem extends BlockStore
      *
      * @param entry to be removed
      */
-    void remove(EntryNode entry) throws IOException
-    {
+    void remove(EntryNode entry) throws IOException {
         // If it's a document, free the blocks
         if (entry instanceof DocumentEntry) {
             NPOIFSDocument doc = new NPOIFSDocument((DocumentProperty)entry.getProperty(), this);
@@ -900,13 +866,11 @@ public class NPOIFSFileSystem extends BlockStore
      *
      * @return an array of Object; may not be null, but may be empty
      */
-
-    public Object [] getViewableArray()
-    {
-        if (preferArray())
-        {
-            return (( POIFSViewable ) getRoot()).getViewableArray();
+    public Object [] getViewableArray() {
+        if (preferArray()) {
+            return getRoot().getViewableArray();
         }
+
         return new Object[ 0 ];
     }
 
@@ -918,12 +882,11 @@ public class NPOIFSFileSystem extends BlockStore
      * back end store
      */
 
-    public Iterator<Object> getViewableIterator()
-    {
-        if (!preferArray())
-        {
-            return (( POIFSViewable ) getRoot()).getViewableIterator();
+    public Iterator<Object> getViewableIterator() {
+        if (!preferArray()) {
+            return getRoot().getViewableIterator();
         }
+
         return Collections.emptyList().iterator();
     }
 
@@ -935,9 +898,8 @@ public class NPOIFSFileSystem extends BlockStore
      *         a viewer should call getViewableIterator
      */
 
-    public boolean preferArray()
-    {
-        return (( POIFSViewable ) getRoot()).preferArray();
+    public boolean preferArray() {
+        return getRoot().preferArray();
     }
 
     /**
@@ -947,8 +909,7 @@ public class NPOIFSFileSystem extends BlockStore
      * @return short description
      */
 
-    public String getShortDescription()
-    {
+    public String getShortDescription() {
         return "POIFS FileSystem";
     }
 

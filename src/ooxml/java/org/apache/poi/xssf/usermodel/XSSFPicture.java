@@ -53,14 +53,14 @@ public final class XSSFPicture extends XSSFShape implements Picture {
      * numbers 0, 1, 2, ..., 9 as rendered in the normal style's font. There are 4 pixels of margin
      * padding (two on each side), plus 1 pixel padding for the gridlines.
      *
-     * This value is the same for default font in Office 2007 (Calibry) and Office 2003 and earlier (Arial)
+     * This value is the same for default font in Office 2007 (Calibri) and Office 2003 and earlier (Arial)
      */
     // private static float DEFAULT_COLUMN_WIDTH = 9.140625f;
 
     /**
      * A default instance of CTShape used for creating new shapes.
      */
-    private static CTPicture prototype = null;
+    private static CTPicture prototype;
 
     /**
      * This object specifies a picture object and all its properties
@@ -163,9 +163,9 @@ public final class XSSFPicture extends XSSFShape implements Picture {
      * If the default font is changed the resized image can be streched vertically or horizontally.
      * </p>
      * <p>
-     * <code>resize(1.0,1.0)</code> keeps the original size,<br/>
-     * <code>resize(0.5,0.5)</code> resize to 50% of the original,<br/>
-     * <code>resize(2.0,2.0)</code> resizes to 200% of the original.<br/>
+     * <code>resize(1.0,1.0)</code> keeps the original size,<br>
+     * <code>resize(0.5,0.5)</code> resize to 50% of the original,<br>
+     * <code>resize(2.0,2.0)</code> resizes to 200% of the original.<br>
      * <code>resize({@link Double#MAX_VALUE},{@link Double#MAX_VALUE})</code> resizes to the dimension of the embedded image. 
      * </p>
      *
@@ -283,5 +283,10 @@ public final class XSSFPicture extends XSSFShape implements Picture {
     @Override
     public XSSFSheet getSheet() {
         return (XSSFSheet)getDrawing().getParent();
+    }
+
+    @Override
+    public String getShapeName() {
+        return ctPicture.getNvPicPr().getCNvPr().getName();
     }
 }

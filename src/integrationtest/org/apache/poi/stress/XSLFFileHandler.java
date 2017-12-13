@@ -31,7 +31,7 @@ import org.junit.Test;
 
 public class XSLFFileHandler extends SlideShowHandler {
 	@Override
-    public void handleFile(InputStream stream) throws Exception {
+    public void handleFile(InputStream stream, String path) throws Exception {
 	    XMLSlideShow slide = new XMLSlideShow(stream);
 	    XSLFSlideShow slideInner = new XSLFSlideShow(slide.getPackage());
 		assertNotNull(slideInner.getPresentation());
@@ -46,7 +46,8 @@ public class XSLFFileHandler extends SlideShowHandler {
 		slide.close();
 	}
 
-	public void handleExtracting(File file) throws Exception {
+	@Override
+    public void handleExtracting(File file) throws Exception {
         super.handleExtracting(file);
         
         
@@ -65,19 +66,17 @@ public class XSLFFileHandler extends SlideShowHandler {
     }
 
     // a test-case to test this locally without executing the full TestAllFiles
-	@Test
+	@Override
+    @Test
 	public void test() throws Exception {
-		InputStream stream = new FileInputStream("test-data/slideshow/ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx");
+        File file = new File("test-data/slideshow/ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx");
+        InputStream stream = new FileInputStream(file);
 		try {
-			handleFile(stream);
+			handleFile(stream, file.getPath());
 		} finally {
 			stream.close();
 		}
-	}
 
-    // a test-case to test this locally without executing the full TestAllFiles
-    @Test
-    public void testExtractor() throws Exception {
-        handleExtracting(new File("test-data/slideshow/ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx"));
-   }
+		handleExtracting(file);
+	}
 }

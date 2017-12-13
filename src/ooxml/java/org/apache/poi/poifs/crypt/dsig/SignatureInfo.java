@@ -27,23 +27,6 @@ package org.apache.poi.poifs.crypt.dsig;
 import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
 import static org.apache.poi.poifs.crypt.dsig.facets.SignatureFacet.XML_DIGSIG_NS;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.security.Provider;
-import java.security.Security;
-import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-
 import javax.crypto.Cipher;
 import javax.xml.crypto.MarshalException;
 import javax.xml.crypto.URIDereferencer;
@@ -64,7 +47,24 @@ import javax.xml.crypto.dsig.dom.DOMValidateContext;
 import javax.xml.crypto.dsig.spec.C14NMethodParameterSpec;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.security.Provider;
+import java.security.Security;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 import org.apache.jcp.xml.dsig.internal.dom.DOMReference;
 import org.apache.jcp.xml.dsig.internal.dom.DOMSignedInfo;
@@ -98,6 +98,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.events.EventListener;
 import org.w3c.dom.events.EventTarget;
+import org.xml.sax.SAXException;
 
 
 /**
@@ -162,15 +163,15 @@ import org.w3c.dom.events.EventTarget;
  * <p>To use SignatureInfo and its sibling classes, you'll need to have the following libs
  * in the classpath:</p>
  * <ul>
- * <li>BouncyCastle bcpkix and bcprov (tested against 1.53)</li>
- * <li>Apache Santuario "xmlsec" (tested against 2.0.5)</li>
- * <li>and slf4j-api (tested against 1.7.12)</li>
+ * <li>BouncyCastle bcpkix and bcprov (tested against 1.58)</li>
+ * <li>Apache Santuario "xmlsec" (tested against 2.1.0)</li>
+ * <li>and slf4j-api (tested against 1.7.25)</li>
  * </ul>
  */
 public class SignatureInfo implements SignatureConfigurable {
 
     private static final POILogger LOG = POILogFactory.getLogger(SignatureInfo.class);
-    private static boolean isInitialized = false;
+    private static boolean isInitialized;
     
     private SignatureConfig signatureConfig;
 
@@ -228,7 +229,8 @@ public class SignatureInfo implements SignatureConfigurable {
                 Document doc = DocumentHelper.readDocument(signaturePart.getInputStream());
                 XPath xpath = XPathFactory.newInstance().newXPath();
                 NodeList nl = (NodeList)xpath.compile("//*[@Id]").evaluate(doc, XPathConstants.NODESET);
-                for (int i=0; i<nl.getLength(); i++) {
+                final int length = nl.getLength();
+                for (int i=0; i<length; i++) {
                     ((Element)nl.item(i)).setIdAttribute("Id", true);
                 }
                 
@@ -241,6 +243,7 @@ public class SignatureInfo implements SignatureConfigurable {
                 XMLSignature xmlSignature = xmlSignatureFactory.unmarshalXMLSignature(domValidateContext);
                 
                 // TODO: replace with property when xml-sec patch is applied
+                // workaround added in r1637283 2014-11-07
                 for (Reference ref : (List<Reference>)xmlSignature.getSignedInfo().getReferences()) {
                     SignatureFacet.brokenJvmWorkaround(ref);
                 }
@@ -262,8 +265,24 @@ public class SignatureInfo implements SignatureConfigurable {
                 }
                 
                 return valid;
-            } catch (Exception e) {
-                String s = "error in marshalling and validating the signature";
+            } catch (IOException e) {
+                String s = "error in reading document";
+                LOG.log(POILogger.ERROR, s, e);
+                throw new EncryptedDocumentException(s, e);
+            } catch (SAXException e) {
+                String s = "error in parsing document";
+                LOG.log(POILogger.ERROR, s, e);
+                throw new EncryptedDocumentException(s, e);
+            } catch (XPathExpressionException e) {
+                String s = "error in searching document with xpath expression";
+                LOG.log(POILogger.ERROR, s, e);
+                throw new EncryptedDocumentException(s, e);
+            } catch (MarshalException e) {
+                String s = "error in unmarshalling the signature";
+                LOG.log(POILogger.ERROR, s, e);
+                throw new EncryptedDocumentException(s, e);
+            } catch (XMLSignatureException e) {
+                String s = "error in validating the signature";
                 LOG.log(POILogger.ERROR, s, e);
                 throw new EncryptedDocumentException(s, e);
             }
@@ -338,8 +357,7 @@ public class SignatureInfo implements SignatureConfigurable {
             digestInfoValueBuf.write(signatureConfig.getHashMagic());
             digestInfoValueBuf.write(digest);
             byte[] digestInfoValue = digestInfoValueBuf.toByteArray();
-            byte[] signatureValue = cipher.doFinal(digestInfoValue);
-            return signatureValue;
+            return cipher.doFinal(digestInfoValue);
         } catch (Exception e) {
             throw new EncryptedDocumentException(e);
         }
@@ -357,8 +375,8 @@ public class SignatureInfo implements SignatureConfigurable {
                     OPCPackage pkg = signatureConfig.getOpcPackage();
                     Iterator<PackageRelationship> sigOrigRels = 
                         pkg.getRelationshipsByType(PackageRelationshipTypes.DIGITAL_SIGNATURE_ORIGIN).iterator();
-                    Iterator<PackageRelationship> sigRels = null;
-                    PackagePart sigPart = null;
+                    Iterator<PackageRelationship> sigRels;
+                    PackagePart sigPart;
                     
                     public boolean hasNext() {
                         while (sigRels == null || !sigRels.hasNext()) {
@@ -454,7 +472,7 @@ public class SignatureInfo implements SignatureConfigurable {
         /*
          * Add ds:References that come from signing client local files.
          */
-        List<Reference> references = new ArrayList<Reference>();
+        List<Reference> references = new ArrayList<>();
         for (DigestInfo digestInfo : safe(digestInfos)) {
             byte[] documentDigestValue = digestInfo.digestValue;
 
@@ -467,7 +485,7 @@ public class SignatureInfo implements SignatureConfigurable {
         /*
          * Invoke the signature facets.
          */
-        List<XMLObject> objects = new ArrayList<XMLObject>();
+        List<XMLObject> objects = new ArrayList<>();
         for (SignatureFacet signatureFacet : signatureConfig.getSignatureFacets()) {
             LOG.log(POILogger.DEBUG, "invoking signature facet: " + signatureFacet.getClass().getSimpleName());
             signatureFacet.preSign(document, references, objects);
@@ -599,7 +617,7 @@ public class SignatureInfo implements SignatureConfigurable {
      */
     protected void writeDocument(Document document) throws MarshalException {
         XmlOptions xo = new XmlOptions();
-        Map<String,String> namespaceMap = new HashMap<String,String>();
+        Map<String,String> namespaceMap = new HashMap<>();
         for(Map.Entry<String,String> entry : signatureConfig.getNamespacePrefixes().entrySet()){
             namespaceMap.put(entry.getValue(), entry.getKey());
         }        

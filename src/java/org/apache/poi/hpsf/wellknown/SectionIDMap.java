@@ -17,184 +17,44 @@
 
 package org.apache.poi.hpsf.wellknown;
 
-import java.util.HashMap;
-
-import org.apache.poi.util.StringUtil;
+import org.apache.poi.hpsf.ClassID;
+import org.apache.poi.hpsf.DocumentSummaryInformation;
+import org.apache.poi.hpsf.SummaryInformation;
+import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 
 /**
- * <p>Maps section format IDs to {@link PropertyIDMap}s. It is
- * initialized with two well-known section format IDs: those of the
- * <tt>\005SummaryInformation</tt> stream and the
- * <tt>\005DocumentSummaryInformation</tt> stream.</p>
- *
- * <p>If you have a section format ID you can use it as a key to query
- * this map.  If you get a {@link PropertyIDMap} returned your section
- * is well-known and you can query the {@link PropertyIDMap} for PID
- * strings. If you get back <code>null</code> you are on your own.</p>
- *
- * <p>This {@link java.util.Map} expects the byte arrays of section format IDs
- * as keys. A key maps to a {@link PropertyIDMap} describing the
- * property IDs in sections with the specified section format ID.</p>
+ * This classed used to map section format IDs to {@link PropertyIDMap PropertyIDMaps},
+ * but there's no way to use custom PropertyIDMaps.<p>
+ * 
+ * It is only kept for its ClassIDs until removal.
+ * 
+ * @deprecated in 4.0.0, there's no way to create custom PropertyIDMaps, therefore
+ *   this class is obsolete
  */
-@SuppressWarnings({"rawtypes","unchecked"}) // Java Generics have issues on this style of class...
-public class SectionIDMap extends HashMap {
-    /**
-     * <p>The SummaryInformation's section's format ID.</p>
-     */
-    public static final byte[] SUMMARY_INFORMATION_ID = new byte[]
-    {
-        (byte) 0xF2, (byte) 0x9F, (byte) 0x85, (byte) 0xE0,
-        (byte) 0x4F, (byte) 0xF9, (byte) 0x10, (byte) 0x68,
-        (byte) 0xAB, (byte) 0x91, (byte) 0x08, (byte) 0x00,
-        (byte) 0x2B, (byte) 0x27, (byte) 0xB3, (byte) 0xD9
-    };
+@Internal
+@Deprecated
+@Removal(version="4.2.0")
+public class SectionIDMap {
 
     /**
-     * <p>The DocumentSummaryInformation's first and second sections' format
-     * ID.</p>
+     * The SummaryInformation's section's format ID.
+     * @deprecated use {@link SummaryInformation#FORMAT_ID}
      */
-    public static final byte[][] DOCUMENT_SUMMARY_INFORMATION_ID = new byte[][]
-    {
-        {
-            (byte) 0xD5, (byte) 0xCD, (byte) 0xD5, (byte) 0x02,
-            (byte) 0x2E, (byte) 0x9C, (byte) 0x10, (byte) 0x1B,
-            (byte) 0x93, (byte) 0x97, (byte) 0x08, (byte) 0x00,
-            (byte) 0x2B, (byte) 0x2C, (byte) 0xF9, (byte) 0xAE
-        },
-        {
-            (byte) 0xD5, (byte) 0xCD, (byte) 0xD5, (byte) 0x05,
-            (byte) 0x2E, (byte) 0x9C, (byte) 0x10, (byte) 0x1B,
-            (byte) 0x93, (byte) 0x97, (byte) 0x08, (byte) 0x00,
-            (byte) 0x2B, (byte) 0x2C, (byte) 0xF9, (byte) 0xAE
-        }
-    };
+    @Deprecated
+    public static final ClassID SUMMARY_INFORMATION_ID = SummaryInformation.FORMAT_ID;
 
     /**
-     * <p>A property without a known name is described by this string.</p>
+     * The DocumentSummaryInformation's first and second sections' format ID.
+     * @deprecated use {@link DocumentSummaryInformation#FORMAT_ID}
      */
-    public static final String UNDEFINED = "[undefined]";
+    @Deprecated
+    public static final ClassID[] DOCUMENT_SUMMARY_INFORMATION_ID = DocumentSummaryInformation.FORMAT_ID;
 
     /**
-     * <p>The default section ID map. It maps section format IDs to
-     * {@link PropertyIDMap}s.</p>
+     * A property without a known name is described by this string.
+     * @deprecated use {@link PropertyIDMap#UNDEFINED}
      */
-    private static SectionIDMap defaultMap;
-
-
-
-    /**
-     * <p>Returns the singleton instance of the default {@link
-     * SectionIDMap}.</p>
-     *
-     * @return The instance value
-     */
-    public static SectionIDMap getInstance()
-    {
-        if (defaultMap == null)
-        {
-            final SectionIDMap m = new SectionIDMap();
-            m.put(SUMMARY_INFORMATION_ID,
-                  PropertyIDMap.getSummaryInformationProperties());
-            m.put(DOCUMENT_SUMMARY_INFORMATION_ID[0],
-                  PropertyIDMap.getDocumentSummaryInformationProperties());
-            defaultMap = m;
-        }
-        return defaultMap;
-    }
-
-
-
-    /**
-     * <p>Returns the property ID string that is associated with a
-     * given property ID in a section format ID's namespace.</p>
-     *
-     * @param sectionFormatID Each section format ID has its own name
-     * space of property ID strings and thus must be specified.
-     * @param  pid The property ID
-     * @return The well-known property ID string associated with the
-     * property ID <var>pid</var> in the name space spanned by <var>
-     * sectionFormatID</var> . If the <var>pid</var>
-     * /<var>sectionFormatID </var> combination is not well-known, the
-     * string "[undefined]" is returned.
-     */
-    public static String getPIDString(final byte[] sectionFormatID,
-                                      final long pid)
-    {
-        final PropertyIDMap m = getInstance().get(sectionFormatID);
-        if (m == null) {
-            return UNDEFINED;
-        }
-        final String s = (String) m.get(pid);
-        if (s == null)
-            return UNDEFINED;
-        return s;
-    }
-
-
-
-    /**
-     * <p>Returns the {@link PropertyIDMap} for a given section format
-     * ID.</p>
-     *
-     * @param sectionFormatID the section format ID
-     * @return the property ID map
-     */
-    public PropertyIDMap get(final byte[] sectionFormatID)
-    {
-        return (PropertyIDMap)super.get(new String(sectionFormatID, StringUtil.UTF8));
-    }
-
-    /**
-     * <p>Returns the {@link PropertyIDMap} for a given section format
-     * ID.</p>
-     *
-     * @param sectionFormatID A section format ID as a <tt>byte[]</tt> .
-     * @deprecated Use {@link #get(byte[])} instead!
-     * @return the property ID map
-     */
-    public PropertyIDMap get(final Object sectionFormatID)
-    {
-        return get((byte[]) sectionFormatID);
-    }
-
-    /**
-     * <p>Associates a section format ID with a {@link
-     * PropertyIDMap}.</p>
-     *
-     * @param sectionFormatID the section format ID
-     * @param propertyIDMap the property ID map
-     * @return as defined by {@link java.util.Map#put}
-     */
-    public PropertyIDMap put(final byte[] sectionFormatID,
-                             final PropertyIDMap propertyIDMap)
-    {
-        return (PropertyIDMap)super.put(new String(sectionFormatID, StringUtil.UTF8), propertyIDMap);
-    }
-
-    /**
-     * Associates the string representation of a section
-     *  format ID with a {@link PropertyIDMap}
-     */
-    protected PropertyIDMap put(String key, PropertyIDMap value) {
-        return (PropertyIDMap)super.put(key, value);
-    }
-
-    /**
-     * @deprecated Use {@link #put(byte[], PropertyIDMap)} instead!
-     *
-     * @see #put(byte[], PropertyIDMap)
-     *
-     * @param key This parameter remains undocumented since the method is
-     * deprecated.
-     * @param value This parameter remains undocumented since the method is
-     * deprecated.
-     * @return The return value remains undocumented since the method is
-     * deprecated.
-     */
-    public PropertyIDMap put(final Object key, final Object value)
-    {
-        if (key instanceof String)
-            return put((String)key, (PropertyIDMap) value);
-        return put((byte[]) key, (PropertyIDMap) value);
-    }
+    @Deprecated
+    public static final String UNDEFINED = PropertyIDMap.UNDEFINED;
 }

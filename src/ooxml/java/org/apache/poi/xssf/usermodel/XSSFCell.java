@@ -32,19 +32,21 @@ import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellCopyPolicy;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Comment;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.ss.usermodel.Hyperlink;
 import org.apache.poi.ss.usermodel.RichTextString;
-import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Row.MissingCellPolicy;
 import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.Beta;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.LocaleUtil;
+import org.apache.poi.util.Removal;
 import org.apache.poi.xssf.model.SharedStringsTable;
 import org.apache.poi.xssf.model.StylesTable;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCell;
@@ -70,6 +72,8 @@ public final class XSSFCell implements Cell {
 
     private static final String FALSE_AS_STRING = "0";
     private static final String TRUE_AS_STRING  = "1";
+    private static final String FALSE = "FALSE";
+    private static final String TRUE = "TRUE";
 
     /**
      * the xml bean containing information about the cell's location, value,
@@ -112,7 +116,7 @@ public final class XSSFCell implements Cell {
         } else {
             int prevNum = row.getLastCellNum();
             if(prevNum != -1){
-                _cellNum = row.getCell(prevNum-1, Row.RETURN_NULL_AND_BLANK).getColumnIndex() + 1;
+                _cellNum = row.getCell(prevNum-1, MissingCellPolicy.RETURN_NULL_AND_BLANK).getColumnIndex() + 1;
             }
         }
         _sharedStringSource = row.getSheet().getWorkbook().getSharedStringSource();
@@ -120,13 +124,13 @@ public final class XSSFCell implements Cell {
     }
     
     /**
-     * Copy cell value, formula, and style, from srcCell per cell copy policy
+     * Copy cell value, formula and style, from srcCell per cell copy policy
      * If srcCell is null, clears the cell value and cell style per cell copy policy
      * 
      * This does not shift references in formulas. Use {@link org.apache.poi.xssf.usermodel.helpers.XSSFRowShifter} to shift references in formulas.
      * 
-     * @param srcCell
-     * @param policy
+     * @param srcCell The cell to take value, formula and style from
+     * @param policy The policy for copying the information, see {@link CellCopyPolicy}
      * @throws IllegalArgumentException if copy cell style and srcCell is from a different workbook
      */
     @Beta
@@ -135,23 +139,14 @@ public final class XSSFCell implements Cell {
         // Copy cell value (cell type is updated implicitly)
         if (policy.isCopyCellValue()) {
             if (srcCell != null) {
-                int copyCellType = srcCell.getCellType();
-                if (copyCellType == Cell.CELL_TYPE_FORMULA && !policy.isCopyCellFormula()) {
+                CellType copyCellType = srcCell.getCellType();
+                if (copyCellType == CellType.FORMULA && !policy.isCopyCellFormula()) {
                     // Copy formula result as value
                     // FIXME: Cached value may be stale
                     copyCellType = srcCell.getCachedFormulaResultType();
                 }
                 switch (copyCellType) {
-                    case Cell.CELL_TYPE_BOOLEAN:
-                        setCellValue(srcCell.getBooleanCellValue());
-                        break;
-                    case Cell.CELL_TYPE_ERROR:
-                        setCellErrorValue(srcCell.getErrorCellValue());
-                        break;
-                    case Cell.CELL_TYPE_FORMULA:
-                        setCellFormula(srcCell.getCellFormula());
-                        break;
-                    case Cell.CELL_TYPE_NUMERIC:
+                    case NUMERIC:
                         // DataFormat is not copied unless policy.isCopyCellStyle is true
                         if (DateUtil.isCellDateFormatted(srcCell)) {
                             setCellValue(srcCell.getDateCellValue());
@@ -160,12 +155,22 @@ public final class XSSFCell implements Cell {
                             setCellValue(srcCell.getNumericCellValue());
                         }
                         break;
-                    case Cell.CELL_TYPE_STRING:
+                    case STRING:
                         setCellValue(srcCell.getStringCellValue());
                         break;
-                    case Cell.CELL_TYPE_BLANK:
+                    case FORMULA:
+                        setCellFormula(srcCell.getCellFormula());
+                        break;
+                    case BLANK:
                         setBlank();
                         break;
+                    case BOOLEAN:
+                        setCellValue(srcCell.getBooleanCellValue());
+                        break;
+                    case ERROR:
+                        setCellErrorValue(srcCell.getErrorCellValue());
+                        break;
+
                     default:
                         throw new IllegalArgumentException("Invalid cell type " + srcCell.getCellType());
                 }
@@ -176,32 +181,20 @@ public final class XSSFCell implements Cell {
         
         // Copy CellStyle
         if (policy.isCopyCellStyle()) {
-            if (srcCell != null) {
-                setCellStyle(srcCell.getCellStyle());
-            }
-            else {
-                // clear cell style
-                setCellStyle(null);
-            }
+            setCellStyle(srcCell == null ? null : srcCell.getCellStyle());
         }
         
+        final Hyperlink srcHyperlink = (srcCell == null) ? null : srcCell.getHyperlink();
+
         if (policy.isMergeHyperlink()) {
             // if srcCell doesn't have a hyperlink and destCell has a hyperlink, don't clear destCell's hyperlink
-            final Hyperlink srcHyperlink = srcCell.getHyperlink();
             if (srcHyperlink != null) {
                 setHyperlink(new XSSFHyperlink(srcHyperlink));
             }
-        }
-        else if (policy.isCopyHyperlink()) {
+        } else if (policy.isCopyHyperlink()) {
             // overwrite the hyperlink at dest cell with srcCell's hyperlink
             // if srcCell doesn't have a hyperlink, clear the hyperlink (if one exists) at destCell
-            final Hyperlink srcHyperlink = srcCell.getHyperlink();
-            if (srcHyperlink == null) {
-                setHyperlink(null);
-            }
-            else {
-                setHyperlink(new XSSFHyperlink(srcHyperlink));
-            }
+            setHyperlink(srcHyperlink == null ? null : new XSSFHyperlink(srcHyperlink));
         }
     }
 
@@ -246,21 +239,21 @@ public final class XSSFCell implements Cell {
      * </p>
      * @return the value of the cell as a boolean
      * @throws IllegalStateException if the cell type returned by {@link #getCellType()}
-     *   is not CELL_TYPE_BOOLEAN, CELL_TYPE_BLANK or CELL_TYPE_FORMULA
+     *   is not {@link CellType#BOOLEAN}, {@link CellType#BLANK} or {@link CellType#FORMULA}
      */
     @Override
     public boolean getBooleanCellValue() {
-        int cellType = getCellType();
+        CellType cellType = getCellType();
         switch(cellType) {
-            case CELL_TYPE_BLANK:
+            case BLANK:
                 return false;
-            case CELL_TYPE_BOOLEAN:
+            case BOOLEAN:
                 return _cell.isSetV() && TRUE_AS_STRING.equals(_cell.getV());
-            case CELL_TYPE_FORMULA:
+            case FORMULA:
                 //YK: should throw an exception if requesting boolean value from a non-boolean formula
                 return _cell.isSetV() && TRUE_AS_STRING.equals(_cell.getV());
             default:
-                throw typeMismatch(CELL_TYPE_BOOLEAN, cellType, false);
+                throw typeMismatch(CellType.BOOLEAN, cellType, false);
         }
     }
 
@@ -284,31 +277,34 @@ public final class XSSFCell implements Cell {
      * For formulas or error cells we return the precalculated value;
      * </p>
      * @return the value of the cell as a number
-     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is CELL_TYPE_STRING
+     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is {@link CellType#STRING}
      * @exception NumberFormatException if the cell value isn't a parsable <code>double</code>.
      * @see DataFormatter for turning this number into a string similar to that which Excel would render this number as.
      */
     @Override
     public double getNumericCellValue() {
-        int cellType = getCellType();
+        CellType cellType = getCellType();
         switch(cellType) {
-            case CELL_TYPE_BLANK:
+            case BLANK:
                 return 0.0;
-            case CELL_TYPE_FORMULA:
-            case CELL_TYPE_NUMERIC:
+            case FORMULA:
+                // fall-through
+            case NUMERIC:
                 if(_cell.isSetV()) {
                    String v = _cell.getV();
-                   if (v.isEmpty()) return 0.0;
+                   if (v.isEmpty()) {
+                       return 0.0;
+                   }
                    try {
                       return Double.parseDouble(v);
                    } catch(NumberFormatException e) {
-                      throw typeMismatch(CELL_TYPE_NUMERIC, CELL_TYPE_STRING, false);
+                      throw typeMismatch(CellType.NUMERIC, CellType.STRING, false);
                    }
                 } else {
                    return 0.0;
                 }
             default:
-                throw typeMismatch(CELL_TYPE_NUMERIC, cellType, false);
+                throw typeMismatch(CellType.NUMERIC, cellType, false);
         }
     }
 
@@ -361,13 +357,13 @@ public final class XSSFCell implements Cell {
      */
     @Override
     public XSSFRichTextString getRichStringCellValue() {
-        int cellType = getCellType();
+        CellType cellType = getCellType();
         XSSFRichTextString rt;
         switch (cellType) {
-            case CELL_TYPE_BLANK:
+            case BLANK:
                 rt = new XSSFRichTextString("");
                 break;
-            case CELL_TYPE_STRING:
+            case STRING:
                 if (_cell.getT() == STCellType.INLINE_STR) {
                     if(_cell.isSetIs()) {
                         //string is expressed directly in the cell definition instead of implementing the shared string table.
@@ -391,24 +387,24 @@ public final class XSSFCell implements Cell {
                     }
                 }
                 break;
-            case CELL_TYPE_FORMULA:
-                checkFormulaCachedValueType(CELL_TYPE_STRING, getBaseCellType(false));
+            case FORMULA:
+                checkFormulaCachedValueType(CellType.STRING, getBaseCellType(false));
                 rt = new XSSFRichTextString(_cell.isSetV() ? _cell.getV() : "");
                 break;
             default:
-                throw typeMismatch(CELL_TYPE_STRING, cellType, false);
+                throw typeMismatch(CellType.STRING, cellType, false);
         }
         rt.setStylesTableReference(_stylesSource);
         return rt;
     }
 
-    private static void checkFormulaCachedValueType(int expectedTypeCode, int cachedValueType) {
+    private static void checkFormulaCachedValueType(CellType expectedTypeCode, CellType cachedValueType) {
         if (cachedValueType != expectedTypeCode) {
             throw typeMismatch(expectedTypeCode, cachedValueType, true);
         }
-	}
+    }
 
-	/**
+    /**
      * Set a string value for the cell.
      *
      * @param str value to set the cell to.  For formulas we'll set the formula
@@ -432,7 +428,7 @@ public final class XSSFCell implements Cell {
     @Override
     public void setCellValue(RichTextString str) {
         if(str == null || str.getString() == null){
-            setCellType(Cell.CELL_TYPE_BLANK);
+            setCellType(CellType.BLANK);
             return;
         }
 
@@ -440,9 +436,9 @@ public final class XSSFCell implements Cell {
             throw new IllegalArgumentException("The maximum length of cell contents (text) is 32,767 characters");
         }
 
-        int cellType = getCellType();
-        switch(cellType){
-            case Cell.CELL_TYPE_FORMULA:
+        CellType cellType = getCellType();
+        switch (cellType){
+            case FORMULA:
                 _cell.setV(str.getString());
                 _cell.setT(STCellType.STR);
                 break;
@@ -465,20 +461,37 @@ public final class XSSFCell implements Cell {
      * Return a formula for the cell, for example, <code>SUM(C4:E4)</code>
      *
      * @return a formula for the cell
-     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is not CELL_TYPE_FORMULA
+     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is not {@link CellType#FORMULA}
      */
     @Override
     public String getCellFormula() {
-        int cellType = getCellType();
-        if(cellType != CELL_TYPE_FORMULA) throw typeMismatch(CELL_TYPE_FORMULA, cellType, false);
+        // existing behavior - create a new XSSFEvaluationWorkbook for every call
+        return getCellFormula(null);
+    }
+    
+    /**
+     * package/hierarchy use only - reuse an existing evaluation workbook if available for caching
+     *
+     * @param fpb evaluation workbook for reuse, if available, or null to create a new one as needed
+     * @return a formula for the cell
+     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is not {@link CellType#FORMULA}
+     */
+    protected String getCellFormula(XSSFEvaluationWorkbook fpb) {
+        CellType cellType = getCellType();
+        if(cellType != CellType.FORMULA) {
+            throw typeMismatch(CellType.FORMULA, cellType, false);
+        }
 
         CTCellFormula f = _cell.getF();
-        if (isPartOfArrayFormulaGroup() && f == null) {
-            XSSFCell cell = getSheet().getFirstCellInArrayFormula(this);
-            return cell.getCellFormula();
+        if (isPartOfArrayFormulaGroup()) {
+            /* In an excel generated array formula, the formula property might be set, but the string is empty in slave cells */
+            if (f == null || f.getStringValue().isEmpty()) {
+                XSSFCell cell = getSheet().getFirstCellInArrayFormula(this);
+                return cell.getCellFormula(fpb);
+            }
         }
         if (f.getT() == STCellFormulaType.SHARED) {
-            return convertSharedFormula((int)f.getSi());
+            return convertSharedFormula((int)f.getSi(), fpb == null ? XSSFEvaluationWorkbook.create(getSheet().getWorkbook()) : fpb);
         }
         return f.getStringValue();
     }
@@ -489,12 +502,14 @@ public final class XSSFCell implements Cell {
      * @param si Shared Group Index
      * @return non shared formula created for the given shared formula and this cell
      */
-    private String convertSharedFormula(int si){
+    private String convertSharedFormula(int si, XSSFEvaluationWorkbook fpb){
         XSSFSheet sheet = getSheet();
 
         CTCellFormula f = sheet.getSharedFormula(si);
-        if(f == null) throw new IllegalStateException(
-                "Master cell of a shared formula with sid="+si+" was not found");
+        if(f == null) {
+            throw new IllegalStateException(
+                    "Master cell of a shared formula with sid="+si+" was not found");
+        }
 
         String sharedFormula = f.getStringValue();
         //Range of cells which the shared formula applies to
@@ -503,10 +518,9 @@ public final class XSSFCell implements Cell {
         CellRangeAddress ref = CellRangeAddress.valueOf(sharedFormulaRange);
 
         int sheetIndex = sheet.getWorkbook().getSheetIndex(sheet);
-        XSSFEvaluationWorkbook fpb = XSSFEvaluationWorkbook.create(sheet.getWorkbook());
         SharedFormula sf = new SharedFormula(SpreadsheetVersion.EXCEL2007);
 
-        Ptg[] ptgs = FormulaParser.parse(sharedFormula, fpb, FormulaType.CELL, sheetIndex);
+        Ptg[] ptgs = FormulaParser.parse(sharedFormula, fpb, FormulaType.CELL, sheetIndex, getRowIndex());
         Ptg[] fmla = sf.convertSharedFormulas(ptgs,
                 getRowIndex() - ref.getFirstRow(), getColumnIndex() - ref.getFirstColumn());
         return FormulaRenderer.toFormulaString(fpb, fmla);
@@ -540,22 +554,28 @@ public final class XSSFCell implements Cell {
         cellFormula.setRef(range.formatAsString());
     }
 
-    private void setFormula(String formula, int formulaType) {
+    private void setFormula(String formula, FormulaType formulaType) {
         XSSFWorkbook wb = _row.getSheet().getWorkbook();
         if (formula == null) {
             wb.onDeleteFormula(this);
-            if(_cell.isSetF()) _cell.unsetF();
+            if(_cell.isSetF()) {
+                _cell.unsetF();
+            }
             return;
         }
 
-        XSSFEvaluationWorkbook fpb = XSSFEvaluationWorkbook.create(wb);
-        //validate through the FormulaParser
-        FormulaParser.parse(formula, fpb, formulaType, wb.getSheetIndex(getSheet()));
+        if(wb.getCellFormulaValidation()) {
+            XSSFEvaluationWorkbook fpb = XSSFEvaluationWorkbook.create(wb);
+            //validate through the FormulaParser
+            FormulaParser.parse(formula, fpb, formulaType, wb.getSheetIndex(getSheet()), getRowIndex());
+        }
 
         CTCellFormula f = CTCellFormula.Factory.newInstance();
         f.setStringValue(formula);
         _cell.setF(f);
-        if(_cell.isSetV()) _cell.unsetV();
+        if(_cell.isSetV()) {
+            _cell.unsetV();
+        }
     }
 
     /**
@@ -602,7 +622,7 @@ public final class XSSFCell implements Cell {
     /**
      * Return the cell's style.
      *
-     * @return the cell's style.</code>
+     * @return the cell's style.
      */
     @Override
     public XSSFCellStyle getCellStyle() {
@@ -619,7 +639,7 @@ public final class XSSFCell implements Cell {
      * the XSSFWorkbook.</p>
      *
      * <p>To change the style of a cell without affecting other cells that use the same style,
-     * use {@link org.apache.poi.ss.util.CellUtil#setCellStyleProperties(Cell, Map)}</p>
+     * use {@link org.apache.poi.ss.util.CellUtil#setCellStyleProperties(Cell, java.util.Map)}</p>
      * 
      * @param style  reference contained in the workbook.
      * If the value is null then the style information is removed causing the cell to used the default workbook style.
@@ -628,7 +648,9 @@ public final class XSSFCell implements Cell {
     @Override
     public void setCellStyle(CellStyle style) {
         if(style == null) {
-            if(_cell.isSetS()) _cell.unsetS();
+            if(_cell.isSetS()) {
+                _cell.unsetS();
+            }
         } else {
             XSSFCellStyle xStyle = (XSSFCellStyle)style;
             xStyle.verifyBelongsToStylesSource(_stylesSource);
@@ -638,53 +660,99 @@ public final class XSSFCell implements Cell {
         }
     }
     
+    /**
+     * POI currently supports these formula types:
+     * <ul>
+     * <li> {@link STCellFormulaType#NORMAL}
+     * <li> {@link STCellFormulaType#SHARED}
+     * <li> {@link STCellFormulaType#ARRAY}
+     * </ul>
+     * POI does not support {@link STCellFormulaType#DATA_TABLE} formulas.
+     * @return true if the cell is of a formula type POI can handle
+     */
     private boolean isFormulaCell() {
-        if (_cell.getF() != null || getSheet().isCellInArrayFormulaContext(this)) {
+        if ( (_cell.isSetF() && _cell.getF().getT() != STCellFormulaType.DATA_TABLE ) || getSheet().isCellInArrayFormulaContext(this)) {
             return true;
         }
         return false;
     }
-
+    
     /**
-     * Return the cell type.
+     * Return the cell type.  Tables in an array formula return
+     * {@link CellType#FORMULA} for all cells, even though the formula is only defined
+     * in the OOXML file for the top left cell of the array.
+     * <p>
+     * NOTE: POI does not support data table formulas.
+     * Cells in a data table appear to POI as plain cells typed from their cached value.
      *
      * @return the cell type
-     * @see Cell#CELL_TYPE_BLANK
-     * @see Cell#CELL_TYPE_NUMERIC
-     * @see Cell#CELL_TYPE_STRING
-     * @see Cell#CELL_TYPE_FORMULA
-     * @see Cell#CELL_TYPE_BOOLEAN
-     * @see Cell#CELL_TYPE_ERROR
      */
     @Override
-    public int getCellType() {
-        if (isFormulaCell()) return CELL_TYPE_FORMULA;
+    public CellType getCellType() {
+        if (isFormulaCell()) {
+            return CellType.FORMULA;
+        }
 
         return getBaseCellType(true);
     }
 
     /**
+     * Return the cell type.  Tables in an array formula return 
+     * {@link CellType#FORMULA} for all cells, even though the formula is only defined
+     * in the OOXML file for the top left cell of the array. 
+     * <p>
+     * NOTE: POI does not support data table formulas.
+     * Cells in a data table appear to POI as plain cells typed from their cached value.
+     *
+     * @return the cell type
+     * @since POI 3.15 beta 3
+     * @deprecated use <code>getCellType</code> instead
+     */
+    @Deprecated
+    @Removal(version = "4.2")
+    @Override
+    public CellType getCellTypeEnum() {
+        return getCellType();
+    }
+
+    /**
      * Only valid for formula cells
-     * @return one of ({@link #CELL_TYPE_NUMERIC}, {@link #CELL_TYPE_STRING},
-     *     {@link #CELL_TYPE_BOOLEAN}, {@link #CELL_TYPE_ERROR}) depending
+     * @return one of ({@link CellType#NUMERIC}, {@link CellType#STRING},
+     *     {@link CellType#BOOLEAN}, {@link CellType#ERROR}) depending
      * on the cached value of the formula
      */
     @Override
-    public int getCachedFormulaResultType() {
+    public CellType getCachedFormulaResultType() {
         if (! isFormulaCell()) {
             throw new IllegalStateException("Only formula cells have cached results");
         }
 
         return getBaseCellType(false);
     }
+    
+    /**
+     * Only valid for formula cells
+     * @return one of ({@link CellType#NUMERIC}, {@link CellType#STRING},
+     *     {@link CellType#BOOLEAN}, {@link CellType#ERROR}) depending
+     * on the cached value of the formula
+     * @since POI 3.15 beta 3
+     * @deprecated use <code>getCachedFormulaResultType</code> instead
+     * Will be deleted when we make the CellType enum transition. See bug 59791.
+     */
+    @Deprecated
+    @Removal(version = "4.2")
+    @Override
+    public CellType getCachedFormulaResultTypeEnum() {
+        return getCachedFormulaResultType();
+    }
 
     /**
      * Detect cell type based on the "t" attribute of the CTCell bean
      */
-    private int getBaseCellType(boolean blankCells) {
+    private CellType getBaseCellType(boolean blankCells) {
         switch (_cell.getT().intValue()) {
             case STCellType.INT_B:
-                return CELL_TYPE_BOOLEAN;
+                return CellType.BOOLEAN;
             case STCellType.INT_N:
                 if (!_cell.isSetV() && blankCells) {
                     // ooxml does have a separate cell type of 'blank'.  A blank cell gets encoded as
@@ -692,15 +760,15 @@ public final class XSSFCell implements Cell {
                     // The formula evaluator (and perhaps other clients of this interface) needs to
                     // distinguish blank values which sometimes get translated into zero and sometimes
                     // empty string, depending on context
-                    return CELL_TYPE_BLANK;
+                    return CellType.BLANK;
                 }
-                return CELL_TYPE_NUMERIC;
+                return CellType.NUMERIC;
             case STCellType.INT_E:
-                return CELL_TYPE_ERROR;
+                return CellType.ERROR;
             case STCellType.INT_S: // String is in shared strings
             case STCellType.INT_INLINE_STR: // String is inline in cell
             case STCellType.INT_STR:
-                 return CELL_TYPE_STRING;
+                 return CellType.STRING;
             default:
                 throw new IllegalStateException("Illegal cell type: " + this._cell.getT());
         }
@@ -712,14 +780,13 @@ public final class XSSFCell implements Cell {
      * For strings we throw an exception. For blank cells we return a null.
      * </p>
      * @return the value of the cell as a date
-     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is CELL_TYPE_STRING
+     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} is {@link CellType#STRING}
      * @exception NumberFormatException if the cell value isn't a parsable <code>double</code>.
      * @see DataFormatter for formatting  this date into a string similar to how excel does.
      */
     @Override
     public Date getDateCellValue() {
-        int cellType = getCellType();
-        if (cellType == CELL_TYPE_BLANK) {
+        if (getCellType() == CellType.BLANK) {
             return null;
         }
 
@@ -738,6 +805,11 @@ public final class XSSFCell implements Cell {
      */
     @Override
     public void setCellValue(Date value) {
+        if(value == null) {
+            setCellType(CellType.BLANK);
+            return;
+        }
+
         boolean date1904 = getSheet().getWorkbook().isDate1904();
         setCellValue(DateUtil.getExcelDate(value, date1904));
     }
@@ -760,6 +832,11 @@ public final class XSSFCell implements Cell {
      */
     @Override
     public void setCellValue(Calendar value) {
+        if(value == null) {
+            setCellType(CellType.BLANK);
+            return;
+        }
+
         boolean date1904 = getSheet().getWorkbook().isDate1904();
         setCellValue( DateUtil.getExcelDate(value, date1904 ));
     }
@@ -768,12 +845,14 @@ public final class XSSFCell implements Cell {
      * Returns the error message, such as #VALUE!
      *
      * @return the error message such as #VALUE!
-     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} isn't CELL_TYPE_ERROR
+     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} isn't {@link CellType#ERROR}
      * @see FormulaError
      */
-    public String getErrorCellString() {
-        int cellType = getBaseCellType(true);
-        if(cellType != CELL_TYPE_ERROR) throw typeMismatch(CELL_TYPE_ERROR, cellType, false);
+    public String getErrorCellString() throws IllegalStateException {
+        CellType cellType = getBaseCellType(true);
+        if(cellType != CellType.ERROR) {
+            throw typeMismatch(CellType.ERROR, cellType, false);
+        }
 
         return _cell.getV();
     }
@@ -785,17 +864,20 @@ public final class XSSFCell implements Cell {
      * </p>
      *
      * @return the value of the cell as an error code
-     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} isn't CELL_TYPE_ERROR
+     * @throws IllegalStateException if the cell type returned by {@link #getCellType()} isn't {@link CellType #ERROR}
      * @see FormulaError
      */
     @Override
-    public byte getErrorCellValue() {
+    public byte getErrorCellValue() throws IllegalStateException {
         String code = getErrorCellString();
         if (code == null) {
             return 0;
         }
-
-        return FormulaError.forString(code).getCode();
+        try {
+            return FormulaError.forString(code).getCode();
+        } catch (final IllegalArgumentException e) {
+            throw new IllegalStateException("Unexpected error code", e);
+        }
     }
 
     /**
@@ -841,7 +923,9 @@ public final class XSSFCell implements Cell {
     private void setBlank(){
         CTCell blank = CTCell.Factory.newInstance();
         blank.setR(_cell.getR());
-        if(_cell.isSetS()) blank.setS(_cell.getS());
+        if(_cell.isSetS()) {
+            blank.setS(_cell.getS());
+        }
         _cell.set(blank);
     }
 
@@ -861,41 +945,24 @@ public final class XSSFCell implements Cell {
      * Set the cells type (numeric, formula or string)
      *
      * @throws IllegalArgumentException if the specified cell type is invalid
-     * @see #CELL_TYPE_NUMERIC
-     * @see #CELL_TYPE_STRING
-     * @see #CELL_TYPE_FORMULA
-     * @see #CELL_TYPE_BLANK
-     * @see #CELL_TYPE_BOOLEAN
-     * @see #CELL_TYPE_ERROR
      */
     @Override
-    public void setCellType(int cellType) {
-        int prevType = getCellType();
+    public void setCellType(CellType cellType) {
+        CellType prevType = getCellType();
 
         if(isPartOfArrayFormulaGroup()){
             notifyArrayFormulaChanging();
         }
-        if(prevType == CELL_TYPE_FORMULA && cellType != CELL_TYPE_FORMULA) {
+        if(prevType == CellType.FORMULA && cellType != CellType.FORMULA) {
             getSheet().getWorkbook().onDeleteFormula(this);
         }
 
         switch (cellType) {
-            case CELL_TYPE_BLANK:
-                setBlank();
-                break;
-            case CELL_TYPE_BOOLEAN:
-                String newVal = convertCellValueToBoolean() ? TRUE_AS_STRING : FALSE_AS_STRING;
-                _cell.setT(STCellType.B);
-                _cell.setV(newVal);
-                break;
-            case CELL_TYPE_NUMERIC:
+            case NUMERIC:
                 _cell.setT(STCellType.N);
                 break;
-            case CELL_TYPE_ERROR:
-                _cell.setT(STCellType.E);
-                break;
-            case CELL_TYPE_STRING:
-                if(prevType != CELL_TYPE_STRING){
+            case STRING:
+                if(prevType != CellType.STRING){
                     String str = convertCellValueToString();
                     XSSFRichTextString rt = new XSSFRichTextString(str);
                     rt.setStylesTableReference(_stylesSource);
@@ -904,20 +971,36 @@ public final class XSSFCell implements Cell {
                 }
                 _cell.setT(STCellType.S);
                 break;
-            case CELL_TYPE_FORMULA:
+            case FORMULA:
                 if(!_cell.isSetF()){
                     CTCellFormula f =  CTCellFormula.Factory.newInstance();
                     f.setStringValue("0");
                     _cell.setF(f);
-                    if(_cell.isSetT()) _cell.unsetT();
+                    if(_cell.isSetT()) {
+                        _cell.unsetT();
+                    }
                 }
                 break;
+            case BLANK:
+                setBlank();
+                break;
+            case BOOLEAN:
+                String newVal = convertCellValueToBoolean() ? TRUE_AS_STRING : FALSE_AS_STRING;
+                _cell.setT(STCellType.B);
+                _cell.setV(newVal);
+                break;
+
+            case ERROR:
+                _cell.setT(STCellType.E);
+                break;
+
+
             default:
                 throw new IllegalArgumentException("Illegal cell type: " + cellType);
         }
-        if (cellType != CELL_TYPE_FORMULA && _cell.isSetF()) {
-			_cell.unsetF();
-		}
+        if (cellType != CellType.FORMULA && _cell.isSetF()) {
+            _cell.unsetF();
+        }
     }
 
     /**
@@ -931,23 +1014,23 @@ public final class XSSFCell implements Cell {
     @Override
     public String toString() {
         switch (getCellType()) {
-            case CELL_TYPE_BLANK:
-                return "";
-            case CELL_TYPE_BOOLEAN:
-                return getBooleanCellValue() ? "TRUE" : "FALSE";
-            case CELL_TYPE_ERROR:
-                return ErrorEval.getText(getErrorCellValue());
-            case CELL_TYPE_FORMULA:
-                return getCellFormula();
-            case CELL_TYPE_NUMERIC:
+            case NUMERIC:
                 if (DateUtil.isCellDateFormatted(this)) {
                     DateFormat sdf = new SimpleDateFormat("dd-MMM-yyyy", LocaleUtil.getUserLocale());
                     sdf.setTimeZone(LocaleUtil.getUserTimeZone());
                     return sdf.format(getDateCellValue());
                 }
                 return Double.toString(getNumericCellValue());
-            case CELL_TYPE_STRING:
+            case STRING:
                 return getRichStringCellValue().toString();
+            case FORMULA:
+                return getCellFormula();
+            case BLANK:
+                return "";
+            case BOOLEAN:
+                return getBooleanCellValue() ? TRUE : FALSE;
+            case ERROR:
+                return ErrorEval.getText(getErrorCellValue());
             default:
                 return "Unknown Cell Type: " + getCellType();
         }
@@ -969,28 +1052,12 @@ public final class XSSFCell implements Cell {
         return _cell.getV();
     }
 
-    /**
-     * Used to help format error messages
-     */
-    private static String getCellTypeName(int cellTypeCode) {
-        switch (cellTypeCode) {
-            case CELL_TYPE_BLANK:   return "blank";
-            case CELL_TYPE_STRING:  return "text";
-            case CELL_TYPE_BOOLEAN: return "boolean";
-            case CELL_TYPE_ERROR:   return "error";
-            case CELL_TYPE_NUMERIC: return "numeric";
-            case CELL_TYPE_FORMULA: return "formula";
-        }
-        return "#unknown cell type (" + cellTypeCode + ")#";
-    }
 
     /**
      * Used to help format error messages
      */
-    private static RuntimeException typeMismatch(int expectedTypeCode, int actualTypeCode, boolean isFormulaCell) {
-        String msg = "Cannot get a "
-            + getCellTypeName(expectedTypeCode) + " value from a "
-            + getCellTypeName(actualTypeCode) + " " + (isFormulaCell ? "formula " : "") + "cell";
+    private static RuntimeException typeMismatch(CellType expectedType, CellType actualType, boolean isFormulaCell) {
+        String msg = "Cannot get a " + expectedType + " value from a " + actualType+ " " + (isFormulaCell ? "formula " : "") + "cell";
         return new IllegalStateException(msg);
     }
 
@@ -1030,8 +1097,7 @@ public final class XSSFCell implements Cell {
             return;
         }
 
-        comment.setRow(getRowIndex());
-        comment.setColumn(getColumnIndex());
+        comment.setAddress(getRowIndex(), getColumnIndex());
     }
 
     /**
@@ -1110,54 +1176,57 @@ public final class XSSFCell implements Cell {
     }
 
     /**
-     * Chooses a new boolean value for the cell when its type is changing.<p/>
+     * Chooses a new boolean value for the cell when its type is changing.<p>
      *
      * Usually the caller is calling setCellType() with the intention of calling
      * setCellValue(boolean) straight afterwards.  This method only exists to give
      * the cell a somewhat reasonable value until the setCellValue() call (if at all).
-     * TODO - perhaps a method like setCellTypeAndValue(int, Object) should be introduced to avoid this
+     * TODO - perhaps a method like setCellTypeAndValue(CellType, Object) should be introduced to avoid this
      */
     private boolean convertCellValueToBoolean() {
-        int cellType = getCellType();
+        CellType cellType = getCellType();
 
-        if (cellType == CELL_TYPE_FORMULA) {
+        if (cellType == CellType.FORMULA) {
             cellType = getBaseCellType(false);
         }
 
         switch (cellType) {
-            case CELL_TYPE_BOOLEAN:
+            case BOOLEAN:
                 return TRUE_AS_STRING.equals(_cell.getV());
-            case CELL_TYPE_STRING:
+            case STRING:
                 int sstIndex = Integer.parseInt(_cell.getV());
                 XSSFRichTextString rt = new XSSFRichTextString(_sharedStringSource.getEntryAt(sstIndex));
                 String text = rt.getString();
                 return Boolean.parseBoolean(text);
-            case CELL_TYPE_NUMERIC:
+            case NUMERIC:
                 return Double.parseDouble(_cell.getV()) != 0;
 
-            case CELL_TYPE_ERROR:
-            case CELL_TYPE_BLANK:
+            case ERROR:
+                // fall-through
+            case BLANK:
                 return false;
+                
+            default:
+                throw new RuntimeException("Unexpected cell type (" + cellType + ")");
         }
-        throw new RuntimeException("Unexpected cell type (" + cellType + ")");
     }
 
     private String convertCellValueToString() {
-        int cellType = getCellType();
+        CellType cellType = getCellType();
 
         switch (cellType) {
-            case CELL_TYPE_BLANK:
+            case BLANK:
                 return "";
-            case CELL_TYPE_BOOLEAN:
-                return TRUE_AS_STRING.equals(_cell.getV()) ? "TRUE" : "FALSE";
-            case CELL_TYPE_STRING:
+            case BOOLEAN:
+                return TRUE_AS_STRING.equals(_cell.getV()) ? TRUE : FALSE;
+            case STRING:
                 int sstIndex = Integer.parseInt(_cell.getV());
                 XSSFRichTextString rt = new XSSFRichTextString(_sharedStringSource.getEntryAt(sstIndex));
                 return rt.getString();
-            case CELL_TYPE_NUMERIC:
-            case CELL_TYPE_ERROR:
+            case NUMERIC:
+            case ERROR:
                 return _cell.getV();
-            case CELL_TYPE_FORMULA:
+            case FORMULA:
                 // should really evaluate, but HSSFCell can't call HSSFFormulaEvaluator
                 // just use cached formula result instead
                 break;
@@ -1167,21 +1236,27 @@ public final class XSSFCell implements Cell {
         cellType = getBaseCellType(false);
         String textValue = _cell.getV();
         switch (cellType) {
-            case CELL_TYPE_BOOLEAN:
+            case BOOLEAN:
                 if (TRUE_AS_STRING.equals(textValue)) {
-                    return "TRUE";
+                    return TRUE;
                 }
                 if (FALSE_AS_STRING.equals(textValue)) {
-                    return "FALSE";
+                    return FALSE;
                 }
                 throw new IllegalStateException("Unexpected boolean cached formula value '"
                     + textValue + "'.");
-            case CELL_TYPE_STRING:
-            case CELL_TYPE_NUMERIC:
-            case CELL_TYPE_ERROR:
+                
+            case STRING:
+                // fall-through
+            case NUMERIC:
+                // fall-through
+            case ERROR:
                 return textValue;
+                
+            default:
+                throw new IllegalStateException("Unexpected formula result type (" + cellType + ")");
         }
-        throw new IllegalStateException("Unexpected formula result type (" + cellType + ")");
+        
     }
 
     @Override
@@ -1222,7 +1297,7 @@ public final class XSSFCell implements Cell {
      * The purpose of this method is to validate the cell state prior to modification.
      * </p>
      *
-     * @see #setCellType(int)
+     * @see #setCellType(CellType)
      * @see #setCellFormula(String)
      * @see XSSFRow#removeCell(org.apache.poi.ss.usermodel.Cell)
      * @see org.apache.poi.xssf.usermodel.XSSFSheet#removeRow(org.apache.poi.ss.usermodel.Row)

@@ -22,6 +22,7 @@ import static org.junit.Assert.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.zip.CRC32;
 
@@ -49,25 +50,32 @@ import junit.framework.AssertionFailedError;
 public final class TestValueRecordsAggregate {
 	private static final String ABNORMAL_SHARED_FORMULA_FLAG_TEST_FILE = "AbnormalSharedFormulaFlag.xls";
 	private final ValueRecordsAggregate valueRecord = new ValueRecordsAggregate();
+	
+	private List<CellValueRecordInterface> getValueRecords() {
+	    List<CellValueRecordInterface> list = new ArrayList<>();
+	    for ( CellValueRecordInterface rec : valueRecord ) {
+	        list.add(rec);
+	    }
+	    return Collections.unmodifiableList(list);
+	}
 
 	/**
 	 * Make sure the shared formula DOESNT makes it to the FormulaRecordAggregate when being parsed
 	 * as part of the value records
 	 */
-    @SuppressWarnings("deprecation") // uses deprecated {@link ValueRecordsAggregate#getValueRecords()}
     @Test
 	public void testSharedFormula() {
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		records.add(new FormulaRecord());
 		records.add(new SharedFormulaRecord());
 		records.add(new WindowTwoRecord());
 
 		constructValueRecord(records);
-		CellValueRecordInterface[] cvrs = valueRecord.getValueRecords();
+		List<CellValueRecordInterface> cvrs = getValueRecords();
 		//Ensure that the SharedFormulaRecord has been converted
-		assertEquals(1, cvrs.length);
+		assertEquals(1, cvrs.size());
 
-		CellValueRecordInterface record = cvrs[0];
+		CellValueRecordInterface record = cvrs.get(0);
 		assertNotNull( "Row contains a value", record );
 		assertTrue( "First record is a FormulaRecordsAggregate", ( record instanceof FormulaRecordAggregate ) );
 	}
@@ -83,7 +91,7 @@ public final class TestValueRecordsAggregate {
 	}
 
 	private static List<Record> testData() {
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		FormulaRecord formulaRecord = new FormulaRecord();
 		BlankRecord blankRecord = new BlankRecord();
 		formulaRecord.setRow(1);
@@ -96,27 +104,22 @@ public final class TestValueRecordsAggregate {
 		return records;
 	}
 
-    @SuppressWarnings("deprecation") // uses deprecated {@link ValueRecordsAggregate#getValueRecords()}
     @Test
 	public void testInsertCell() {
-		CellValueRecordInterface[] cvrs = valueRecord.getValueRecords();
-		assertEquals(0, cvrs.length);
+		assertEquals(0, getValueRecords().size());
 
 		BlankRecord blankRecord = newBlankRecord();
 		valueRecord.insertCell( blankRecord );
-		cvrs = valueRecord.getValueRecords();
-		assertEquals(1, cvrs.length);
+		assertEquals(1, getValueRecords().size());
 	}
 
-    @SuppressWarnings("deprecation") // uses deprecated {@link ValueRecordsAggregate#getValueRecords()}
     @Test
     public void testRemoveCell() {
 		BlankRecord blankRecord1 = newBlankRecord();
 		valueRecord.insertCell( blankRecord1 );
 		BlankRecord blankRecord2 = newBlankRecord();
 		valueRecord.removeCell( blankRecord2 );
-		CellValueRecordInterface[] cvrs = valueRecord.getValueRecords();
-		assertEquals(0, cvrs.length);
+		assertEquals(0, getValueRecords().size());
 
 		// removing an already empty cell just falls through
 		valueRecord.removeCell( blankRecord2 );
@@ -168,7 +171,8 @@ public final class TestValueRecordsAggregate {
 			_writeIndex = 0;
 
 		}
-		public void visitRecord(Record r) {
+		@Override
+        public void visitRecord(Record r) {
 			r.serialize(_writeIndex, _buf);
 			_writeIndex += r.getRecordSize();
 		}
@@ -210,17 +214,17 @@ public final class TestValueRecordsAggregate {
 	 * Sometimes the 'shared formula' flag (<tt>FormulaRecord.isSharedFormula()</tt>) is set when
 	 * there is no corresponding SharedFormulaRecord available. SharedFormulaRecord definitions do
 	 * not span multiple sheets.  They are are only defined within a sheet, and thus they do not
-	 * have a sheet index field (only row and column range fields).<br/>
+	 * have a sheet index field (only row and column range fields).<br>
 	 * So it is important that the code which locates the SharedFormulaRecord for each
 	 * FormulaRecord does not allow matches across sheets.</br>
 	 *
 	 * Prior to bugzilla 44449 (Feb 2008), POI <tt>ValueRecordsAggregate.construct(int, List)</tt>
 	 * allowed <tt>SharedFormulaRecord</tt>s to be erroneously used across sheets.  That incorrect
-	 * behaviour is shown by this test.<p/>
+	 * behaviour is shown by this test.<p>
 	 *
 	 * <b>Notes on how to produce the test spreadsheet</b>:</p>
 	 * The setup for this test (AbnormalSharedFormulaFlag.xls) is rather fragile, insomuchas
-	 * re-saving the file (either with Excel or POI) clears the flag.<br/>
+	 * re-saving the file (either with Excel or POI) clears the flag.<br>
 	 * <ol>
 	 * <li>A new spreadsheet was created in Excel (File | New | Blank Workbook).</li>
 	 * <li>Sheet3 was deleted.</li>
@@ -230,9 +234,9 @@ public final class TestValueRecordsAggregate {
 	 * <li>The spreadsheet was saved as AbnormalSharedFormulaFlag.xls.</li>
 	 * </ol>
 	 * Prior to the row delete action the spreadsheet has two <tt>SharedFormulaRecord</tt>s. One
-	 * for each sheet. To expose the bug, the shared formulas have been made to overlap.<br/>
+	 * for each sheet. To expose the bug, the shared formulas have been made to overlap.<br>
 	 * The row delete action (as described here) seems to to delete the
-	 * <tt>SharedFormulaRecord</tt> from Sheet1 (but not clear the 'shared formula' flags.<br/>
+	 * <tt>SharedFormulaRecord</tt> from Sheet1 (but not clear the 'shared formula' flags.<br>
 	 * There are other variations on this theme to create the same effect.
 	 *
 	 */
@@ -393,7 +397,8 @@ public final class TestValueRecordsAggregate {
 		final BlankStats bs = new BlankStats();
 		RecordVisitor rv = new RecordVisitor() {
 
-			public void visitRecord(Record r) {
+			@Override
+            public void visitRecord(Record r) {
 				if (r instanceof MulBlankRecord) {
 					MulBlankRecord mbr = (MulBlankRecord) r;
 					bs.countMulBlankRecords++;

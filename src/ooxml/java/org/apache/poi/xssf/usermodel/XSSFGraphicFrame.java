@@ -21,6 +21,7 @@ package org.apache.poi.xssf.usermodel;
 
 import javax.xml.namespace.QName;
 
+import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.util.Internal;
 import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTGraphicalObjectData;
@@ -32,6 +33,8 @@ import org.openxmlformats.schemas.drawingml.x2006.main.CTTransform2D;
 import org.openxmlformats.schemas.drawingml.x2006.spreadsheetDrawing.CTGraphicalObjectFrame;
 import org.openxmlformats.schemas.drawingml.x2006.spreadsheetDrawing.CTGraphicalObjectFrameNonVisual;
 import org.openxmlformats.schemas.officeDocument.x2006.relationships.STRelationshipId;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 /**
  * Represents DrawingML GraphicalObjectFrame.
@@ -40,11 +43,9 @@ import org.openxmlformats.schemas.officeDocument.x2006.relationships.STRelations
  */
 public final class XSSFGraphicFrame extends XSSFShape {
 
-	private static CTGraphicalObjectFrame prototype = null;
+	private static CTGraphicalObjectFrame prototype;
 
 	private CTGraphicalObjectFrame graphicFrame;
-	private XSSFDrawing drawing;
-	private XSSFClientAnchor anchor;
 
 	/**
 	 * Construct a new XSSFGraphicFrame object.
@@ -53,8 +54,25 @@ public final class XSSFGraphicFrame extends XSSFShape {
 	 * @param ctGraphicFrame the XML bean that stores this frame content
 	 */
 	protected XSSFGraphicFrame(XSSFDrawing drawing, CTGraphicalObjectFrame ctGraphicFrame) {
-		this.drawing = drawing;
+		this.drawing = drawing; // protected field on XSSFShape
 		this.graphicFrame = ctGraphicFrame;
+		// TODO: there may be a better way to delegate this
+		CTGraphicalObjectData graphicData = graphicFrame.getGraphic().getGraphicData();
+        if (graphicData != null) {
+            NodeList nodes = graphicData.getDomNode().getChildNodes();
+            for (int i = 0; i < nodes.getLength(); i++) {
+                final Node node = nodes.item(i);
+                // if the frame references a chart, associate the chart with this instance
+                if (node.getNodeName().equals("c:chart")) {
+                    // this better succeed or the document is invalid
+                    POIXMLDocumentPart relation = drawing.getRelationById(node.getAttributes().getNamedItem("r:id").getNodeValue());
+                    // Do XWPF charts need similar treatment?
+                    if (relation instanceof XSSFChart) {
+                        ((XSSFChart) relation).setGraphicFrame(this);
+                    }
+                }
+            }
+        }
 	}
 
 	@Internal
@@ -127,10 +145,10 @@ public final class XSSFGraphicFrame extends XSSFShape {
 
 	/**
 	 * Returns the frame anchor.
-	 * @return the anchor this frame is attached to
+	 * @return the XSSFClientAnchor anchor this frame is attached to
 	 */
 	public XSSFClientAnchor getAnchor() {
-		return anchor;
+		return (XSSFClientAnchor) anchor;
 	}
 
 	/**
@@ -140,7 +158,6 @@ public final class XSSFGraphicFrame extends XSSFShape {
 		CTGraphicalObjectData data = graphicFrame.getGraphic().addNewGraphicData();
 		appendChartElement(data, relId);
 		chart.setGraphicFrame(this);
-		return;
 	}
 
 	/**
@@ -187,5 +204,10 @@ public final class XSSFGraphicFrame extends XSSFShape {
     @Override
     protected CTShapeProperties getShapeProperties(){
         return null;
+    }
+
+    @Override
+    public String getShapeName() {
+        return graphicFrame.getNvGraphicFramePr().getCNvPr().getName();
     }
 }

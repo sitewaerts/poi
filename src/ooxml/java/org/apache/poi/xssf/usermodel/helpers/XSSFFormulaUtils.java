@@ -26,6 +26,7 @@ import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.ptg.Pxg;
 import org.apache.poi.ss.formula.ptg.Pxg3D;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFCell;
@@ -51,7 +52,7 @@ public final class XSSFFormulaUtils {
     /**
      * Update sheet name in all formulas and named ranges.
      * Called from {@link XSSFWorkbook#setSheetName(int, String)}
-     * <p/>
+     * <p>
      * <p>
      * The idea is to parse every formula and render it back to string
      * with the updated sheet name. This is done by parsing into Ptgs,
@@ -64,8 +65,7 @@ public final class XSSFFormulaUtils {
      */
     public void updateSheetName(final int sheetIndex, final String oldName, final String newName) {
         // update named ranges
-        for (int i = 0; i < _wb.getNumberOfNames(); i++) {
-            XSSFName nm = _wb.getNameAt(i);
+        for (XSSFName nm : _wb.getAllNames()) {
             if (nm.getSheetIndex() == -1 || nm.getSheetIndex() == sheetIndex) {
                 updateName(nm, oldName, newName);
             }
@@ -75,7 +75,7 @@ public final class XSSFFormulaUtils {
         for (Sheet sh : _wb) {
             for (Row row : sh) {
                 for (Cell cell : row) {
-                    if (cell.getCellType() == Cell.CELL_TYPE_FORMULA) {
+                    if (cell.getCellType() == CellType.FORMULA) {
                         updateFormula((XSSFCell) cell, oldName, newName);
                     }
                 }
@@ -94,7 +94,7 @@ public final class XSSFFormulaUtils {
             String formula = f.getStringValue();
             if (formula != null && formula.length() > 0) {
                 int sheetIndex = _wb.getSheetIndex(cell.getSheet());
-                Ptg[] ptgs = FormulaParser.parse(formula, _fpwb, FormulaType.CELL, sheetIndex);
+                Ptg[] ptgs = FormulaParser.parse(formula, _fpwb, FormulaType.CELL, sheetIndex, cell.getRowIndex());
                 for (Ptg ptg : ptgs) {
                     updatePtg(ptg, oldName, newName);
                 }
@@ -113,7 +113,8 @@ public final class XSSFFormulaUtils {
         String formula = name.getRefersToFormula();
         if (formula != null) {
             int sheetIndex = name.getSheetIndex();
-            Ptg[] ptgs = FormulaParser.parse(formula, _fpwb, FormulaType.NAMEDRANGE, sheetIndex);
+            int rowIndex = -1; //don't care
+            Ptg[] ptgs = FormulaParser.parse(formula, _fpwb, FormulaType.NAMEDRANGE, sheetIndex, rowIndex);
             for (Ptg ptg : ptgs) {
                 updatePtg(ptg, oldName, newName);
             }

@@ -35,6 +35,9 @@ import org.apache.poi.util.POILogger;
  * @version 0.1
  */
 public final class PackagingURIHelper {
+    // FIXME: this class implements a lot of path joining and splitting logic that
+    // is already implemented in java.nio.file.Path.
+    // This class should heavily leverage Java library code to reduce the number of lines of code that POI has to maintain and test
     private final static POILogger _logger = POILogFactory.getLogger(PackagingURIHelper.class);
 
 	/**
@@ -209,8 +212,7 @@ public final class PackagingURIHelper {
 	public static URI getPath(URI uri) {
 		if (uri != null) {
 			String path = uri.getPath();
-			int len = path.length();
-			int num2 = len;
+            int num2 = path.length();
 			while (--num2 >= 0) {
 				char ch1 = path.charAt(num2);
 				if (ch1 == PackagingURIHelper.FORWARD_SLASH_CHAR) {
@@ -248,13 +250,9 @@ public final class PackagingURIHelper {
 	 * Combine a string URI with a prefix and a suffix.
 	 */
 	public static String combine(String prefix, String suffix) {
-		if (!prefix.endsWith("" + FORWARD_SLASH_CHAR)
-				&& !suffix.startsWith("" + FORWARD_SLASH_CHAR))
+		if (!prefix.endsWith(FORWARD_SLASH_STRING) && !suffix.startsWith(FORWARD_SLASH_STRING))
 			return prefix + FORWARD_SLASH_CHAR + suffix;
-		else if ((!prefix.endsWith("" + FORWARD_SLASH_CHAR)
-				&& suffix.startsWith("" + FORWARD_SLASH_CHAR) || (prefix
-				.endsWith("" + FORWARD_SLASH_CHAR) && !suffix.startsWith(""
-				+ FORWARD_SLASH_CHAR))))
+		else if (prefix.endsWith(FORWARD_SLASH_STRING) ^ suffix.startsWith(FORWARD_SLASH_STRING))
 			return prefix + suffix;
 		else
 			return "";
@@ -322,12 +320,12 @@ public final class PackagingURIHelper {
 
 		// If we didn't have a good match or at least except a first empty element
 		if ((segmentsTheSame == 0 || segmentsTheSame == 1) &&
-				segmentsSource[0].equals("") && segmentsTarget[0].equals("")) {
+				segmentsSource[0].isEmpty() && segmentsTarget[0].isEmpty()) {
 			for (int i = 0; i < segmentsSource.length - 2; i++) {
 				retVal.append("../");
 			}
 			for (int i = 0; i < segmentsTarget.length; i++) {
-				if (segmentsTarget[i].equals(""))
+				if (segmentsTarget[i].isEmpty())
 					continue;
 				retVal.append(segmentsTarget[i]);
 				if (i != segmentsTarget.length - 1)
@@ -603,15 +601,16 @@ public final class PackagingURIHelper {
 	 *         characters.
 	 */
 	public static String decodeURI(URI uri) {
-		StringBuffer retVal = new StringBuffer();
+		StringBuilder retVal = new StringBuilder(64);
 		String uriStr = uri.toASCIIString();
 		char c;
-		for (int i = 0; i < uriStr.length(); ++i) {
+		final int length = uriStr.length();
+		for (int i = 0; i < length; ++i) {
 			c = uriStr.charAt(i);
 			if (c == '%') {
 				// We certainly found an encoded character, check for length
 				// now ( '%' HEXDIGIT HEXDIGIT)
-				if (((uriStr.length() - i) < 2)) {
+				if (((length - i) < 2)) {
 					throw new IllegalArgumentException("The uri " + uriStr
 							+ " contain invalid encoded character !");
 				}
@@ -769,7 +768,7 @@ public final class PackagingURIHelper {
     };
 
     private static boolean isUnsafe(int ch) {
-        return ch > 0x80 || Character.isWhitespace(ch) || ch == '\u00A0';
+        return ch > 0x80 || Character.isWhitespace(ch);
     }
 
 }

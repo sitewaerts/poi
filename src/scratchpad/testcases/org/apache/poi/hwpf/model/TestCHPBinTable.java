@@ -28,10 +28,10 @@ import org.apache.poi.hwpf.model.io.HWPFFileSystem;
 public final class TestCHPBinTable
   extends TestCase
 {
-  private CHPBinTable _cHPBinTable = null;
+  private CHPBinTable _cHPBinTable;
   private HWPFDocFixture _hWPFDocFixture;
 
-  private TextPieceTable fakeTPT = new TextPieceTable() {
+  private final TextPieceTable fakeTPT = new TextPieceTable() {
       @Override
       public boolean isIndexInTable(int bytePos) {
           return true;
@@ -73,7 +73,8 @@ public final class TestCHPBinTable
     }
 
   }
-  protected void setUp()
+  @Override
+protected void setUp()
     throws Exception
   {
     super.setUp();
@@ -82,7 +83,8 @@ public final class TestCHPBinTable
     _hWPFDocFixture.setUp();
   }
 
-  protected void tearDown()
+  @Override
+protected void tearDown()
     throws Exception
   {
     _cHPBinTable = null;

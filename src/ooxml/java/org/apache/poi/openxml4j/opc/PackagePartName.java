@@ -241,14 +241,14 @@ public final class PackagePartName implements Comparable<PackagePartName> {
 
 		// Split the URI into several part and analyze each
 		String[] segments = partUri.toASCIIString().split("/");
-		if (segments.length <= 1 || !segments[0].equals(""))
+		if (segments.length <= 1 || !segments[0].isEmpty())
 			throw new InvalidFormatException(
 					"A part name shall not have empty segments [M1.3]: "
 							+ partUri.getPath());
 
 		for (int i = 1; i < segments.length; ++i) {
 			String seg = segments[i];
-			if (seg == null || "".equals(seg)) {
+			if (seg == null || seg.isEmpty()) {
 				throw new InvalidFormatException(
 						"A part name shall not have empty segments [M1.3]: "
 								+ partUri.getPath());
@@ -260,7 +260,7 @@ public final class PackagePartName implements Comparable<PackagePartName> {
 								+ partUri.getPath());
 			}
 
-			if ("".equals(seg.replaceAll("\\\\.", ""))) {
+			if (seg.replaceAll("\\\\.", "").isEmpty()) {
 				// Normally will never been invoked with the previous
 				// implementation rule [M1.9]
 				throw new InvalidFormatException(
@@ -289,7 +289,8 @@ public final class PackagePartName implements Comparable<PackagePartName> {
 	private static void checkPCharCompliance(String segment)
 			throws InvalidFormatException {
 		boolean errorFlag;
-		for (int i = 0; i < segment.length(); ++i) {
+		final int length = segment.length();
+		for (int i = 0; i < length; ++i) {
 			char c = segment.charAt(i);
 			errorFlag = true;
 
@@ -328,7 +329,7 @@ public final class PackagePartName implements Comparable<PackagePartName> {
 			if (errorFlag && c == '%') {
 				// We certainly found an encoded character, check for length
 				// now ( '%' HEXDIGIT HEXDIGIT)
-				if (((segment.length() - i) < 2)) {
+				if (((length - i) < 2)) {
 					throw new InvalidFormatException("The segment " + segment
 							+ " contain invalid encoded character !");
 				}

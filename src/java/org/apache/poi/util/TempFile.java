@@ -24,10 +24,16 @@ import java.io.IOException;
  * Interface for creating temporary files. Collects them all into one directory by default.
  */
 public final class TempFile {
-    
     /** The strategy used by {@link #createTempFile(String, String)} to create the temporary files. */
     private static TempFileCreationStrategy strategy = new DefaultTempFileCreationStrategy();
+
+    /** Define a constant for this property as it is sometimes mistypes as "tempdir" otherwise */
+    public static final String JAVA_IO_TMPDIR = "java.io.tmpdir";
     
+    private TempFile() {
+        // no instances of this class
+    }
+
     /**
      * Configures the strategy used by {@link #createTempFile(String, String)} to create the temporary files.
      *
@@ -60,57 +66,7 @@ public final class TempFile {
         return strategy.createTempFile(prefix, suffix);
     }
     
-    /**
-     * Default implementation of the {@link TempFileCreationStrategy} used by {@link TempFile}:
-     * Files are collected into one directory and by default are deleted on exit from the VM. 
-     * Files can be kept by defining the system property <code>poi.keep.tmp.files</code>.
-     */
-    public static class DefaultTempFileCreationStrategy implements TempFileCreationStrategy {
-        
-        /** The directory where the temporary files will be created (<code>null</code> to use the default directory). */
-        private File dir;
-        
-        /**
-         * Creates the strategy so that it creates the temporary files in the default directory.
-         * 
-         * @see File#createTempFile(String, String)
-         */
-        public DefaultTempFileCreationStrategy() {
-            this(null);
-        }
-        
-        /**
-         * Creates the strategy allowing to set the  
-         *
-         * @param dir The directory where the temporary files will be created (<code>null</code> to use the default directory).
-         * 
-         * @see File#createTempFile(String, String, File)
-         */
-        public DefaultTempFileCreationStrategy(File dir) {
-            this.dir = dir;
-        }
-        
-        @Override
-        public File createTempFile(String prefix, String suffix) throws IOException {
-            // Identify and create our temp dir, if needed
-            if (dir == null)
-            {
-                dir = new File(System.getProperty("java.io.tmpdir"), "poifiles");
-                dir.mkdir();
-                if (System.getProperty("poi.keep.tmp.files") == null)
-                    dir.deleteOnExit();
-            }
-
-            // Generate a unique new filename 
-            File newFile = File.createTempFile(prefix, suffix, dir);
-
-            // Set the delete on exit flag, unless explicitly disabled
-            if (System.getProperty("poi.keep.tmp.files") == null)
-                newFile.deleteOnExit();
-
-            // All done
-            return newFile;
-        }
-        
+    public static File createTempDirectory(String name) throws IOException {
+        return strategy.createTempDirectory(name);
     }
 }

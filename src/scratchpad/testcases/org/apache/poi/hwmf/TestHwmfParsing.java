@@ -17,11 +17,14 @@
 
 package org.apache.poi.hwmf;
 
+import static org.apache.poi.POITestCase.assertContains;
 import static org.junit.Assert.assertEquals;
 
+import javax.imageio.ImageIO;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
@@ -30,21 +33,25 @@ import java.io.FileOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import javax.imageio.ImageIO;
-
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.hwmf.record.HwmfFill.HwmfImageRecord;
+import org.apache.poi.hwmf.record.HwmfFont;
 import org.apache.poi.hwmf.record.HwmfRecord;
+import org.apache.poi.hwmf.record.HwmfRecordType;
+import org.apache.poi.hwmf.record.HwmfText;
 import org.apache.poi.hwmf.usermodel.HwmfPicture;
 import org.apache.poi.sl.usermodel.PictureData;
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
 import org.apache.poi.sl.usermodel.SlideShow;
 import org.apache.poi.sl.usermodel.SlideShowFactory;
+import org.apache.poi.util.LocaleUtil;
+import org.apache.poi.util.RecordFormatException;
 import org.apache.poi.util.Units;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -59,12 +66,24 @@ public class TestHwmfParsing {
         List<HwmfRecord> records = wmf.getRecords();
         assertEquals(581, records.size());
     }
-    
+
+    @Test(expected = RecordFormatException.class)
+    public void testInfiniteLoop() throws Exception {
+        File f = POIDataSamples.getSlideShowInstance().getFile("61338.wmf");
+        FileInputStream fis = null;
+        try {
+            fis = new FileInputStream(f);
+            HwmfPicture wmf = new HwmfPicture(fis);
+        } finally {
+            fis.close();
+        }
+    }
+
     @Test
     @Ignore("This is work-in-progress and not a real unit test ...")
     public void paint() throws IOException {
         File f = POIDataSamples.getSlideShowInstance().getFile("santa.wmf");
-//        File f = new File("E:\\project\\poi\\misc\\govdocs-ppt", "000133-0001.wmf");
+        // File f = new File("bla.wmf");
         FileInputStream fis = new FileInputStream(f);
         HwmfPicture wmf = new HwmfPicture(fis);
         fis.close();
@@ -73,6 +92,11 @@ public class TestHwmfParsing {
         int width = Units.pointsToPixel(dim.getWidth());
         // keep aspect ratio for height
         int height = Units.pointsToPixel(dim.getHeight());
+        double max = Math.max(width, height);
+        if (max > 1500) {
+            width *= 1500/max;
+            height *= 1500/max;
+        }
         
         BufferedImage bufImg = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = bufImg.createGraphics();
@@ -81,7 +105,7 @@ public class TestHwmfParsing {
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
         
-        wmf.draw(g);
+        wmf.draw(g, new Rectangle2D.Double(0,0,width,height));
 
         g.dispose();
         
@@ -99,13 +123,16 @@ public class TestHwmfParsing {
         while ((ze = zis.getNextEntry()) != null) {
             String basename = ze.getName().replaceAll(".*?([^/]+)\\.wmf", "$1");
             FilterInputStream fis = new FilterInputStream(zis){
+                @Override
                 public void close() throws IOException {}
             };
             try {
                 SlideShow<?,?> ss = SlideShowFactory.create(fis);
                 int wmfIdx = 1;
                 for (PictureData pd : ss.getPictureData()) {
-                    if (pd.getType() != PictureType.WMF) continue;
+                    if (pd.getType() != PictureType.WMF) {
+                        continue;
+                    }
                     byte wmfData[] = pd.getData();
                     String filename = String.format(Locale.ROOT, "%s-%04d.wmf", basename, wmfIdx);
                     FileOutputStream fos = new FileOutputStream(new File(outdir, filename));
@@ -131,7 +158,8 @@ public class TestHwmfParsing {
         outdir.mkdirs();
         final String startFile = "";
         File files[] = indir.listFiles(new FileFilter() {
-            boolean foundStartFile = false;
+            boolean foundStartFile;
+            @Override
             public boolean accept(File pathname) {
                 foundStartFile |= startFile.isEmpty() || pathname.getName().contains(startFile);
                 return foundStartFile && pathname.getName().matches("(?i).*\\.wmf?$");
@@ -179,5 +207,60 @@ public class TestHwmfParsing {
                 System.out.println(f.getName()+" ignored.");                
             }
         }
+    }
+
+    @Test
+    @Ignore("If we decide we can use common crawl file specified, we can turn this back on")
+    public void testCyrillic() throws Exception {
+        //TODO: move test file to framework and fix this
+        File dir = new File("C:/somethingOrOther");
+        File f = new File(dir, "ZMLH54SPLI76NQ7XMKVB7SMUJA2HTXTS-2.wmf");
+        HwmfPicture wmf = new HwmfPicture(new FileInputStream(f));
+
+        Charset charset = LocaleUtil.CHARSET_1252;
+        StringBuilder sb = new StringBuilder();
+        //this is pure hackery for specifying the font
+        //this happens to work on this test file, but you need to
+        //do what Graphics does by maintaining the stack, etc.!
+        for (HwmfRecord r : wmf.getRecords()) {
+            if (r.getRecordType().equals(HwmfRecordType.createFontIndirect)) {
+                HwmfFont font = ((HwmfText.WmfCreateFontIndirect)r).getFont();
+                charset = (font.getCharset().getCharset() == null) ? LocaleUtil.CHARSET_1252 : font.getCharset().getCharset();
+            }
+            if (r.getRecordType().equals(HwmfRecordType.extTextOut)) {
+                HwmfText.WmfExtTextOut textOut = (HwmfText.WmfExtTextOut)r;
+                sb.append(textOut.getText(charset)).append("\n");
+            }
+        }
+        String txt = sb.toString();
+        assertContains(txt, "\u041E\u0431\u0449\u043E");
+        assertContains(txt, "\u0411\u0430\u043B\u0430\u043D\u0441");
+    }
+
+    @Test
+    @Ignore("If we decide we can use the common crawl file attached to Bug 60677, " +
+            "we can turn this back on")
+    public void testShift_JIS() throws Exception {
+        //TODO: move test file to framework and fix this
+        File f = new File("C:/data/file8.wmf");
+        HwmfPicture wmf = new HwmfPicture(new FileInputStream(f));
+
+        Charset charset = LocaleUtil.CHARSET_1252;
+        StringBuilder sb = new StringBuilder();
+        //this is pure hackery for specifying the font
+        //this happens to work on this test file, but you need to
+        //do what Graphics does by maintaining the stack, etc.!
+        for (HwmfRecord r : wmf.getRecords()) {
+            if (r.getRecordType().equals(HwmfRecordType.createFontIndirect)) {
+                HwmfFont font = ((HwmfText.WmfCreateFontIndirect)r).getFont();
+                charset = (font.getCharset().getCharset() == null) ? LocaleUtil.CHARSET_1252 : font.getCharset().getCharset();
+            }
+            if (r.getRecordType().equals(HwmfRecordType.extTextOut)) {
+                HwmfText.WmfExtTextOut textOut = (HwmfText.WmfExtTextOut)r;
+                sb.append(textOut.getText(charset)).append("\n");
+            }
+        }
+        String txt = sb.toString();
+        assertContains(txt, "\u822A\u7A7A\u60C5\u5831\u696D\u52D9\u3078\u306E\uFF27\uFF29\uFF33");
     }
 }

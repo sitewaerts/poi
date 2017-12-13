@@ -24,14 +24,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Implementation for Excel IMAGINARY() function.<p/>
- * <p/>
- * <b>Syntax</b>:<br/> <b>IMAGINARY  </b>(<b>Inumber</b>)<br/>
- * <p/>
+ * Implementation for Excel IMAGINARY() function.<p>
+ * <p>
+ * <b>Syntax</b>:<br> <b>IMAGINARY  </b>(<b>Inumber</b>)<br>
+ * <p>
  * Returns the imaginary coefficient of a complex number in x + yi or x + yj text format.
- * <p/>
+ * <p>
  * Inumber     is a complex number for which you want the imaginary coefficient.
- * <p/>
+ * <p>
  * Remarks
  * <ul>
  * <li>Use COMPLEX to convert real and imaginary coefficients into a complex number.</li>
@@ -71,7 +71,7 @@ public class Imaginary extends Fixed1ArgFunction implements FreeRefFunction {
         boolean result = m.matches();
 
         String imaginary = "";
-        if (result == true) {
+        if (result) {
             String imaginaryGroup = m.group(5);
             boolean hasImaginaryPart = imaginaryGroup.equals("i") || imaginaryGroup.equals("j");
 

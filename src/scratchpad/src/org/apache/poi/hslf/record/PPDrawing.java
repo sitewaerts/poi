@@ -36,6 +36,7 @@ import org.apache.poi.ddf.EscherSpRecord;
 import org.apache.poi.ddf.EscherSpgrRecord;
 import org.apache.poi.ddf.EscherTextboxRecord;
 import org.apache.poi.sl.usermodel.ShapeType;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.POILogger;
 
@@ -52,10 +53,15 @@ import org.apache.poi.util.POILogger;
 // For now, pretending to be an atom. Might not always be, but that
 //  would require a wrapping class
 public final class PPDrawing extends RecordAtom {
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 10_485_760;
+
+
 	private byte[] _header;
 	private long _type;
 
-	private final List<EscherRecord> childRecords = new ArrayList<EscherRecord>();
+	private final List<EscherRecord> childRecords = new ArrayList<>();
 	private EscherTextboxWrapper[] textboxWrappers;
 
 	//cached EscherDgRecord
@@ -100,7 +106,7 @@ public final class PPDrawing extends RecordAtom {
 		_type = LittleEndian.getUShort(_header,2);
 
 		// Get the contents for now
-		final byte[] contents = new byte[len];
+		final byte[] contents = IOUtils.safelyAllocate(len, MAX_RECORD_LENGTH);
 		System.arraycopy(source,start,contents,0,len);
 
 		// Build up a tree of Escher records contained within
@@ -112,13 +118,13 @@ public final class PPDrawing extends RecordAtom {
 			textboxWrappers = findInDgContainer(dgContainer);
 		} else {
 			// Find and EscherTextboxRecord's, and wrap them up
-			final List<EscherTextboxWrapper> textboxes = new ArrayList<EscherTextboxWrapper>();
+			final List<EscherTextboxWrapper> textboxes = new ArrayList<>();
 			findEscherTextboxRecord(childRecords, textboxes);
 			this.textboxWrappers = textboxes.toArray(new EscherTextboxWrapper[textboxes.size()]);
 		}
 	}
 	private EscherTextboxWrapper[] findInDgContainer(final EscherContainerRecord dgContainer) {
-		final List<EscherTextboxWrapper> found = new LinkedList<EscherTextboxWrapper>();
+		final List<EscherTextboxWrapper> found = new LinkedList<>();
 		final EscherContainerRecord spgrContainer = findFirstEscherContainerRecordOfType(RecordTypes.EscherSpgrContainer, dgContainer);
 		final EscherContainerRecord[] spContainers = findAllEscherContainerRecordOfType(RecordTypes.EscherSpContainer, spgrContainer);
 		for (EscherContainerRecord spContainer : spContainers) {
@@ -159,7 +165,7 @@ public final class PPDrawing extends RecordAtom {
 		final Record r1 = progBinaryTag.getChildRecords()[1];
 		
 		if (!(r0 instanceof CString)) { return null; }
-		if (!("___PPT9".equals(((CString) r0).getText()))) { return null; };
+		if (!("___PPT9".equals(((CString) r0).getText()))) { return null; }
 		if (!(r1 instanceof BinaryTagDataBlob )) { return null; }
 		final BinaryTagDataBlob blob = (BinaryTagDataBlob) r1;
 		if (1 != blob.getChildRecords().length) { return null; }
@@ -360,13 +366,16 @@ public final class PPDrawing extends RecordAtom {
 	 * @return EscherDgRecord
 	 */
 	public EscherDgRecord getEscherDgRecord(){
-		if(dg == null){
-			for(EscherRecord r : getDgContainer().getChildRecords()){
-				if(r instanceof EscherDgRecord){
-					dg = (EscherDgRecord)r;
-					break;
-				}
-			}
+		if (dg == null) {
+		    EscherContainerRecord dgr = getDgContainer();
+		    if (dgr != null) {
+    			for(EscherRecord r : dgr.getChildRecords()){
+    				if(r instanceof EscherDgRecord){
+    					dg = (EscherDgRecord)r;
+    					break;
+    				}
+    			}
+		    }
 		}
 		return dg;
 	}
@@ -394,7 +403,7 @@ public final class PPDrawing extends RecordAtom {
     protected EscherContainerRecord[] findAllEscherContainerRecordOfType(RecordTypes type, EscherContainerRecord parent) {
     	if (null == parent) { return new EscherContainerRecord[0]; }
 		final List<EscherContainerRecord> children = parent.getChildContainers();
-		final List<EscherContainerRecord> result = new LinkedList<EscherContainerRecord>();
+		final List<EscherContainerRecord> result = new LinkedList<>();
 		for (EscherContainerRecord child : children) {
 			if (type.typeID == child.getRecordId()) {
 				result.add(child);
@@ -404,7 +413,7 @@ public final class PPDrawing extends RecordAtom {
     }
 
     public StyleTextProp9Atom[] getNumberedListInfo() {
-    	final List<StyleTextProp9Atom> result = new LinkedList<StyleTextProp9Atom>();
+    	final List<StyleTextProp9Atom> result = new LinkedList<>();
     	EscherContainerRecord dgContainer = getDgContainer();
 		final EscherContainerRecord spgrContainer = findFirstEscherContainerRecordOfType(RecordTypes.EscherSpgrContainer, dgContainer);
 		final EscherContainerRecord[] spContainers = findAllEscherContainerRecordOfType(RecordTypes.EscherSpContainer, spgrContainer);

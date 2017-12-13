@@ -24,18 +24,21 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.apache.poi.ss.ITestDataProvider;
 import org.apache.poi.ss.formula.FormulaParseException;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellReference;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
- * Common superclass for testing usermodel API for array formulas.<br/>
+ * Common superclass for testing usermodel API for array formulas.<br>
  * Formula evaluation is not tested here.
  *
  * @author Yegor Kozlov
@@ -130,7 +133,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
 
         for(Cell acell : cells){
             assertTrue(acell.isPartOfArrayFormulaGroup());
-            assertEquals(Cell.CELL_TYPE_FORMULA, acell.getCellType());
+            assertEquals(CellType.FORMULA, acell.getCellType());
             assertEquals("SUM(A1:A3*B1:B3)", acell.getCellFormula());
             //retrieve the range and check it is the same
             assertEquals(range.formatAsString(), acell.getArrayFormulaRange().formatAsString());
@@ -207,7 +210,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
 
         for(Cell acell : cr){
             assertFalse(acell.isPartOfArrayFormulaGroup());
-            assertEquals(Cell.CELL_TYPE_BLANK, acell.getCellType());
+            assertEquals(CellType.BLANK, acell.getCellType());
         }
 
         // cells C4:C6 are not included in array formula,
@@ -276,7 +279,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
         CellRange<? extends Cell> srange =
                 sheet.setArrayFormula("SUM(A4:A6,B4:B6)", CellRangeAddress.valueOf("B5"));
         Cell scell = srange.getTopLeftCell();
-        assertEquals(Cell.CELL_TYPE_FORMULA, scell.getCellType());
+        assertEquals(CellType.FORMULA, scell.getCellType());
         assertEquals(0.0, scell.getNumericCellValue(), 0);
         scell.setCellValue(1.1);
         assertEquals(1.1, scell.getNumericCellValue(), 0);
@@ -285,7 +288,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
         CellRange<? extends Cell> mrange =
                 sheet.setArrayFormula("A1:A3*B1:B3", CellRangeAddress.valueOf("C1:C3"));
         for(Cell mcell : mrange){
-            assertEquals(Cell.CELL_TYPE_FORMULA, mcell.getCellType());
+            assertEquals(CellType.FORMULA, mcell.getCellType());
             assertEquals(0.0, mcell.getNumericCellValue(), 0);
             double fmlaResult = 1.2;
             mcell.setCellValue(fmlaResult);
@@ -304,10 +307,10 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
         CellRange<? extends Cell> srange =
                 sheet.setArrayFormula("SUM(A4:A6,B4:B6)", CellRangeAddress.valueOf("B5"));
         Cell scell = srange.getTopLeftCell();
-        assertEquals(Cell.CELL_TYPE_FORMULA, scell.getCellType());
+        assertEquals(CellType.FORMULA, scell.getCellType());
         assertEquals(0.0, scell.getNumericCellValue(), 0);
-        scell.setCellType(Cell.CELL_TYPE_STRING);
-        assertEquals(Cell.CELL_TYPE_STRING, scell.getCellType());
+        scell.setCellType(CellType.STRING);
+        assertEquals(CellType.STRING, scell.getCellType());
         scell.setCellValue("string cell");
         assertEquals("string cell", scell.getStringCellValue());
 
@@ -316,8 +319,8 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
                 sheet.setArrayFormula("A1:A3*B1:B3", CellRangeAddress.valueOf("C1:C3"));
         for(Cell mcell : mrange){
             try {
-                assertEquals(Cell.CELL_TYPE_FORMULA, mcell.getCellType());
-                mcell.setCellType(Cell.CELL_TYPE_NUMERIC);
+                assertEquals(CellType.FORMULA, mcell.getCellType());
+                mcell.setCellType(CellType.NUMERIC);
                 fail("expected exception");
             } catch (IllegalStateException e){
                 CellReference ref = new CellReference(mcell);
@@ -326,7 +329,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
             }
             // a failed invocation of Cell.setCellType leaves the cell
             // in the state that it was in prior to the invocation
-            assertEquals(Cell.CELL_TYPE_FORMULA, mcell.getCellType());
+            assertEquals(CellType.FORMULA, mcell.getCellType());
             assertTrue(mcell.isPartOfArrayFormulaGroup());
         }
         workbook.close();
@@ -341,13 +344,13 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
                 sheet.setArrayFormula("SUM(A4:A6,B4:B6)", CellRangeAddress.valueOf("B5"));
         Cell scell = srange.getTopLeftCell();
         assertEquals("SUM(A4:A6,B4:B6)", scell.getCellFormula());
-        assertEquals(Cell.CELL_TYPE_FORMULA, scell.getCellType());
+        assertEquals(CellType.FORMULA, scell.getCellType());
         assertTrue(scell.isPartOfArrayFormulaGroup());
         scell.setCellFormula("SUM(A4,A6)");
         //we are now a normal formula cell
         assertEquals("SUM(A4,A6)", scell.getCellFormula());
         assertFalse(scell.isPartOfArrayFormulaGroup());
-        assertEquals(Cell.CELL_TYPE_FORMULA, scell.getCellType());
+        assertEquals(CellType.FORMULA, scell.getCellType());
         //check that setting formula result works
         assertEquals(0.0, scell.getNumericCellValue(), 0);
         scell.setCellValue(33.0);
@@ -393,7 +396,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
 
         //re-create the removed cell
         scell = srow.createCell(cra.getFirstColumn());
-        assertEquals(Cell.CELL_TYPE_BLANK, scell.getCellType());
+        assertEquals(CellType.BLANK, scell.getCellType());
         assertFalse(scell.isPartOfArrayFormulaGroup());
 
         //we cannot remove cells included in a multi-cell array formula
@@ -414,7 +417,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
             // in the state that it was in prior to the invocation
             assertSame(mcell, mrow.getCell(columnIndex));
             assertTrue(mcell.isPartOfArrayFormulaGroup());
-            assertEquals(Cell.CELL_TYPE_FORMULA, mcell.getCellType());
+            assertEquals(CellType.FORMULA, mcell.getCellType());
         }
         
         workbook.close();
@@ -430,7 +433,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
         CellRange<? extends Cell> srange =
                 sheet.setArrayFormula("SUM(A4:A6,B4:B6)", cra);
         Cell scell = srange.getTopLeftCell();
-        assertEquals(Cell.CELL_TYPE_FORMULA, scell.getCellType());
+        assertEquals(CellType.FORMULA, scell.getCellType());
 
         Row srow = scell.getRow();
         assertSame(srow, sheet.getRow(cra.getFirstRow()));
@@ -439,7 +442,7 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
 
         //re-create the removed row and cell
         scell = sheet.createRow(cra.getFirstRow()).createCell(cra.getFirstColumn());
-        assertEquals(Cell.CELL_TYPE_BLANK, scell.getCellType());
+        assertEquals(CellType.BLANK, scell.getCellType());
         assertFalse(scell.isPartOfArrayFormulaGroup());
 
         //we cannot remove rows with cells included in a multi-cell array formula
@@ -460,14 +463,14 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
             assertSame(mrow, sheet.getRow(mrow.getRowNum()));
             assertSame(mcell, mrow.getCell(columnIndex));
             assertTrue(mcell.isPartOfArrayFormulaGroup());
-            assertEquals(Cell.CELL_TYPE_FORMULA, mcell.getCellType());
+            assertEquals(CellType.FORMULA, mcell.getCellType());
         }
         
         workbook.close();
     }
 
     @Test
-    public void testModifyArrayCells_mergeCells() throws IOException {
+    public void testModifyArrayCells_mergeCellsSingle() throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet();
         assertEquals(0, sheet.getNumMergedRegions());
@@ -478,22 +481,58 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
         Cell scell = srange.getTopLeftCell();
         sheet.addMergedRegion(CellRangeAddress.valueOf("B5:C6"));
         //we are still an array formula
-        assertEquals(Cell.CELL_TYPE_FORMULA, scell.getCellType());
+        assertEquals(CellType.FORMULA, scell.getCellType());
         assertTrue(scell.isPartOfArrayFormulaGroup());
         assertEquals(1, sheet.getNumMergedRegions());
+        
+        workbook.close();
+    }
+    
+    @Test
+    public void testModifyArrayCells_mergeCellsMulti() throws IOException {
+        Workbook workbook = _testDataProvider.createWorkbook();
+        Sheet sheet = workbook.createSheet();
+        int expectedNumMergedRegions = 0;
+        assertEquals(expectedNumMergedRegions, sheet.getNumMergedRegions());
 
-        //we cannot merge cells included in an array formula
-        sheet.setArrayFormula("A1:A3*B1:B3", CellRangeAddress.valueOf("C1:C3"));
-        CellRangeAddress cra = CellRangeAddress.valueOf("C1:C3");
-        try {
-            sheet.addMergedRegion(cra);
-            fail("expected exception");
-        } catch (IllegalStateException e){
-            String msg = "The range "+cra.formatAsString()+" intersects with a multi-cell array formula. You cannot merge cells of an array.";
-            assertEquals(msg, e.getMessage());
+        // we cannot merge cells included in an array formula
+        sheet.setArrayFormula("A1:A4*B1:B4", CellRangeAddress.valueOf("C2:F5"));
+        for (String ref : Arrays.asList(
+                "C2:F5", // identity
+                "D3:E4", "B1:G6", // contains
+                "B1:C2", "F1:G2", "F5:G6", "B5:C6", // 1x1 corner intersection
+                "B1:C6", "B1:G2", "F1:G6", "B5:G6", // 1-row/1-column intersection
+                "B1:D3", "E1:G3", "E4:G6", "B4:D6", // 2x2 corner intersection
+                "B1:D6", "B1:G3", "E1:G6", "B4:G6"  // 2-row/2-column intersection
+        )) {
+            CellRangeAddress cra = CellRangeAddress.valueOf(ref);
+            try {
+                sheet.addMergedRegion(cra);
+                fail("expected exception with ref " + ref);
+            } catch (IllegalStateException e) {
+                String msg = "The range "+cra.formatAsString()+" intersects with a multi-cell array formula. You cannot merge cells of an array.";
+                assertEquals(msg, e.getMessage());
+            }
         }
         //the number of merged regions remains the same
-        assertEquals(1, sheet.getNumMergedRegions());
+        assertEquals(expectedNumMergedRegions, sheet.getNumMergedRegions());
+        
+        // we can merge non-intersecting cells
+        for (String ref : Arrays.asList(
+                "C1:F1", //above
+                "G2:G5", //right
+                "C6:F6",  //bottom
+                "B2:B5", "H7:J9")) {
+            CellRangeAddress cra = CellRangeAddress.valueOf(ref);
+            try {
+                sheet.addMergedRegion(cra);
+                expectedNumMergedRegions++;
+                assertEquals(expectedNumMergedRegions, sheet.getNumMergedRegions());
+            } catch (IllegalStateException e) {
+                fail("did not expect exception with ref: " + ref + "\n" + e.getMessage());
+            }
+        }
+        
         workbook.close();
     }
 
@@ -531,10 +570,41 @@ public abstract class BaseTestSheetUpdateArrayFormulas {
             assertEquals(cra.formatAsString(), mcell.getArrayFormulaRange().formatAsString());
             assertEquals("A2:A4*B2:B4", mcell.getCellFormula());
             assertTrue(mcell.isPartOfArrayFormulaGroup());
-            assertEquals(Cell.CELL_TYPE_FORMULA, mcell.getCellType());
+            assertEquals(CellType.FORMULA, mcell.getCellType());
         }
 
         */
+        workbook.close();
+    }
+    
+    @Ignore
+    @Test
+    public void shouldNotBeAbleToCreateArrayFormulaOnPreexistingMergedRegion() throws IOException {
+        /*
+         *  m  = merged region
+         *  f  = array formula
+         *  fm = cell belongs to a merged region and an array formula (illegal, that's what this tests for)
+         *  
+         *   A  B  C
+         * 1    f  f
+         * 2    fm fm
+         * 3    f  f
+         */
+        Workbook workbook = _testDataProvider.createWorkbook();
+        Sheet sheet = workbook.createSheet();
+        
+        CellRangeAddress mergedRegion = CellRangeAddress.valueOf("B2:C2");
+        sheet.addMergedRegion(mergedRegion);
+        CellRangeAddress arrayFormula = CellRangeAddress.valueOf("C1:C3");
+        assumeTrue(mergedRegion.intersects(arrayFormula));
+        assumeTrue(arrayFormula.intersects(mergedRegion));
+        try {
+            sheet.setArrayFormula("SUM(A1:A3)",  arrayFormula);
+            fail("expected exception: should not be able to create an array formula that intersects with a merged region");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        
         workbook.close();
     }
 }

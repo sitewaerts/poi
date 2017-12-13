@@ -22,7 +22,7 @@ import java.awt.*;
 
 import javax.swing.border.AbstractBorder;
 
-import org.apache.poi.hssf.usermodel.HSSFCellStyle;
+import org.apache.poi.ss.usermodel.BorderStyle;
 
 /**
  * This is an attempt to implement Excel style borders for the SheetViewer.
@@ -33,24 +33,24 @@ import org.apache.poi.hssf.usermodel.HSSFCellStyle;
  * @author Jason Height
  */
 public class SVBorder extends AbstractBorder {
-  private Color northColor = null;
-  private Color eastColor = null;
-  private Color southColor = null;
-  private Color westColor = null;
-  private int northBorderType = HSSFCellStyle.BORDER_NONE;
-  private int eastBorderType =HSSFCellStyle.BORDER_NONE;
-  private int southBorderType = HSSFCellStyle.BORDER_NONE;
-  private int westBorderType = HSSFCellStyle.BORDER_NONE;
-  private boolean northBorder=false;
-  private boolean eastBorder=false;
-  private boolean southBorder=false;
-  private boolean westBorder=false;
-  private boolean selected = false;
+  private Color northColor;
+  private Color eastColor;
+  private Color southColor;
+  private Color westColor;
+  private BorderStyle northBorderType = BorderStyle.NONE;
+  private BorderStyle eastBorderType = BorderStyle.NONE;
+  private BorderStyle southBorderType = BorderStyle.NONE;
+  private BorderStyle westBorderType = BorderStyle.NONE;
+  private boolean northBorder;
+  private boolean eastBorder;
+  private boolean southBorder;
+  private boolean westBorder;
+  private boolean selected;
 
    public void setBorder(Color northColor, Color eastColor,
                          Color southColor, Color westColor,
-                         int northBorderType, int eastBorderType,
-                         int southBorderType, int westBorderType,
+                         BorderStyle northBorderType, BorderStyle eastBorderType,
+                         BorderStyle southBorderType, BorderStyle westBorderType,
                          boolean selected) {
      this.eastColor = eastColor;
      this.southColor = southColor;
@@ -59,14 +59,15 @@ public class SVBorder extends AbstractBorder {
      this.eastBorderType = eastBorderType;
      this.southBorderType = southBorderType;
      this.westBorderType = westBorderType;
-     this.northBorder=northBorderType != HSSFCellStyle.BORDER_NONE;
-     this.eastBorder=eastBorderType != HSSFCellStyle.BORDER_NONE;
-     this.southBorder=southBorderType != HSSFCellStyle.BORDER_NONE;
-     this.westBorder=westBorderType != HSSFCellStyle.BORDER_NONE;
+     this.northBorder=northBorderType != BorderStyle.NONE;
+     this.eastBorder=eastBorderType != BorderStyle.NONE;
+     this.southBorder=southBorderType != BorderStyle.NONE;
+     this.westBorder=westBorderType != BorderStyle.NONE;
      this.selected = selected;
    }
 
-   public void paintBorder(Component c, Graphics g, int x, int y, int width,
+   @Override
+public void paintBorder(Component c, Graphics g, int x, int y, int width,
                            int height) {
       Color oldColor = g.getColor();
 
@@ -109,9 +110,9 @@ public class SVBorder extends AbstractBorder {
                                   int height) {
 
       if (northBorder &&
-             ((northBorderType == HSSFCellStyle.BORDER_THIN) ||
-              (northBorderType == HSSFCellStyle.BORDER_MEDIUM) ||
-              (northBorderType == HSSFCellStyle.BORDER_THICK)
+             ((northBorderType == BorderStyle.THIN) ||
+              (northBorderType == BorderStyle.MEDIUM) ||
+              (northBorderType == BorderStyle.THICK)
              )
          ) {
 
@@ -125,9 +126,9 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (eastBorder &&
-             ((eastBorderType == HSSFCellStyle.BORDER_THIN) ||
-              (eastBorderType == HSSFCellStyle.BORDER_MEDIUM) ||
-              (eastBorderType == HSSFCellStyle.BORDER_THICK)
+             ((eastBorderType == BorderStyle.THIN) ||
+              (eastBorderType == BorderStyle.MEDIUM) ||
+              (eastBorderType == BorderStyle.THICK)
              )
          ) {
 
@@ -141,9 +142,9 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (southBorder &&
-              ((southBorderType == HSSFCellStyle.BORDER_THIN) ||
-               (southBorderType == HSSFCellStyle.BORDER_MEDIUM) ||
-               (southBorderType == HSSFCellStyle.BORDER_THICK)
+              ((southBorderType == BorderStyle.THIN) ||
+               (southBorderType == BorderStyle.MEDIUM) ||
+               (southBorderType == BorderStyle.THICK)
               )
          ) {
 
@@ -156,9 +157,9 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (westBorder &&
-             ((westBorderType == HSSFCellStyle.BORDER_THIN) ||
-              (westBorderType == HSSFCellStyle.BORDER_MEDIUM) ||
-              (westBorderType == HSSFCellStyle.BORDER_THICK)
+             ((westBorderType == BorderStyle.THIN) ||
+              (westBorderType == BorderStyle.MEDIUM) ||
+              (westBorderType == BorderStyle.THICK)
              )
          ) {
 
@@ -179,7 +180,7 @@ public class SVBorder extends AbstractBorder {
    private void paintDottedBorders(Graphics g, int x, int y, int width,
                                   int height) {
       if (northBorder &&
-             northBorderType == HSSFCellStyle.BORDER_DOTTED) {
+             northBorderType == BorderStyle.DOTTED) {
         int thickness = getThickness(northBorderType);
 
       	g.setColor(northColor);
@@ -192,7 +193,7 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (eastBorder &&
-              eastBorderType == HSSFCellStyle.BORDER_DOTTED
+              eastBorderType == BorderStyle.DOTTED
          ) {
 
         int thickness = getThickness(eastBorderType);
@@ -208,7 +209,7 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (southBorder &&
-              southBorderType == HSSFCellStyle.BORDER_DOTTED
+              southBorderType == BorderStyle.DOTTED
          ) {
 
         int thickness = getThickness(southBorderType);
@@ -222,7 +223,7 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (westBorder &&
-            westBorderType == HSSFCellStyle.BORDER_DOTTED
+            westBorderType == BorderStyle.DOTTED
          ) {
 
         int thickness = getThickness(westBorderType);
@@ -245,14 +246,14 @@ public class SVBorder extends AbstractBorder {
    private void paintDashedBorders(Graphics g, int x, int y, int width,
                                   int height) {
       if (northBorder &&
-             ((northBorderType == HSSFCellStyle.BORDER_DASHED) ||
-              (northBorderType == HSSFCellStyle.BORDER_HAIR))
+             ((northBorderType == BorderStyle.DASHED) ||
+              (northBorderType == BorderStyle.HAIR))
          ) {
         int thickness = getThickness(northBorderType);
 
         int dashlength = 1;
 
-        if (northBorderType == HSSFCellStyle.BORDER_DASHED)
+        if (northBorderType == BorderStyle.DASHED)
            dashlength = 2;
 
       	g.setColor(northColor);
@@ -265,8 +266,8 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (eastBorder &&
-              ((eastBorderType == HSSFCellStyle.BORDER_DASHED) ||
-               (eastBorderType == HSSFCellStyle.BORDER_HAIR))
+              ((eastBorderType == BorderStyle.DASHED) ||
+               (eastBorderType == BorderStyle.HAIR))
          ) {
 
         int thickness = getThickness(eastBorderType);
@@ -275,7 +276,7 @@ public class SVBorder extends AbstractBorder {
 
         int dashlength = 1;
 
-        if (eastBorderType == HSSFCellStyle.BORDER_DASHED)
+        if (eastBorderType == BorderStyle.DASHED)
            dashlength = 2;
 
       	g.setColor(eastColor);
@@ -288,8 +289,8 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (southBorder &&
-              ((southBorderType == HSSFCellStyle.BORDER_DASHED) ||
-               (southBorderType == HSSFCellStyle.BORDER_HAIR))
+              ((southBorderType == BorderStyle.DASHED) ||
+               (southBorderType == BorderStyle.HAIR))
          ) {
 
         int thickness = getThickness(southBorderType);
@@ -297,7 +298,7 @@ public class SVBorder extends AbstractBorder {
 
         int dashlength = 1;
 
-        if (southBorderType == HSSFCellStyle.BORDER_DASHED)
+        if (southBorderType == BorderStyle.DASHED)
            dashlength = 2;
 
       	g.setColor(southColor);
@@ -309,8 +310,8 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (westBorder &&
-            ((westBorderType == HSSFCellStyle.BORDER_DASHED) ||
-             (westBorderType == HSSFCellStyle.BORDER_HAIR))
+            ((westBorderType == BorderStyle.DASHED) ||
+             (westBorderType == BorderStyle.HAIR))
          ) {
 
         int thickness = getThickness(westBorderType);
@@ -318,7 +319,7 @@ public class SVBorder extends AbstractBorder {
 
         int dashlength = 1;
 
-        if (westBorderType == HSSFCellStyle.BORDER_DASHED)
+        if (westBorderType == BorderStyle.DASHED)
            dashlength = 2;
 
       	g.setColor(westColor);
@@ -338,7 +339,7 @@ public class SVBorder extends AbstractBorder {
    private void paintDoubleBorders(Graphics g, int x, int y, int width,
                                   int height) {
       if (northBorder &&
-             northBorderType == HSSFCellStyle.BORDER_DOUBLE) {
+             northBorderType == BorderStyle.DOUBLE) {
 
       	g.setColor(northColor);
 
@@ -358,7 +359,7 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (eastBorder &&
-              eastBorderType == HSSFCellStyle.BORDER_DOUBLE
+              eastBorderType == BorderStyle.DOUBLE
          ) {
 
         int thickness = getThickness(eastBorderType);
@@ -380,7 +381,7 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (southBorder &&
-              southBorderType == HSSFCellStyle.BORDER_DOUBLE
+              southBorderType == BorderStyle.DOUBLE
          ) {
 
       	g.setColor(southColor);
@@ -400,7 +401,7 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (westBorder &&
-            westBorderType == HSSFCellStyle.BORDER_DOUBLE
+            westBorderType == BorderStyle.DOUBLE
          ) {
 
         int thickness = getThickness(westBorderType);
@@ -429,8 +430,8 @@ public class SVBorder extends AbstractBorder {
    private void paintDashDotDotBorders(Graphics g, int x, int y, int width,
                                   int height) {
       if (northBorder &&
-             ((northBorderType == HSSFCellStyle.BORDER_DASH_DOT_DOT) ||
-              (northBorderType == HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT))
+             ((northBorderType == BorderStyle.DASH_DOT_DOT) ||
+              (northBorderType == BorderStyle.MEDIUM_DASH_DOT_DOT))
          ) {
         int thickness = getThickness(northBorderType);
 
@@ -442,8 +443,8 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (eastBorder &&
-              ((eastBorderType == HSSFCellStyle.BORDER_DASH_DOT_DOT) ||
-               (eastBorderType == HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT))
+              ((eastBorderType == BorderStyle.DASH_DOT_DOT) ||
+               (eastBorderType == BorderStyle.MEDIUM_DASH_DOT_DOT))
          ) {
 
         int thickness = getThickness(eastBorderType);
@@ -457,8 +458,8 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (southBorder &&
-              ((southBorderType == HSSFCellStyle.BORDER_DASH_DOT_DOT) ||
-               (southBorderType == HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT))
+              ((southBorderType == BorderStyle.DASH_DOT_DOT) ||
+               (southBorderType == BorderStyle.MEDIUM_DASH_DOT_DOT))
          ) {
 
         int thickness = getThickness(southBorderType);
@@ -472,8 +473,8 @@ public class SVBorder extends AbstractBorder {
       }
 
       if (westBorder &&
-            ((westBorderType == HSSFCellStyle.BORDER_DASH_DOT_DOT) ||
-             (westBorderType == HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT))
+            ((westBorderType == BorderStyle.DASH_DOT_DOT) ||
+             (westBorderType == BorderStyle.MEDIUM_DASH_DOT_DOT))
          ) {
 
         int thickness = getThickness(westBorderType);
@@ -497,13 +498,13 @@ public class SVBorder extends AbstractBorder {
     *  @param y the y origin of the line
     *  @param thickness the thickness of the line
     *  @param horizontal or vertical (true for horizontal)
-    *  @param right/bottom or left/top thickness (true for right or top),
+    *  @param rightBottom or left/top thickness (true for right or top),
     *         if true then the x or y origin will be incremented to provide
     *         thickness, if false, they'll be decremented.  For vertical
     *         borders, x is incremented or decremented, for horizontal its y.
     *         Just set to true for north and west, and false for east and
     *         south.
-    *  @returns length - returns the length of the line.
+    *  @return length - returns the length of the line.
     */
    private int drawDashDotDot(Graphics g,int x, int y, int thickness,
                               boolean horizontal,
@@ -528,36 +529,24 @@ public class SVBorder extends AbstractBorder {
    }
 
    /**
-    * @returns the line thickness for a border based on border type
+    * @return the line thickness for a border based on border type
     */
-   private int getThickness(int thickness) {
-       int retval=1;
+   private int getThickness(BorderStyle thickness) {
        switch (thickness) {
-           case HSSFCellStyle.BORDER_THIN:
-             retval=2;
-             break;
-           case HSSFCellStyle.BORDER_MEDIUM:
-             retval=3;
-             break;
-           case HSSFCellStyle.BORDER_THICK:
-             retval=4;
-             break;
-           case HSSFCellStyle.BORDER_DASHED:
-             retval=1;
-             break;
-           case HSSFCellStyle.BORDER_DASH_DOT_DOT:
-             retval=1;
-             break;
-           case HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT:
-             retval=3;
-             break;
-           case HSSFCellStyle.BORDER_HAIR:
-             retval=1;
-             break;
+           case DASH_DOT_DOT:
+           case DASHED:
+           case HAIR:
+             return 1;
+           case THIN:
+             return 2;
+           case MEDIUM:
+           case MEDIUM_DASH_DOT_DOT:
+             return 3;
+           case THICK:
+             return 4;
            default:
-             retval=1;
+             return 1;
        }
-       return retval;
    }
 
 

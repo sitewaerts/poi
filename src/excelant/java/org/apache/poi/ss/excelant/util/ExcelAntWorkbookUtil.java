@@ -17,7 +17,6 @@
 
 package org.apache.poi.ss.excelant.util;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Date;
@@ -60,14 +59,15 @@ public class ExcelAntWorkbookUtil extends Typedef {
 
     private Workbook workbook;
 
-    private final Map<String, FreeRefFunction> xlsMacroList = new HashMap<String, FreeRefFunction>();
+    private final Map<String, FreeRefFunction> xlsMacroList = new HashMap<>();
 
     /**
      * Constructs an instance using a String that contains the fully qualified
      * path of the Excel file. This constructor initializes a Workbook instance
      * based on that file name.
      *
-     * @param fName
+     * @param fName The fully qualified path of the Excel file.
+     * @throws BuildException If the workbook cannot be loaded.
      */
     protected ExcelAntWorkbookUtil(String fName) {
         excelFileName = fName;
@@ -78,7 +78,7 @@ public class ExcelAntWorkbookUtil extends Typedef {
     /**
      * Constructs an instance based on a Workbook instance.
      *
-     * @param wb
+     * @param wb The Workbook to use for this instance.
      */
     protected ExcelAntWorkbookUtil(Workbook wb) {
         workbook = wb;
@@ -86,13 +86,16 @@ public class ExcelAntWorkbookUtil extends Typedef {
 
     /**
      * Loads the member variable workbook based on the fileName variable.
-     * @return
+     * @return The opened Workbook-instance
+     * @throws BuildException If the workbook cannot be loaded.
      */
     private Workbook loadWorkbook() {
+        if (excelFileName == null) {
+            throw new BuildException("fileName attribute must be set!", getLocation());
+        }
 
-        File workbookFile = new File(excelFileName);
         try {
-            FileInputStream fis = new FileInputStream(workbookFile);
+            FileInputStream fis = new FileInputStream(excelFileName);
             try {
             	workbook = WorkbookFactory.create(fis);
             } finally {
@@ -151,9 +154,8 @@ public class ExcelAntWorkbookUtil extends Typedef {
         }
 
         UDFFinder udff1 = new DefaultUDFFinder(names, functions);
-        UDFFinder udff = new AggregatingUDFFinder(udff1);
 
-        return udff;
+        return new AggregatingUDFFinder(udff1);
 
     }
 
@@ -212,7 +214,7 @@ public class ExcelAntWorkbookUtil extends Typedef {
      * @return
      */
     public List<String> getSheets() {
-    	ArrayList<String> sheets = new ArrayList<String>();
+    	ArrayList<String> sheets = new ArrayList<>();
 
     	int sheetCount = workbook.getNumberOfSheets();
 

@@ -17,7 +17,7 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import org.apache.poi.hssf.usermodel.HSSFFormulaEvaluator;
+import org.apache.poi.ss.formula.BaseFormulaEvaluator;
 import org.apache.poi.ss.formula.EvaluationCell;
 import org.apache.poi.ss.formula.IStabilityClassifier;
 import org.apache.poi.ss.formula.WorkbookEvaluator;
@@ -25,7 +25,7 @@ import org.apache.poi.ss.formula.udf.UDFFinder;
 import org.apache.poi.ss.usermodel.Cell;
 
 /**
- * Evaluates formula cells.<p/>
+ * Evaluates formula cells.<p>
  *
  * For performance reasons, this class keeps a cache of all previously calculated intermediate
  * cell values.  Be sure to call {@link #clearAllCachedResultValues()} if any workbook cells are changed between
@@ -55,25 +55,14 @@ public final class XSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
         return new XSSFFormulaEvaluator(workbook, stabilityClassifier, udfFinder);
     }
 
-    /**
-     * If cell contains formula, it evaluates the formula, and
-     *  puts the formula result back into the cell, in place
-     *  of the old formula.
-     * Else if cell does not contain formula, this method leaves
-     *  the cell unchanged.
-     * Note that the same instance of XSSFCell is returned to
-     * allow chained calls like:
-     * <pre>
-     * int evaluatedCellType = evaluator.evaluateInCell(cell).getCellType();
-     * </pre>
-     * Be aware that your cell value will be changed to hold the
-     *  result of the formula. If you simply want the formula
-     *  value computed for you, use {@link #evaluateFormulaCell(org.apache.poi.ss.usermodel.Cell)} }
-     * @param cell
-     */
-    public XSSFCell evaluateInCell(Cell cell) {
-        doEvaluateInCell(cell);
-        return (XSSFCell)cell;
+    public void notifySetFormula(Cell cell) {
+        _bookEvaluator.notifyUpdateCell(new XSSFEvaluationCell((XSSFCell)cell));
+    }
+    public void notifyDeleteCell(Cell cell) {
+        _bookEvaluator.notifyDeleteCell(new XSSFEvaluationCell((XSSFCell)cell));
+    }
+    public void notifyUpdateCell(Cell cell) {
+        _bookEvaluator.notifyUpdateCell(new XSSFEvaluationCell((XSSFCell)cell));
     }
 
     /**
@@ -88,8 +77,14 @@ public final class XSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
      *  cells, and calling evaluateFormulaCell on each one.
      */
     public static void evaluateAllFormulaCells(XSSFWorkbook wb) {
-        HSSFFormulaEvaluator.evaluateAllFormulaCells(wb);
+        BaseFormulaEvaluator.evaluateAllFormulaCells(wb);
     }
+    
+    @Override
+    public XSSFCell evaluateInCell(Cell cell) {
+        return (XSSFCell) super.evaluateInCell(cell);
+    }
+    
     /**
      * Loops over all cells in all sheets of the supplied
      *  workbook.
@@ -102,7 +97,7 @@ public final class XSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
      *  cells, and calling evaluateFormulaCell on each one.
      */
     public void evaluateAll() {
-        HSSFFormulaEvaluator.evaluateAllFormulaCells(_book);
+        evaluateAllFormulaCells(_book, this);
     }
 
     /**

@@ -22,14 +22,11 @@ package org.apache.poi.util;
  * developers to write log calls, while simultaneously making those
  * calls as cheap as possible by performing lazy evaluation of the log
  * message.<p>
- *
- * @author Marc Johnson (mjohnson at apache dot org)
- * @author Glen Stampoultzis (glens at apache.org)
- * @author Nicola Ken Barozzi (nicolaken at apache.org)
  */
+@Internal
 public class NullLogger extends POILogger {
     @Override
-    public void initialize(final String cat){
+    public void initialize(final String cat) {
        // do nothing
     }
 
@@ -41,8 +38,7 @@ public class NullLogger extends POILogger {
      */
 
     @Override
-    public void log(final int level, final Object obj1)
-    {
+    protected void _log(final int level, final Object obj1) {
         // do nothing
     }
 
@@ -53,7 +49,20 @@ public class NullLogger extends POILogger {
      * @param obj1 The object to log.  This is converted to a string.
      * @param exception An exception to be logged
      */
-    public void log(int level, Object obj1, final Throwable exception) {
+    @Override
+    protected void _log(int level, Object obj1, final Throwable exception) {
+        // do nothing
+    }
+
+    /**
+     * Log a message. Lazily appends Object parameters together.
+     * If the last parameter is a {@link Throwable} it is logged specially.
+     *
+     * @param level One of DEBUG, INFO, WARN, ERROR, FATAL
+     * @param objs the objects to place in the message
+     */
+    @Override
+    public void log(int level, Object... objs) {
         // do nothing
     }
 

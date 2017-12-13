@@ -29,27 +29,22 @@ import org.apache.poi.util.LittleEndianOutput;
  * '<b>p</b>arse <b>t</b>hin<b>g</b>'.  Originally, the name referred to the single
  * byte identifier at the start of the token, but in POI, <tt>Ptg</tt> encapsulates
  * the whole formula token (initial byte + value data).
- * <p/>
+ * <p>
  *
  * <tt>Ptg</tt>s are logically arranged in a tree representing the structure of the
  * parsed formula.  However, in BIFF files <tt>Ptg</tt>s are written/read in
  * <em>Reverse-Polish Notation</em> order. The RPN ordering also simplifies formula
  * evaluation logic, so POI mostly accesses <tt>Ptg</tt>s in the same way.
- *
- * @author  andy
- * @author avik
- * @author Jason Height (jheight at chariot dot net dot au)
  */
 public abstract class Ptg {
 	public static final Ptg[] EMPTY_PTG_ARRAY = { };
-
 
 	/**
 	 * Reads <tt>size</tt> bytes of the input stream, to create an array of <tt>Ptg</tt>s.
 	 * Extra data (beyond <tt>size</tt>) may be read if and <tt>ArrayPtg</tt>s are present.
 	 */
 	public static Ptg[] readTokens(int size, LittleEndianInput in) {
-		List<Ptg> temp = new ArrayList<Ptg>(4 + size / 2);
+		List<Ptg> temp = new ArrayList<>(4 + size / 2);
 		int pos = 0;
 		boolean hasArrayPtgs = false;
 		while (pos < size) {
@@ -174,8 +169,8 @@ public abstract class Ptg {
 	 */
 	public static int getEncodedSize(Ptg[] ptgs) {
 		int result = 0;
-		for (int i = 0; i < ptgs.length; i++) {
-			result += ptgs[i].getSize();
+		for (Ptg ptg : ptgs) {
+			result += ptg.getSize();
 		}
 		return result;
 	}
@@ -185,8 +180,7 @@ public abstract class Ptg {
 	 */
 	public static int getEncodedSizeWithoutArrayData(Ptg[] ptgs) {
 		int result = 0;
-		for (int i = 0; i < ptgs.length; i++) {
-			Ptg ptg = ptgs[i];
+		for (Ptg ptg : ptgs) {
 			if (ptg instanceof ArrayPtg) {
 				result += ArrayPtg.PLAIN_TOKEN_SIZE;
 			} else {
@@ -198,31 +192,27 @@ public abstract class Ptg {
 	/**
 	 * Writes the ptgs to the data buffer, starting at the specified offset.
 	 *
-	 * <br/>
+	 * <br>
 	 * The 2 byte encode length field is <b>not</b> written by this method.
 	 * @return number of bytes written
 	 */
 	public static int serializePtgs(Ptg[] ptgs, byte[] array, int offset) {
-		int nTokens = ptgs.length;
-
-		LittleEndianByteArrayOutputStream out = new LittleEndianByteArrayOutputStream(array, offset);
-
+		LittleEndianByteArrayOutputStream out = new LittleEndianByteArrayOutputStream(array, offset); // NOSONAR
+		
 		List<Ptg> arrayPtgs = null;
 
-		for (int k = 0; k < nTokens; k++) {
-			Ptg ptg = ptgs[k];
-
+		for (Ptg ptg : ptgs) {
 			ptg.write(out);
 			if (ptg instanceof ArrayPtg) {
 				if (arrayPtgs == null) {
-					arrayPtgs = new ArrayList<Ptg>(5);
+					arrayPtgs = new ArrayList<>(5);
 				}
 				arrayPtgs.add(ptg);
 			}
 		}
 		if (arrayPtgs != null) {
-			for (int i=0;i<arrayPtgs.size();i++) {
-				ArrayPtg p = (ArrayPtg)arrayPtgs.get(i);
+			for (Ptg arrayPtg : arrayPtgs) {
+				ArrayPtg p = (ArrayPtg) arrayPtg;
 				p.writeTokenValueBytes(out);
 			}
 		}
@@ -294,13 +284,14 @@ public abstract class Ptg {
 	public abstract boolean isBaseToken();
 
 	public static boolean doesFormulaReferToDeletedCell(Ptg[] ptgs) {
-		for (int i = 0; i < ptgs.length; i++) {
-			if (isDeletedCellRef(ptgs[i])) {
+		for (Ptg ptg : ptgs) {
+			if (isDeletedCellRef(ptg)) {
 				return true;
 			}
 		}
 		return false;
 	}
+
 	private static boolean isDeletedCellRef(Ptg ptg) {
 		if (ptg == ErrPtg.REF_INVALID) {
 			return true;

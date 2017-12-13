@@ -76,7 +76,7 @@ public class XLS2CSVmra implements HSSFListener {
 	/** So we known which sheet we're on */
 	private int sheetIndex = -1;
 	private BoundSheetRecord[] orderedBSRs;
-	private List<BoundSheetRecord> boundSheetRecords = new ArrayList<BoundSheetRecord>();
+	private List<BoundSheetRecord> boundSheetRecords = new ArrayList<>();
 
 	// For handling formulas with string results
 	private int nextRow;
@@ -99,8 +99,6 @@ public class XLS2CSVmra implements HSSFListener {
 	 * Creates a new XLS -> CSV converter
 	 * @param filename The file to process
 	 * @param minColumns The minimum number of columns to output, or -1 for no minimum
-	 * @throws IOException
-	 * @throws FileNotFoundException
 	 */
 	public XLS2CSVmra(String filename, int minColumns) throws IOException, FileNotFoundException {
 		this(
@@ -133,7 +131,8 @@ public class XLS2CSVmra implements HSSFListener {
 	 * Main HSSFListener method, processes events, and outputs the
 	 *  CSV as the file is processed.
 	 */
-	public void processRecord(Record record) {
+	@Override
+    public void processRecord(Record record) {
 		int thisRow = -1;
 		int thisColumn = -1;
 		String thisStr = null;

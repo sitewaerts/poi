@@ -22,15 +22,14 @@ import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.util.LittleEndianOutput;
 
 /**
- * Title: Merged Cells Record (0x00E5)
- * <br/>
- * Description:  Optional record defining a square area of cells to "merged" into one cell. <br>
- * @author Andrew C. Oliver (acoliver at apache dot org)
+ * Title: Merged Cells Record (0x00E5)<p>
+ * 
+ * Description:  Optional record defining a square area of cells to "merged" into one cell.
  */
 public final class MergeCellsRecord extends StandardRecord implements Cloneable {
     public final static short sid = 0x00E5;
     /** sometimes the regions array is shared with other MergedCellsRecords */ 
-    private CellRangeAddress[] _regions;
+    private final CellRangeAddress[] _regions;
     private final int _startIndex;
     private final int _numberOfRegions;
 
@@ -63,28 +62,33 @@ public final class MergeCellsRecord extends StandardRecord implements Cloneable 
     }
 
     /**
+     * @param index the n-th MergedRegion
+     * 
      * @return MergedRegion at the given index representing the area that is Merged (r1,c1 - r2,c2)
      */
     public CellRangeAddress getAreaAt(int index) {
         return _regions[_startIndex + index];
     }
 
+    @Override
     protected int getDataSize() {
 		return CellRangeAddressList.getEncodedSize(_numberOfRegions);
 	}
 
+    @Override
     public short getSid() {
         return sid;
     }
 
+    @Override
     public void serialize(LittleEndianOutput out) {
-        int nItems = _numberOfRegions;
-        out.writeShort(nItems);
+        out.writeShort(_numberOfRegions);
         for (int i = 0; i < _numberOfRegions; i++) {
 			_regions[_startIndex + i].serialize(out);
 		}
     }
 
+    @Override
     public String toString() {
         StringBuffer retval = new StringBuffer();
 

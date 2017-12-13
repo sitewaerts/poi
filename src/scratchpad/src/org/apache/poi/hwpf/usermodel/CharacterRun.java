@@ -18,6 +18,7 @@
 package org.apache.poi.hwpf.usermodel;
 
 import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.HWPFOldDocument;
 import org.apache.poi.hwpf.model.CHPX;
 import org.apache.poi.hwpf.model.FFData;
 import org.apache.poi.hwpf.model.Ffn;
@@ -438,6 +439,10 @@ public final class CharacterRun extends Range
 
   public String getFontName()
   {
+    if (_doc instanceof HWPFOldDocument) {
+      return ((HWPFOldDocument) _doc).getOldFontTable().getMainFont(_props.getFtcAscii());
+    }
+
     if (_doc.getFontTable() == null)
       // old word format
       return null;
@@ -541,19 +546,6 @@ public final class CharacterRun extends Range
   {
     _props.setIco24(colour24);
   }
-
-    /**
-     * clone the CharacterProperties object associated with this characterRun so
-     * that you can apply it to another CharacterRun
-     * 
-     * @deprecated This method shall not be public and should not be called from
-     *             high-level code
-     */
-    @Deprecated
-    public CharacterProperties cloneProperties()
-    {
-        return _props.clone();
-    }
 
   /**
    * Used to create a deep copy of this object.
@@ -665,8 +657,7 @@ public final class CharacterRun extends Range
                         getPicOffset() );
                 FFData ffData = new FFData( data.getBinData(), 0 );
 
-                String[] values = ffData.getDropList();
-                return values;
+                return ffData.getDropList();
             }
         }
         return null;

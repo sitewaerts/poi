@@ -23,15 +23,15 @@ import java.io.IOException;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.sl.draw.DrawFactory;
 import org.apache.poi.sl.draw.Drawable;
 import org.apache.poi.sl.usermodel.Notes;
 import org.apache.poi.sl.usermodel.Placeholder;
 import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.util.Beta;
+import org.apache.poi.util.DocumentHelper;
+import org.apache.poi.util.NotImplemented;
 import org.apache.xmlbeans.XmlException;
-import org.openxmlformats.schemas.drawingml.x2006.main.CTBlip;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTGroupShapeProperties;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTGroupTransform2D;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTNonVisualDrawingProps;
@@ -43,14 +43,16 @@ import org.openxmlformats.schemas.presentationml.x2006.main.CTGroupShape;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTGroupShapeNonVisual;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTSlide;
 import org.openxmlformats.schemas.presentationml.x2006.main.SldDocument;
+import org.w3c.dom.Document;
+import org.xml.sax.SAXException;
 
 @Beta
 public final class XSLFSlide extends XSLFSheet
 implements Slide<XSLFShape,XSLFTextParagraph> {
-   private final CTSlide _slide;
-   private XSLFSlideLayout _layout;
-   private XSLFComments _comments;
-   private XSLFNotes _notes;
+    private final CTSlide _slide;
+    private XSLFSlideLayout _layout;
+    private XSLFComments _comments;
+    private XSLFNotes _notes;
 
     /**
      * Create a new slide
@@ -72,20 +74,17 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
     XSLFSlide(PackagePart part) throws IOException, XmlException {
         super(part);
 
-        SldDocument doc =
-            SldDocument.Factory.parse(getPackagePart().getInputStream(), DEFAULT_XML_OPTIONS);
+        Document _doc;
+        try {
+            _doc = DocumentHelper.readDocument(getPackagePart().getInputStream());
+        } catch (SAXException e) {
+            throw new IOException(e);
+        }
+
+        SldDocument doc = SldDocument.Factory.parse(_doc, DEFAULT_XML_OPTIONS);
         _slide = doc.getSld();
         setCommonSlideData(_slide.getCSld());
     }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    XSLFSlide(PackagePart part, PackageRelationship rel) throws IOException, XmlException {
-        this(part);
-    }
-
 
     private static CTSlide prototype(){
         CTSlide ctSlide = CTSlide.Factory.newInstance();
@@ -118,29 +117,38 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
     }
 
     @Override
-	public CTSlide getXmlObject() {
-		return _slide;
-	}
+    public CTSlide getXmlObject() {
+        return _slide;
+    }
 
     @Override
     protected String getRootElementName(){
-        return "sld";        
+        return "sld";
     }
 
+    protected void removeChartRelation(XSLFChart chart) {
+        removeRelation(chart);
+    }
+
+    protected void removeLayoutRelation(XSLFSlideLayout layout) {
+        removeRelation(layout, false);
+    }
+
+    @Override
     public XSLFSlideLayout getMasterSheet(){
         return getSlideLayout();
     }
 
     public XSLFSlideLayout getSlideLayout(){
         if(_layout == null){
-             for (POIXMLDocumentPart p : getRelations()) {
+            for (POIXMLDocumentPart p : getRelations()) {
                 if (p instanceof XSLFSlideLayout){
-                   _layout = (XSLFSlideLayout)p;
+                    _layout = (XSLFSlideLayout)p;
                 }
             }
         }
         if(_layout == null) {
-            throw new IllegalArgumentException("SlideLayout was not found for " + this.toString());
+            throw new IllegalArgumentException("SlideLayout was not found for " + this);
         }
         return _layout;
     }
@@ -150,35 +158,36 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
     }
 
     public XSLFComments getComments() {
-       if(_comments == null) {
-          for (POIXMLDocumentPart p : getRelations()) {
-             if (p instanceof XSLFComments) {
-                _comments = (XSLFComments)p;
-             }
-          }
-       }
-       if(_comments == null) {
-          // This slide lacks comments
-          // Not all have them, sorry...
-          return null;
-       }
-       return _comments;
+        if(_comments == null) {
+            for (POIXMLDocumentPart p : getRelations()) {
+                if (p instanceof XSLFComments) {
+                    _comments = (XSLFComments)p;
+                }
+            }
+        }
+        if(_comments == null) {
+            // This slide lacks comments
+            // Not all have them, sorry...
+            return null;
+        }
+        return _comments;
     }
 
+    @Override
     public XSLFNotes getNotes() {
-       if(_notes == null) {
-          for (POIXMLDocumentPart p : getRelations()) {
-             if (p instanceof XSLFNotes){
-                _notes = (XSLFNotes)p;
-             }
-          }
-       }
-       if(_notes == null) {
-          // This slide lacks notes
-          // Not all have them, sorry...
-          return null;
-       }
-       return _notes;
+        if(_notes == null) {
+            for (POIXMLDocumentPart p : getRelations()) {
+                if (p instanceof XSLFNotes){
+                    _notes = (XSLFNotes)p;
+                }
+            }
+        }
+        if(_notes == null) {
+            // This slide lacks notes
+            // Not all have them, sorry...
+            return null;
+        }
+        return _notes;
     }
 
     public void unsetNotes(){
@@ -193,10 +202,10 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
         XSLFTextShape txt = getTextShapeByType(Placeholder.TITLE);
         return txt == null ? null : txt.getText();
     }
-    
+
     @Override
     public XSLFTheme getTheme(){
-    	return getSlideLayout().getSlideMaster().getTheme();
+        return getSlideLayout().getSlideMaster().getTheme();
     }
 
     /**
@@ -213,12 +222,9 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
         }
     }
 
-    /**
-     *
-     * @return whether shapes on the master slide should be shown  or not.
-     */
+    @Override
     public boolean getFollowMasterGraphics(){
-        return !_slide.isSetShowMasterSp() || _slide.getShowMasterSp();
+        return _slide.getShowMasterSp();
     }
 
     /**
@@ -230,10 +236,12 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
     }
 
 
+    @Override
     public boolean getFollowMasterObjects() {
         return getFollowMasterGraphics();
     }
     
+    @Override
     public void setFollowMasterObjects(boolean follow) {
         setFollowMasterGraphics(follow);
     }
@@ -241,45 +249,69 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
     @Override
     public XSLFSlide importContent(XSLFSheet src){
         super.importContent(src);
-
-        XSLFBackground bgShape = getBackground();
-        if(bgShape != null) {
-            CTBackground bg = (CTBackground)bgShape.getXmlObject();
-            if(bg.isSetBgPr() && bg.getBgPr().isSetBlipFill()){
-                CTBlip blip = bg.getBgPr().getBlipFill().getBlip();
-                String blipId = blip.getEmbed();
-
-                String relId = importBlip(blipId, src.getPackagePart());
-                blip.setEmbed(relId);
-            }
+        if (!(src instanceof XSLFSlide)) {
+            return this;
         }
+
+        // only copy direct backgrounds - not backgrounds of master sheet
+        CTBackground bgOther = ((XSLFSlide)src)._slide.getCSld().getBg();
+        if (bgOther == null) {
+            return this;
+        }
+
+        CTBackground bgThis = _slide.getCSld().getBg();
+        // remove existing background
+        if (bgThis != null) {
+            if (bgThis.isSetBgPr() && bgThis.getBgPr().isSetBlipFill()) {
+                String oldId = bgThis.getBgPr().getBlipFill().getBlip().getEmbed();
+                removeRelation(oldId);
+            }
+            _slide.getCSld().unsetBg();
+        }
+
+        bgThis = (CTBackground)_slide.getCSld().addNewBg().set(bgOther);
+
+        if(bgOther.isSetBgPr() && bgOther.getBgPr().isSetBlipFill()){
+            String idOther = bgOther.getBgPr().getBlipFill().getBlip().getEmbed();
+            String idThis = importBlip(idOther, src.getPackagePart());
+            bgThis.getBgPr().getBlipFill().getBlip().setEmbed(idThis);
+
+        }
+
         return this;
     }
 
+    @Override
     public boolean getFollowMasterBackground() {
         return false;
     }
     
+    @Override
+    @NotImplemented
     public void setFollowMasterBackground(boolean follow) {
         // not implemented ... also not in the specs
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean getFollowMasterColourScheme() {
         return false;
     }
     
+    @Override
+    @NotImplemented
     public void setFollowMasterColourScheme(boolean follow) {
         // not implemented ... only for OLE objects in the specs
         throw new UnsupportedOperationException();
     }
 
     @Override
+    @NotImplemented
     public void setNotes(Notes<XSLFShape,XSLFTextParagraph> notes) {
         assert(notes instanceof XSLFNotes);
         // TODO Auto-generated method stub
     }
-    
+
     @Override
     public int getSlideNumber() {
         int idx = getSlideShow().getSlides().indexOf(this);
@@ -296,5 +328,30 @@ implements Slide<XSLFShape,XSLFTextParagraph> {
         DrawFactory drawFact = DrawFactory.getInstance(graphics);
         Drawable draw = drawFact.getDrawable(this);
         draw.draw(graphics);
+    }
+
+    @Override
+    public boolean getDisplayPlaceholder(Placeholder placeholder) {
+        return false;
+    }
+
+
+    @Override
+    public void setHidden(boolean hidden) {
+        CTSlide sld = getXmlObject();
+        if (hidden) {
+            sld.setShow(false);
+        } else {
+            // if the attribute does not exist, the slide is shown
+            if (sld.isSetShow()) {
+                sld.unsetShow();
+            }
+        }
+    }
+
+    @Override
+    public boolean isHidden() {
+        CTSlide sld = getXmlObject();
+        return sld.isSetShow() && !sld.getShow();
     }
 }

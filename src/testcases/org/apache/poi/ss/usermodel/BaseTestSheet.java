@@ -17,27 +17,28 @@
 
 package org.apache.poi.ss.usermodel;
 
-import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertTrue;
-import static org.junit.Assert.*;
-
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
-
-import org.apache.poi.hssf.util.PaneInformation;
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.ss.ITestDataProvider;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.PaneInformation;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.io.IOException;
+import java.util.*;
+import java.util.Map.Entry;
+
+import static org.apache.poi.POITestCase.assertBetween;
+import static org.junit.Assert.*;
+import static org.junit.Assume.assumeTrue;
+
 /**
- * Common superclass for testing {@link org.apache.poi.xssf.usermodel.XSSFCell}  and
- * {@link org.apache.poi.hssf.usermodel.HSSFCell}
+ * Common superclass for testing {@link org.apache.poi.hssf.usermodel.HSSFCell},
+ * {@link org.apache.poi.xssf.usermodel.XSSFCell} and
+ * {@link org.apache.poi.xssf.streaming.SXSSFCell}
  */
 public abstract class BaseTestSheet {
     private static final int ROW_COUNT = 40000;
@@ -45,10 +46,10 @@ public abstract class BaseTestSheet {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
     
-    private final ITestDataProvider _testDataProvider;
+    protected final ITestDataProvider _testDataProvider;
 
     protected BaseTestSheet(ITestDataProvider testDataProvider) {
-    	_testDataProvider = testDataProvider;
+        _testDataProvider = testDataProvider;
     }
     
     protected void trackColumnsForAutoSizingIfSXSSF(Sheet sheet) {
@@ -110,7 +111,9 @@ public abstract class BaseTestSheet {
         }
     }
     
-    protected void createRowAfterLastRow(SpreadsheetVersion version) throws IOException {
+    @Test(expected=IllegalArgumentException.class)
+    public void createRowAfterLastRow() throws IOException {
+        final SpreadsheetVersion version = _testDataProvider.getSpreadsheetVersion();
         final Workbook workbook = _testDataProvider.createWorkbook();
         final Sheet sh = workbook.createSheet();
         sh.createRow(version.getLastRowIndex());
@@ -121,7 +124,6 @@ public abstract class BaseTestSheet {
             workbook.close();
         }
     }
-
 
     @Test
     public void removeRow() throws IOException {
@@ -266,43 +268,75 @@ public abstract class BaseTestSheet {
     }
     
     /**
-     * Dissallow creating wholly or partially overlapping merged regions
+     * Disallow creating wholly or partially overlapping merged regions
      * as this results in a corrupted workbook
      */
     @Test
-    public void addOverlappingMergedRegions() {
+    public void addOverlappingMergedRegions() throws IOException {
         final Workbook wb = _testDataProvider.createWorkbook();
         final Sheet sheet = wb.createSheet();
         
-        final CellRangeAddress baseRegion = new CellRangeAddress(0, 1, 0, 1);
+        final CellRangeAddress baseRegion = new CellRangeAddress(0, 1, 0, 1); //A1:B2
         sheet.addMergedRegion(baseRegion);
         
         try {
-            final CellRangeAddress duplicateRegion = new CellRangeAddress(0, 1, 0, 1);
+            final CellRangeAddress duplicateRegion = new CellRangeAddress(0, 1, 0, 1); //A1:B2
             sheet.addMergedRegion(duplicateRegion);
-            fail("Should not be able to add a merged region if sheet already contains the same merged region");
-        } catch (final IllegalStateException e) { } //expected
+            fail("Should not be able to add a merged region (" + duplicateRegion.formatAsString() + ") " +
+                 "if sheet already contains the same merged region (" + baseRegion.formatAsString() + ")");
+        } catch (final IllegalStateException e) {
+            // expected here
+        }
         
         try {
-            final CellRangeAddress partiallyOverlappingRegion = new CellRangeAddress(1, 2, 1, 2);
+            final CellRangeAddress partiallyOverlappingRegion = new CellRangeAddress(1, 2, 1, 2); //B2:C3
             sheet.addMergedRegion(partiallyOverlappingRegion);
-            fail("Should not be able to add a merged region if it partially overlaps with an existing merged region");
-        } catch (final IllegalStateException e) { } //expected
+            fail("Should not be able to add a merged region (" + partiallyOverlappingRegion.formatAsString() + ") " +
+                 "if it partially overlaps with an existing merged region (" + baseRegion.formatAsString() + ")");
+        } catch (final IllegalStateException e) {
+            // expected here
+        }
         
         try {
-            final CellRangeAddress subsetRegion = new CellRangeAddress(0, 1, 0, 0);
+            final CellRangeAddress subsetRegion = new CellRangeAddress(0, 1, 0, 0); //A1:A2
             sheet.addMergedRegion(subsetRegion);
-            fail("Should not be able to add a merged region if it is a formal subset of an existing merged region");
-        } catch (final IllegalStateException e) { } //expected
+            fail("Should not be able to add a merged region (" + subsetRegion.formatAsString() + ") " +
+                 "if it is a formal subset of an existing merged region (" + baseRegion.formatAsString() + ")");
+        } catch (final IllegalStateException e) {
+            // expected here
+        }
         
         try {
-            final CellRangeAddress supersetRegion = new CellRangeAddress(0, 2, 0, 2);
+            final CellRangeAddress supersetRegion = new CellRangeAddress(0, 2, 0, 2); //A1:C3
             sheet.addMergedRegion(supersetRegion);
-            fail("Should not be able to add a merged region if it is a formal superset of an existing merged region");
-        } catch (final IllegalStateException e) { } //expected
+            fail("Should not be able to add a merged region (" + supersetRegion.formatAsString() + ") " +
+                 "if it is a formal superset of an existing merged region (" + baseRegion.formatAsString() + ")");
+        } catch (final IllegalStateException e) {
+            // expected here
+        }
         
         final CellRangeAddress disjointRegion = new CellRangeAddress(10, 11, 10, 11);
-        sheet.addMergedRegion(disjointRegion); //allowed
+        sheet.addMergedRegion(disjointRegion);
+        
+        wb.close();
+    }
+
+    /*
+     * Bug 56345: Reject single-cell merged regions
+     */
+    @Test
+    public void addMergedRegionWithSingleCellShouldFail() throws IOException {
+        final Workbook wb = _testDataProvider.createWorkbook();
+
+        final Sheet sheet = wb.createSheet();
+        final CellRangeAddress region = CellRangeAddress.valueOf("A1:A1");
+        try {
+            sheet.addMergedRegion(region);
+            fail("Should not be able to add a single-cell merged region (" + region.formatAsString() + ")");
+        } catch (final IllegalArgumentException e) {
+            // expected
+        }
+        wb.close();
     }
 
     /**
@@ -383,9 +417,39 @@ public abstract class BaseTestSheet {
         //should exist now!
         assertTrue("there isn't more than one merged region in there", 1 <= sheet.getNumMergedRegions());
         region = sheet.getMergedRegion(0);
-        assertEquals("the merged row to doesnt match the one we put in ", 4, region.getLastRow());
+        assertEquals("the merged row to doesn't match the one we put in ", 4, region.getLastRow());
         
         wb.close();
+    }
+    
+    /**
+     * Remove multiple merged regions
+     */
+    @Test
+    public void removeMergedRegions() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sheet = wb.createSheet();
+        
+        Map<Integer, CellRangeAddress> mergedRegions = new HashMap<>();
+        for (int r=0; r<10; r++) {
+            CellRangeAddress region = new CellRangeAddress(r, r, 0, 1);
+            mergedRegions.put(r, region);
+            sheet.addMergedRegion(region);
+        }
+        assertCollectionEquals(mergedRegions.values(), sheet.getMergedRegions());
+        
+        Collection<Integer> removed = Arrays.asList(0, 2, 3, 6, 8);
+        mergedRegions.keySet().removeAll(removed);
+        sheet.removeMergedRegions(removed);
+        assertCollectionEquals(mergedRegions.values(), sheet.getMergedRegions());
+        
+        wb.close();
+    }
+    
+    private static <T> void assertCollectionEquals(Collection<T> expected, Collection<T> actual) {
+        Set<T> e = new HashSet<>(expected);
+        Set<T> a = new HashSet<>(actual);
+        assertEquals(e, a);
     }
 
     @Test
@@ -411,6 +475,54 @@ public abstract class BaseTestSheet {
         CellRangeAddress expectedRegion = CellRangeAddress.valueOf("A3:B3");
         assertEquals("Merged region should shift down a row", expectedRegion, region);
         
+        wb.close();
+    }
+
+    /**
+     * bug 58885: checking for overlapping merged regions when
+     * adding a merged region is safe, but runs in O(n).
+     * the check for merged regions when adding a merged region
+     * can be skipped (unsafe) and run in O(1).
+     */
+    @Test
+    public void addMergedRegionUnsafe() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sh = wb.createSheet();
+        CellRangeAddress region1 = CellRangeAddress.valueOf("A1:B2");
+        CellRangeAddress region2 = CellRangeAddress.valueOf("B2:C3");
+        CellRangeAddress region3 = CellRangeAddress.valueOf("C3:D4");
+        CellRangeAddress region4 = CellRangeAddress.valueOf("J10:K11");
+        assumeTrue(region1.intersects(region2));
+        assumeTrue(region2.intersects(region3));
+
+        sh.addMergedRegionUnsafe(region1);
+        assertTrue(sh.getMergedRegions().contains(region1));
+
+        // adding a duplicate or overlapping merged region should not
+        // raise an exception with the unsafe version of addMergedRegion.
+
+        sh.addMergedRegionUnsafe(region2);
+
+        // the safe version of addMergedRegion should throw when trying to add a merged region that overlaps an existing region
+        assertTrue(sh.getMergedRegions().contains(region2));
+        try {
+            sh.addMergedRegion(region3);
+            fail("Expected IllegalStateException. region3 overlaps already added merged region2.");
+        } catch (final IllegalStateException e) {
+            // expected
+            assertFalse(sh.getMergedRegions().contains(region3));
+        }
+        // addMergedRegion should not re-validate previously-added merged regions
+        sh.addMergedRegion(region4);
+
+        // validation methods should detect a problem with previously added merged regions (runs in O(n^2) time)
+        try {
+            sh.validateMergedRegions();
+            fail("Expected validation to fail. Sheet contains merged regions A1:B2 and B2:C3, which overlap at B2.");
+        } catch (final IllegalStateException e) {
+            // expected
+        }
+
         wb.close();
     }
 
@@ -603,7 +715,7 @@ public abstract class BaseTestSheet {
     }
 
     /**
-     * Test basic display properties
+     * Test basic display and print properties
      */
     @Test
     public void sheetProperties() throws IOException {
@@ -625,6 +737,10 @@ public abstract class BaseTestSheet {
         assertFalse(sheet.isPrintGridlines());
         sheet.setPrintGridlines(true);
         assertTrue(sheet.isPrintGridlines());
+        
+        assertFalse(sheet.isPrintRowAndColumnHeadings());
+        sheet.setPrintRowAndColumnHeadings(true);
+        assertTrue(sheet.isPrintRowAndColumnHeadings());
 
         assertFalse(sheet.isDisplayFormulas());
         sheet.setDisplayFormulas(true);
@@ -994,7 +1110,6 @@ public abstract class BaseTestSheet {
 
     /**
      * XSSFSheet autoSizeColumn() on empty RichTextString fails
-     * @throws IOException 
      */
     @Test
     public void bug48325() throws IOException {
@@ -1022,7 +1137,7 @@ public abstract class BaseTestSheet {
     public void getCellComment() throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet();
-        Drawing dg = sheet.createDrawingPatriarch();
+        Drawing<?> dg = sheet.createDrawingPatriarch();
         Comment comment = dg.createCellComment(workbook.getCreationHelper().createClientAnchor());
         Cell cell = sheet.createRow(9).createCell(2);
         comment.setAuthor("test C10 author");
@@ -1042,7 +1157,11 @@ public abstract class BaseTestSheet {
     public void getCellComments() throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet("TEST");
-        Drawing dg = sheet.createDrawingPatriarch();
+
+        // a sheet with no cell comments should return an empty map (not null or raise NPE).
+        assertEquals(Collections.emptyMap(), sheet.getCellComments());
+
+        Drawing<?> dg = sheet.createDrawingPatriarch();
         ClientAnchor anchor = workbook.getCreationHelper().createClientAnchor();
         
         int nRows = 5;
@@ -1085,6 +1204,51 @@ public abstract class BaseTestSheet {
         
         workbook.close();
         wb.close();
+    }
+    
+    @Test
+    public void getHyperlink() throws IOException {
+        Workbook workbook = _testDataProvider.createWorkbook();
+        Hyperlink hyperlink = workbook.getCreationHelper().createHyperlink(HyperlinkType.URL);
+        hyperlink.setAddress("https://poi.apache.org/");
+        
+        Sheet sheet = workbook.createSheet();
+        Cell cell = sheet.createRow(5).createCell(1);
+        
+        assertEquals("list size before add", 0, sheet.getHyperlinkList().size());
+        cell.setHyperlink(hyperlink);
+        assertEquals("list size after add", 1, sheet.getHyperlinkList().size());
+        
+        assertEquals("list", hyperlink, sheet.getHyperlinkList().get(0));
+        CellAddress B6 = new CellAddress(5, 1);
+        assertEquals("row, col", hyperlink, sheet.getHyperlink(5, 1));
+        assertEquals("addr", hyperlink, sheet.getHyperlink(B6));
+        assertEquals("no hyperlink at A1", null, sheet.getHyperlink(CellAddress.A1));
+        
+        workbook.close();
+    }
+    
+    @Test
+    public void removeAllHyperlinks() throws IOException {
+        Workbook workbook = _testDataProvider.createWorkbook();
+        Hyperlink hyperlink = workbook.getCreationHelper().createHyperlink(HyperlinkType.URL);
+        hyperlink.setAddress("https://poi.apache.org/");
+        Sheet sheet = workbook.createSheet();
+        Cell cell = sheet.createRow(5).createCell(1);
+        cell.setHyperlink(hyperlink);
+        
+        assertEquals(1, workbook.getSheetAt(0).getHyperlinkList().size());
+        // Save a workbook with a hyperlink
+        Workbook workbook2 = _testDataProvider.writeOutAndReadBack(workbook);
+        assertEquals(1, workbook2.getSheetAt(0).getHyperlinkList().size());
+        
+        // Remove all hyperlinks from a saved workbook
+        workbook2.getSheetAt(0).getRow(5).getCell(1).removeHyperlink();
+        assertEquals(0, workbook2.getSheetAt(0).getHyperlinkList().size());
+        
+        // Verify that hyperlink was removed from workbook after writing out
+        Workbook workbook3 = _testDataProvider.writeOutAndReadBack(workbook2);
+        assertEquals(0, workbook3.getSheetAt(0).getHyperlinkList().size());
     }
 
 
@@ -1178,5 +1342,45 @@ public abstract class BaseTestSheet {
 
         wb1.close();
         wb2.close();
+    }
+
+
+    @Test
+    public void autoSizeDate() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet s = wb.createSheet("Sheet1");
+        Row r = s.createRow(0);
+        r.createCell(0).setCellValue(1);
+        r.createCell(1).setCellValue(123456);
+
+        // for the streaming-variant we need to enable autosize-tracking to make it work
+        trackColumnsForAutoSizingIfSXSSF(s);
+
+        // Will be sized fairly small
+        s.autoSizeColumn((short)0);
+        s.autoSizeColumn((short)1);
+
+        // Size ranges due to different fonts on different machines
+        assertBetween("Single number column width", s.getColumnWidth(0), 350, 570);
+        assertBetween("6 digit number column width", s.getColumnWidth(1), 1500, 2100);
+
+        // Set a date format
+        CellStyle cs = wb.createCellStyle();
+        DataFormat f = wb.createDataFormat();
+        cs.setDataFormat(f.getFormat("yyyy-mm-dd MMMM hh:mm:ss"));
+        r.getCell(0).setCellStyle(cs);
+        r.getCell(1).setCellStyle(cs);
+
+        assertTrue(DateUtil.isCellDateFormatted(r.getCell(0)));
+        assertTrue(DateUtil.isCellDateFormatted(r.getCell(1)));
+
+        // Should get much bigger now
+        s.autoSizeColumn((short)0);
+        s.autoSizeColumn((short)1);
+
+        assertBetween("Date column width", s.getColumnWidth(0), 4750, 7300);
+        assertBetween("Date column width", s.getColumnWidth(1), 4750, 7300);
+
+        wb.close();
     }
 }

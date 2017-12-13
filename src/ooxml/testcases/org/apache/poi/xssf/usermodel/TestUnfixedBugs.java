@@ -18,7 +18,6 @@
 package org.apache.poi.xssf.usermodel;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -29,17 +28,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
 
 import org.apache.poi.hssf.HSSFTestDataSamples;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
@@ -72,12 +66,7 @@ public final class TestUnfixedBugs {
 
         verifyBug54084Unicode(wb);
 
-//        OutputStream baos = new FileOutputStream("/tmp/test.xlsx");
-//        try {
-//            wb.write(baos);
-//        } finally {
-//            baos.close();
-//        }
+        //XSSFTestDataSamples.writeOut(wb, "bug 54084 for manual review");
 
         // now write the file and read it back in
         XSSFWorkbook wbWritten = XSSFTestDataSamples.writeOutAndReadBack(wb);
@@ -114,7 +103,6 @@ public final class TestUnfixedBugs {
         Workbook workbook = XSSFTestDataSamples.openSampleWorkbook("54071.xlsx");
         Sheet sheet = workbook.getSheetAt(0);
         int rows = sheet.getPhysicalNumberOfRows();
-        System.out.println(">> file rows is:"+(rows-1)+" <<");
         Row title = sheet.getRow(0);
 
         Date prev = null;
@@ -126,7 +114,7 @@ public final class TestUnfixedBugs {
                 if (titleName.startsWith("time")) {
                     // here the output will produce ...59 or ...58 for the rows, probably POI is
                     // doing some different rounding or some other small difference...
-                    System.out.println("==Time:"+cell.getDateCellValue());
+                    //System.out.println("==Time:"+cell.getDateCellValue());
                     if(prev != null) {
                         assertEquals(prev, cell.getDateCellValue());
                     }
@@ -248,25 +236,20 @@ public final class TestUnfixedBugs {
            sheet.addMergedRegion(range4);
            
            // set border
-           RegionUtil.setBorderBottom(CellStyle.BORDER_THIN, range1, sheet, wb);
+           RegionUtil.setBorderBottom(BorderStyle.THIN, range1, sheet);
            
-           row2.getCell(0).getCellStyle().setBorderBottom(CellStyle.BORDER_THIN);
-           row2.getCell(1).getCellStyle().setBorderBottom(CellStyle.BORDER_THIN);
+           row2.getCell(0).getCellStyle().setBorderBottom(BorderStyle.THIN);
+           row2.getCell(1).getCellStyle().setBorderBottom(BorderStyle.THIN);
 
            Cell cell0 = CellUtil.getCell(row3, 0);
-           CellUtil.setCellStyleProperty(cell0, wb, CellUtil.BORDER_BOTTOM, CellStyle.BORDER_THIN);
+           CellUtil.setCellStyleProperty(cell0, CellUtil.BORDER_BOTTOM, BorderStyle.THIN);
            Cell cell1 = CellUtil.getCell(row3, 1);
-           CellUtil.setCellStyleProperty(cell1, wb, CellUtil.BORDER_BOTTOM, CellStyle.BORDER_THIN);
+           CellUtil.setCellStyleProperty(cell1, CellUtil.BORDER_BOTTOM, BorderStyle.THIN);
 
-           RegionUtil.setBorderBottom(CellStyle.BORDER_THIN, range4, sheet, wb);
+           RegionUtil.setBorderBottom(BorderStyle.THIN, range4, sheet);
     
-           // write to file
-           OutputStream stream = new FileOutputStream(new File("C:/temp/55752.xlsx"));
-           try {
-               wb.write(stream);
-           } finally {
-               stream.close();
-           }
+           // write to file for manual inspection
+           XSSFTestDataSamples.writeOut(wb, "bug 55752 for review");
        } finally {
            wb.close();
        }
@@ -294,13 +277,7 @@ public final class TestUnfixedBugs {
        checkRows57423(testSheet);
        
        Workbook wbBack = XSSFTestDataSamples.writeOutAndReadBack(wb);
-
-       /*FileOutputStream stream = new FileOutputStream("C:\\temp\\57423.xlsx");
-       try {
-           wb.write(stream);
-       } finally {
-           stream.close();
-       }*/
+       /* XSSFTestDataSamples.writeOut(wb, "bug 57423 for manual review"); */
 
        wb.close();
        
@@ -366,39 +343,40 @@ public final class TestUnfixedBugs {
                contents + ".0", cell.toString());
    }
 
-   @Test
-   public void test58325_one() {
-       check58325(XSSFTestDataSamples.openSampleWorkbook("58325_lt.xlsx"), 1);
-   }
+    @Test
+    public void bug57423_shiftRowsByLargeOffset() throws IOException {
+        try (
+            XSSFWorkbook wb = new XSSFWorkbook();
+            //OutputStream out = new FileOutputStream("/tmp/57423." + wb.getClass().getName() + ".xlsx"));
+        ) {
+            Sheet sh = wb.createSheet();
+            sh.createRow(0).createCell(0).setCellValue("a");
+            sh.createRow(1).createCell(0).setCellValue("b");
+            sh.createRow(2).createCell(0).setCellValue("c");
+            sh.shiftRows(0, 1, 3);
 
-   @Test
-   public void test58325_three() {
-       check58325(XSSFTestDataSamples.openSampleWorkbook("58325_db.xlsx"), 3);
-   }
+            XSSFWorkbook wbBack = XSSFTestDataSamples.writeOutAndReadBack(wb);
 
-   private void check58325(XSSFWorkbook wb, int expectedShapes) {
-       XSSFSheet sheet = wb.getSheet("MetasNM001");
-       assertNotNull(sheet);
+            assertThatRowsInAscendingOrder(wb);
+            assertThatRowsInAscendingOrder(wbBack);
 
-       StringBuilder str = new StringBuilder();
-       str.append("sheet " + sheet.getSheetName() + " - ");
+            //wbBack.write(out);
+            // Excel reports that the workbook is corrupt because the rows are not in ascending order
+            // LibreOffice doesn't complain when rows are not in ascending order
 
-       XSSFDrawing drawing = sheet.getDrawingPatriarch();
-       //drawing = ((XSSFSheet)sheet).createDrawingPatriarch();
+            wbBack.close();
+        }
+    }
 
-       List<XSSFShape> shapes = drawing.getShapes();
-       str.append("drawing.getShapes().size() = " + shapes.size());
-       Iterator<XSSFShape> it = shapes.iterator();
-       while(it.hasNext()) {           
-           XSSFShape shape = it.next();
-           str.append(", " + shape.toString());
-           str.append(", Col1:"+((XSSFClientAnchor)shape.getAnchor()).getCol1());
-           str.append(", Col2:"+((XSSFClientAnchor)shape.getAnchor()).getCol2());
-           str.append(", Row1:"+((XSSFClientAnchor)shape.getAnchor()).getRow1());
-           str.append(", Row2:"+((XSSFClientAnchor)shape.getAnchor()).getRow2());
-       }
-       
-       assertEquals("Having shapes: " + str, 
-               expectedShapes, shapes.size());
-   }
+    private void assertThatRowsInAscendingOrder(final XSSFWorkbook wb) {
+        // Check that CTRows are stored in ascending order of row index
+        long maxSeenRowNum = 0; //1-based
+        for (final CTRow ctRow : wb.getSheetAt(0).getCTWorksheet().getSheetData().getRowArray()) {
+            final long rowNum = ctRow.getR(); //1-based
+            assertTrue("Row " + rowNum + " (1-based) is not in ascending order; previously saw " + maxSeenRowNum,
+                       rowNum > maxSeenRowNum);
+            maxSeenRowNum = rowNum;
+        }
+    }
+
 }

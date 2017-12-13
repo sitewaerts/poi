@@ -23,6 +23,7 @@ import java.util.Date;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 
+import org.apache.poi.ss.formula.ConditionalFormattingEvaluator;
 import org.apache.poi.util.LocaleUtil;
 
 /**
@@ -49,9 +50,13 @@ public class DateUtil {
     private static final Pattern date_ptrn1 = Pattern.compile("^\\[\\$\\-.*?\\]");
     private static final Pattern date_ptrn2 = Pattern.compile("^\\[[a-zA-Z]+\\]");
     private static final Pattern date_ptrn3a = Pattern.compile("[yYmMdDhHsS]");
-    private static final Pattern date_ptrn3b = Pattern.compile("^[\\[\\]yYmMdDhHsS\\-T/,. :\"\\\\]+0*[ampAMP/]*$");
+    // add "\u5e74 \u6708 \u65e5" for Chinese/Japanese date format:2017 \u5e74 2 \u6708 7 \u65e5
+    private static final Pattern date_ptrn3b = Pattern.compile("^[\\[\\]yYmMdDhHsS\\-T/\u5e74\u6708\u65e5,. :\"\\\\]+0*[ampAMP/]*$");
     //  elapsed time patterns: [h],[m] and [s]
     private static final Pattern date_ptrn4 = Pattern.compile("^\\[([hH]+|[mM]+|[sS]+)\\]");
+    
+    // for format which start with "[DBNum1]" or "[DBNum2]" or "[DBNum3]" could be a Chinese date
+    private static final Pattern date_ptrn5 = Pattern.compile("^\\[DBNum(1|2|3)\\]");
 
     /**
      * Given a Date, converts it into a double representing its internal Excel representation,
@@ -253,7 +258,7 @@ public class DateUtil {
      *  @return Java representation of the date, or null if date is not a valid Excel date
      */
     public static Calendar getJavaCalendar(double date) {
-        return getJavaCalendar(date, false, (TimeZone)null, false);
+        return getJavaCalendar(date, false, null, false);
     }
 
     /**
@@ -265,7 +270,7 @@ public class DateUtil {
      *  @return Java representation of the date, or null if date is not a valid Excel date
      */
     public static Calendar getJavaCalendar(double date, boolean use1904windowing) {
-        return getJavaCalendar(date, use1904windowing, (TimeZone)null, false);
+        return getJavaCalendar(date, use1904windowing, null, false);
     }
 
     /**
@@ -328,8 +333,8 @@ public class DateUtil {
             return -1;
         }
     };
-    private static ThreadLocal<String> lastFormatString = new ThreadLocal<String>();
-    private static ThreadLocal<Boolean> lastCachedResult = new ThreadLocal<Boolean>();
+    private static ThreadLocal<String> lastFormatString = new ThreadLocal<>();
+    private static ThreadLocal<Boolean> lastCachedResult = new ThreadLocal<>();
     
     private static boolean isCached(String formatString, int formatIndex) {
         String cachedFormatString = lastFormatString.get();
@@ -352,12 +357,33 @@ public class DateUtil {
      *  date formatting characters (ymd-/), which covers most
      *  non US date formats.
      *
-     * @param formatIndex The index of the format, eg from ExtendedFormatRecord.getFormatIndex
-     * @param formatString The format string, eg from FormatRecord.getFormatString
+     * @param numFmt The number format index and string expression, or null if not specified
+     * @return true if it is a valid date format, false if not or null
      * @see #isInternalDateFormat(int)
      */
-
+    public static boolean isADateFormat(ExcelNumberFormat numFmt) {
+        
+        if (numFmt == null) return false;
+        
+        return isADateFormat(numFmt.getIdx(), numFmt.getFormat());
+    }
+        
+    /**
+     * Given a format ID and its format String, will check to see if the
+     *  format represents a date format or not.
+     * Firstly, it will check to see if the format ID corresponds to an
+     *  internal excel date format (eg most US date formats)
+     * If not, it will check to see if the format string only contains
+     *  date formatting characters (ymd-/), which covers most
+     *  non US date formats.
+     *
+     * @param formatIndex The index of the format, eg from ExtendedFormatRecord.getFormatIndex
+     * @param formatString The format string, eg from FormatRecord.getFormatString
+     * @return true if it is a valid date format, false if not or null
+     * @see #isInternalDateFormat(int)
+     */
     public static boolean isADateFormat(int formatIndex, String formatString) {
+        
         // First up, is this an internal date format?
         if(isInternalDateFormat(formatIndex)) {
             cache(formatString, formatIndex, true);
@@ -395,10 +421,11 @@ public class DateUtil {
              // The code above was reworked as suggested in bug 48425:
              // simple loop is more efficient than consecutive regexp replacements.
         }*/
-        StringBuilder sb = new StringBuilder(fs.length());
-        for (int i = 0; i < fs.length(); i++) {
+        final int length = fs.length();
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
             char c = fs.charAt(i);
-            if (i < fs.length() - 1) {
+            if (i < length - 1) {
                 char nc = fs.charAt(i + 1);
                 if (c == '\\') {
                     switch (nc) {
@@ -425,7 +452,9 @@ public class DateUtil {
             cache(formatString, formatIndex, true);
             return true;
         }
-
+        // If it starts with [DBNum1] or [DBNum2] or [DBNum3]
+        // then it could be a Chinese date 
+        fs = date_ptrn5.matcher(fs).replaceAll("");
         // If it starts with [$-...], then could be a date, but
         //  who knows what that starting bit is all about
         fs = date_ptrn1.matcher(fs).replaceAll("");
@@ -435,8 +464,9 @@ public class DateUtil {
         // You're allowed something like dd/mm/yy;[red]dd/mm/yy
         //  which would place dates before 1900/1904 in red
         // For now, only consider the first one
-        if(fs.indexOf(';') > 0 && fs.indexOf(';') < fs.length()-1) {
-           fs = fs.substring(0, fs.indexOf(';'));
+        final int separatorIndex = fs.indexOf(';');
+        if(0 < separatorIndex && separatorIndex < fs.length()-1) {
+           fs = fs.substring(0, separatorIndex);
         }
 
         // Ensure it has some date letters in it
@@ -484,23 +514,40 @@ public class DateUtil {
      *  Check if a cell contains a date
      *  Since dates are stored internally in Excel as double values
      *  we infer it is a date if it is formatted as such.
+     * @param cell 
+     * @return true if it looks like a date
      *  @see #isADateFormat(int, String)
      *  @see #isInternalDateFormat(int)
      */
     public static boolean isCellDateFormatted(Cell cell) {
+        return isCellDateFormatted(cell, null);
+    }
+    
+    /**
+     *  Check if a cell contains a date
+     *  Since dates are stored internally in Excel as double values
+     *  we infer it is a date if it is formatted as such.
+     *  Format is determined from applicable conditional formatting, if
+     *  any, or cell style.
+     * @param cell 
+     * @param cfEvaluator if available, or null
+     * @return true if it looks like a date
+     *  @see #isADateFormat(int, String)
+     *  @see #isInternalDateFormat(int)
+     */
+    public static boolean isCellDateFormatted(Cell cell, ConditionalFormattingEvaluator cfEvaluator) {
         if (cell == null) return false;
         boolean bDate = false;
 
         double d = cell.getNumericCellValue();
         if ( DateUtil.isValidExcelDate(d) ) {
-            CellStyle style = cell.getCellStyle();
-            if(style==null) return false;
-            int i = style.getDataFormat();
-            String f = style.getDataFormatString();
-            bDate = isADateFormat(i, f);
+            ExcelNumberFormat nf = ExcelNumberFormat.from(cell, cfEvaluator);
+            if(nf==null) return false;
+            bDate = isADateFormat(nf);
         }
         return bDate;
     }
+    
     /**
      *  Check if a cell contains a date, checking only for internal
      *   excel date formats.

@@ -28,7 +28,6 @@ import java.util.Map;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.xssf.usermodel.XSSFMap;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.xmlbeans.XmlException;
@@ -69,19 +68,12 @@ public class MapInfo extends POIXMLDocumentPart {
 	    readFrom(part.getInputStream());
     }	
 	
-   /**
-    * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-    */
-	public MapInfo(PackagePart part, PackageRelationship rel) throws IOException {
-		this(part);
-	}
-
 	public void readFrom(InputStream is) throws IOException {
 		try {
 			MapInfoDocument doc = MapInfoDocument.Factory.parse(is, DEFAULT_XML_OPTIONS);
 			mapInfo = doc.getMapInfo();
 
-            maps= new HashMap<Integer, XSSFMap>();
+            maps= new HashMap<>();
             for(CTMap map :mapInfo.getMapArray()){
                 maps.put((int)map.getID(), new XSSFMap(map,this));
             }

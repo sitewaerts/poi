@@ -22,6 +22,7 @@ import static org.apache.poi.poifs.crypt.EncryptionInfo.flagCryptoAPI;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.poi.hssf.record.RecordInputStream;
 import org.apache.poi.poifs.crypt.ChainingMode;
 import org.apache.poi.poifs.crypt.CipherAlgorithm;
 import org.apache.poi.poifs.crypt.CipherProvider;
@@ -33,7 +34,7 @@ import org.apache.poi.util.LittleEndianInput;
 import org.apache.poi.util.LittleEndianOutput;
 import org.apache.poi.util.StringUtil;
 
-public class StandardEncryptionHeader extends EncryptionHeader implements EncryptionRecord {
+public class StandardEncryptionHeader extends EncryptionHeader implements EncryptionRecord, Cloneable {
 
     protected StandardEncryptionHeader(LittleEndianInput is) throws IOException {
         setFlags(is.readInt());
@@ -55,9 +56,17 @@ public class StandardEncryptionHeader extends EncryptionHeader implements Encryp
 
         // CSPName may not always be specified
         // In some cases, the salt value of the EncryptionVerifier is the next chunk of data
-        ((InputStream)is).mark(LittleEndianConsts.INT_SIZE+1);
+        if (is instanceof RecordInputStream) {
+            ((RecordInputStream)is).mark(LittleEndianConsts.INT_SIZE+1);
+        } else {
+            ((InputStream)is).mark(LittleEndianConsts.INT_SIZE+1);
+        }
         int checkForSalt = is.readInt();
-        ((InputStream)is).reset();
+        if (is instanceof RecordInputStream) {
+            ((RecordInputStream)is).reset();
+        } else {
+            ((InputStream)is).reset();
+        }
         
         if (checkForSalt == 16) {
             setCspName("");
@@ -65,7 +74,9 @@ public class StandardEncryptionHeader extends EncryptionHeader implements Encryp
             StringBuilder builder = new StringBuilder();
             while (true) {
                 char c = (char) is.readShort();
-                if (c == 0) break;
+                if (c == 0) {
+                    break;
+                }
                 builder.append(c);
             }
             setCspName(builder.toString());
@@ -90,22 +101,30 @@ public class StandardEncryptionHeader extends EncryptionHeader implements Encryp
     /**
      * serializes the header 
      */
+    @Override
     public void write(LittleEndianByteArrayOutputStream bos) {
         int startIdx = bos.getWriteIndex();
         LittleEndianOutput sizeOutput = bos.createDelayedOutput(LittleEndianConsts.INT_SIZE);
         bos.writeInt(getFlags());
         bos.writeInt(0); // size extra
         bos.writeInt(getCipherAlgorithm().ecmaId);
-        bos.writeInt(getHashAlgorithmEx().ecmaId);
+        bos.writeInt(getHashAlgorithm().ecmaId);
         bos.writeInt(getKeySize());
         bos.writeInt(getCipherProvider().ecmaId);
         bos.writeInt(0); // reserved1
         bos.writeInt(0); // reserved2
         String cspName = getCspName();
-        if (cspName == null) cspName = getCipherProvider().cipherProviderName;
+        if (cspName == null) {
+            cspName = getCipherProvider().cipherProviderName;
+        }
         bos.write(StringUtil.getToUnicodeLE(cspName));
         bos.writeShort(0);
         int headerSize = bos.getWriteIndex()-startIdx-LittleEndianConsts.INT_SIZE;
         sizeOutput.writeInt(headerSize);        
+    }
+
+    @Override
+    public StandardEncryptionHeader clone() throws CloneNotSupportedException {
+        return (StandardEncryptionHeader)super.clone();
     }
 }

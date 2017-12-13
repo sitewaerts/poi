@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Vector;
 
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Source;
 import javax.xml.transform.Transformer;
@@ -41,8 +39,7 @@ import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 
-import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
-import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.util.DocumentHelper;
 import org.apache.poi.util.LocaleUtil;
@@ -55,7 +52,7 @@ import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFTable;
 import org.apache.poi.xssf.usermodel.helpers.XSSFSingleXmlCell;
 import org.apache.poi.xssf.usermodel.helpers.XSSFXmlColumnPr;
-import org.openxmlformats.schemas.spreadsheetml.x2006.main.STXmlDataType;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTTableColumn;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
@@ -85,7 +82,7 @@ public class XSSFExportToXml implements Comparator<String>{
     private static final POILogger LOG = POILogFactory.getLogger(XSSFExportToXml.class);
 
     private XSSFMap map;
-
+    private final HashMap<String, Integer> indexMap = new HashMap<>();
     /**
      * Creates a new exporter and sets the mapping to be used when generating the XML output document
      *
@@ -100,12 +97,11 @@ public class XSSFExportToXml implements Comparator<String>{
      * Exports the data in an XML stream
      *
      * @param os OutputStream in which will contain the output XML
-     * @param validate if true, validates the XML againts the XML Schema
-     * @throws SAXException
-     * @throws TransformerException  
-     * @throws ParserConfigurationException 
+     * @param validate if true, validates the XML against the XML Schema
+     * @throws SAXException If validating the document fails
+     * @throws TransformerException If transforming the document fails
      */
-    public void exportToXML(OutputStream os, boolean validate) throws SAXException, ParserConfigurationException, TransformerException {
+    public void exportToXML(OutputStream os, boolean validate) throws SAXException, TransformerException {
         exportToXML(os, "UTF-8", validate);
     }
 
@@ -114,13 +110,11 @@ public class XSSFExportToXml implements Comparator<String>{
      *
      * @param os OutputStream in which will contain the output XML
      * @param encoding the output charset encoding
-     * @param validate if true, validates the XML againts the XML Schema
-     * @throws SAXException
-     * @throws ParserConfigurationException 
-     * @throws TransformerException 
-     * @throws InvalidFormatException
+     * @param validate if true, validates the XML against the XML Schema
+     * @throws SAXException If validating the document fails
+     * @throws TransformerException If transforming the document fails
      */
-    public void exportToXML(OutputStream os, String encoding, boolean validate) throws SAXException, ParserConfigurationException, TransformerException{
+    public void exportToXML(OutputStream os, String encoding, boolean validate) throws SAXException, TransformerException{
         List<XSSFSingleXmlCell> singleXMLCells = map.getRelatedSingleXMLCell();
         List<XSSFTable> tables = map.getRelatedTables();
 
@@ -128,19 +122,19 @@ public class XSSFExportToXml implements Comparator<String>{
 
         Document doc = DocumentHelper.createDocument();
 
-        Element root = null;
+        final Element root;
 
         if (isNamespaceDeclared()) {
-            root=doc.createElementNS(getNamespace(),rootElement);
+            root = doc.createElementNS(getNamespace(),rootElement);
         } else {
             root = doc.createElementNS("", rootElement);
         }
         doc.appendChild(root);
 
 
-        List<String> xpaths = new Vector<String>();
-        Map<String,XSSFSingleXmlCell> singleXmlCellsMappings = new HashMap<String,XSSFSingleXmlCell>();
-        Map<String,XSSFTable> tableMappings = new HashMap<String,XSSFTable>();
+        List<String> xpaths = new Vector<>();
+        Map<String,XSSFSingleXmlCell> singleXmlCellsMappings = new HashMap<>();
+        Map<String,XSSFTable> tableMappings = new HashMap<>();
 
         for(XSSFSingleXmlCell simpleXmlCell : singleXMLCells) {
             xpaths.add(simpleXmlCell.getXpath());
@@ -152,9 +146,10 @@ public class XSSFExportToXml implements Comparator<String>{
             tableMappings.put(commonXPath, table);
         }
 
-
-        Collections.sort(xpaths,this);
-
+        indexMap.clear();
+        xpaths.sort(this);
+        indexMap.clear();
+        
         for(String xpath : xpaths) {
 
             XSSFSingleXmlCell simpleXmlCell = singleXmlCellsMappings.get(xpath);
@@ -167,12 +162,12 @@ public class XSSFExportToXml implements Comparator<String>{
                     XSSFCell cell = simpleXmlCell.getReferencedCell();
                     if (cell!=null) {
                         Node currentNode = getNodeByXPath(xpath,doc.getFirstChild(),doc,false);
-                        STXmlDataType.Enum dataType = simpleXmlCell.getXmlDataType();
-                        mapCellOnNode(cell,currentNode,dataType);
+                        mapCellOnNode(cell,currentNode);
                         
                         //remove nodes which are empty in order to keep the output xml valid
-                        if("".equals(currentNode.getTextContent()) && currentNode.getParentNode() != null) {
-                        	currentNode.getParentNode().removeChild(currentNode);
+                        // FIXME: what should be done if currentNode.getTextContent() is null?
+                        if ("".equals(currentNode.getTextContent()) && currentNode.getParentNode() != null) {
+                            currentNode.getParentNode().removeChild(currentNode);
                         }
                     }
                 }
@@ -180,7 +175,7 @@ public class XSSFExportToXml implements Comparator<String>{
                 // Exports elements and attributes mapped with tables
                 if (table!=null) {
 
-                    List<XSSFXmlColumnPr> tableColumns = table.getXmlColumnPrs();
+                    List<CTTableColumn> tableColumns = table.getCTTable().getTableColumns().getTableColumnList();
 
                     XSSFSheet sheet = table.getXSSFSheet();
 
@@ -196,36 +191,33 @@ public class XSSFExportToXml implements Comparator<String>{
                         Node tableRootNode = getNodeByXPath(table.getCommonXpath(),doc.getFirstChild(),doc,true);
 
                         short startColumnIndex = table.getStartCellReference().getCol();
-                        for(int j = startColumnIndex; j<= table.getEndCellReference().getCol();j++) {
+                        for (int j = startColumnIndex; j <= table.getEndCellReference().getCol(); j++) {
                             XSSFCell cell = row.getCell(j);
-                            if (cell!=null) {
-                                XSSFXmlColumnPr pointer = tableColumns.get(j-startColumnIndex);
-                                String localXPath = pointer.getLocalXPath();
-                                Node currentNode = getNodeByXPath(localXPath,tableRootNode,doc,false);
-                                STXmlDataType.Enum dataType = pointer.getXmlDataType();
-
-
-                                mapCellOnNode(cell,currentNode,dataType);
+                            if (cell != null) {
+                                int tableColumnIndex = j - startColumnIndex;
+                                if (tableColumnIndex < tableColumns.size()) { 
+                                    CTTableColumn ctTableColumn = tableColumns.get(tableColumnIndex);
+                                    if (ctTableColumn.getXmlColumnPr() != null) {
+                                        XSSFXmlColumnPr pointer = new XSSFXmlColumnPr(table, ctTableColumn,
+                                                ctTableColumn.getXmlColumnPr());
+                                        String localXPath = pointer.getLocalXPath();
+                                        Node currentNode = getNodeByXPath(localXPath,tableRootNode,doc,false);
+                                        mapCellOnNode(cell,currentNode);
+                                    }
+                                }
                             }
-
                         }
-
                     }
-
-
-
                 }
-            } else {
+            } /*else {
                 // TODO:  implement filtering management in xpath
-            }
+            }*/
         }
 
         boolean isValid = true;
         if (validate) {
             isValid =isValid(doc);
         }
-
-
 
         if (isValid) {
 
@@ -254,6 +246,7 @@ public class XSSFExportToXml implements Comparator<String>{
      *
      * @param xml the XML to validate
      * @return true, if document is valid
+     * @throws SAXException If validating the document fails
      */
     private boolean isValid(Document xml) throws SAXException{
         try{
@@ -275,16 +268,16 @@ public class XSSFExportToXml implements Comparator<String>{
     }
 
 
-    private void mapCellOnNode(XSSFCell cell, Node node, STXmlDataType.Enum  outputDataType) {
+    private void mapCellOnNode(XSSFCell cell, Node node) {
 
         String value ="";
         switch (cell.getCellType()) {
 
-        case XSSFCell.CELL_TYPE_STRING: value = cell.getStringCellValue(); break;
-        case XSSFCell.CELL_TYPE_BOOLEAN: value += cell.getBooleanCellValue(); break;
-        case XSSFCell.CELL_TYPE_ERROR: value = cell.getErrorCellString();  break;
-        case XSSFCell.CELL_TYPE_FORMULA:
-           if (cell.getCachedFormulaResultType() == Cell.CELL_TYPE_STRING) {
+        case STRING: value = cell.getStringCellValue(); break;
+        case BOOLEAN: value += cell.getBooleanCellValue(); break;
+        case ERROR: value = cell.getErrorCellString();  break;
+        case FORMULA:
+           if (cell.getCachedFormulaResultType() == CellType.STRING) {
                value = cell.getStringCellValue();
            } else {
                if (DateUtil.isCellDateFormatted(cell)) {
@@ -295,7 +288,7 @@ public class XSSFExportToXml implements Comparator<String>{
            }
            break;
         
-        case XSSFCell.CELL_TYPE_NUMERIC: 
+        case NUMERIC: 
              if (DateUtil.isCellDateFormatted(cell)) {
                   value = getFormattedDate(cell);
               } else {
@@ -303,7 +296,7 @@ public class XSSFExportToXml implements Comparator<String>{
               }
             break;
 
-        default: ;
+        default:
 
         }
         if (node instanceof Element) {
@@ -349,11 +342,7 @@ public class XSSFExportToXml implements Comparator<String>{
                 }
                 currentNode = selectedNode;
             } else {
-
-
-                Node attribute = createAttribute(doc, currentNode, axisName);
-
-                currentNode = attribute;
+                currentNode = createAttribute(doc, currentNode, axisName);
             }
         }
         return currentNode;
@@ -396,7 +385,7 @@ public class XSSFExportToXml implements Comparator<String>{
 
     private boolean isNamespaceDeclared() {
         String schemaNamespace = getNamespace();
-        return schemaNamespace!=null && !schemaNamespace.equals("");
+        return schemaNamespace!=null && !schemaNamespace.isEmpty();
     }
 
     private String getNamespace() {
@@ -414,65 +403,73 @@ public class XSSFExportToXml implements Comparator<String>{
 
         String[] leftTokens = leftXpath.split("/");
         String[] rightTokens = rightXpath.split("/");
+        String samePath = "";
 
-        int minLenght = leftTokens.length< rightTokens.length? leftTokens.length : rightTokens.length;
+        int minLength = leftTokens.length< rightTokens.length? leftTokens.length : rightTokens.length;
 
         Node localComplexTypeRootNode = xmlSchema;
 
-        for(int i =1;i <minLenght; i++) {
+        for(int i =1;i <minLength; i++) {
 
-            String leftElementName =leftTokens[i];
+            String leftElementName = leftTokens[i];
             String rightElementName = rightTokens[i];
 
             if (leftElementName.equals(rightElementName)) {
-                Node complexType = getComplexTypeForElement(leftElementName, xmlSchema,localComplexTypeRootNode);
-                localComplexTypeRootNode = complexType;
+                samePath += "/" + leftElementName;
+                localComplexTypeRootNode = getComplexTypeForElement(leftElementName, xmlSchema, localComplexTypeRootNode);
             } else {
-                int leftIndex = indexOfElementInComplexType(leftElementName,localComplexTypeRootNode);
-                int rightIndex = indexOfElementInComplexType(rightElementName,localComplexTypeRootNode);
-                if (leftIndex!=-1 && rightIndex!=-1) {
-                    if ( leftIndex < rightIndex) {
-                        return -1;
-                    }if ( leftIndex > rightIndex) {
-                        return 1;
-                    }
-                } else {
-                    // NOTE: the xpath doesn't match correctly in the schema
-                }
+                return indexOfElementInComplexType(samePath, leftElementName, rightElementName,localComplexTypeRootNode);
             }
         }
 
         return 0;
     }
 
-    private int indexOfElementInComplexType(String elementName,Node complexType) {
+    private int indexOfElementInComplexType(String samePath,String leftElementName,String rightElementName,Node complexType) {
+        if(complexType == null) {
+            return 0;
+        }
 
-        NodeList list  = complexType.getChildNodes();
-        int indexOf = -1;
+        int i = 0;
+        Node node = complexType.getFirstChild();
+        final String leftWithoutNamespace = removeNamespace(leftElementName);
+        int leftIndexOf = getAndStoreIndex(samePath, leftWithoutNamespace);
+        final String rightWithoutNamespace = removeNamespace(rightElementName);
+        int rightIndexOf = getAndStoreIndex(samePath, rightWithoutNamespace);
 
-        for(int i=0; i< list.getLength();i++) {
-            Node node = list.item(i);
-            if (node instanceof Element) {
-                if (node.getLocalName().equals("element")) {
-                    Node element = getNameOrRefElement(node);
-                    if (element.getNodeValue().equals(removeNamespace(elementName))) {
-                        indexOf = i;
-                        break;
-                    }
-
+        while (node != null && (rightIndexOf==-1||leftIndexOf==-1)) {
+            if (node instanceof Element && "element".equals(node.getLocalName())) {
+                String elementValue = getNameOrRefElement(node).getNodeValue();
+                if (elementValue.equals(leftWithoutNamespace)) {
+                    leftIndexOf = i;
+                    indexMap.put(samePath+"/"+leftWithoutNamespace, leftIndexOf);
+                }
+                if (elementValue.equals(rightWithoutNamespace)) {
+                    rightIndexOf = i;
+                    indexMap.put(samePath+"/"+rightWithoutNamespace, rightIndexOf);
                 }
             }
+            i++;
+            node = node.getNextSibling();
         }
-        return indexOf;
+        if(leftIndexOf == -1 || rightIndexOf == -1) {
+            return 0;
+        }
+        return Integer.compare(leftIndexOf, rightIndexOf);
+    }
+    
+    private int getAndStoreIndex(String samePath,String withoutNamespace) {
+        String withPath = samePath+"/"+withoutNamespace;
+        return indexMap.getOrDefault(withPath, -1);
     }
 
 	private Node getNameOrRefElement(Node node) {
-		Node returnNode = node.getAttributes().getNamedItem("name");
+		Node returnNode = node.getAttributes().getNamedItem("ref");
         if(returnNode != null) {
             return returnNode;
 		}
 		
-        return node.getAttributes().getNamedItem("ref");
+        return node.getAttributes().getNamedItem("name");
 	}
 
     private Node getComplexTypeForElement(String elementName,Node xmlSchema,Node localComplexTypeRootNode) {
@@ -482,8 +479,9 @@ public class XSSFExportToXml implements Comparator<String>{
 
         // Note: we expect that all the complex types are defined at root level
         Node complexTypeNode = null;
+        // FIXME: what should be done if complexTypeName is null?
         if (!"".equals(complexTypeName)) {
-            complexTypeNode = getComplexTypeNodeFromSchemaChildren(xmlSchema, complexTypeNode, complexTypeName);
+            complexTypeNode = getComplexTypeNodeFromSchemaChildren(xmlSchema, null, complexTypeName);
         }
 
         return complexTypeNode;
@@ -491,47 +489,48 @@ public class XSSFExportToXml implements Comparator<String>{
 
     private String getComplexTypeNameFromChildren(Node localComplexTypeRootNode,
             String elementNameWithoutNamespace) {
-        NodeList  list  = localComplexTypeRootNode.getChildNodes();
+        if(localComplexTypeRootNode == null) {
+            return "";
+        }
+
+        Node node  = localComplexTypeRootNode.getFirstChild();
         String complexTypeName = "";
 
-        for(int i=0; i< list.getLength();i++) {
-            Node node = list.item(i);
-            if ( node instanceof Element) {
-                if (node.getLocalName().equals("element")) {
-                    Node nameAttribute = getNameOrRefElement(node);
-                    if (nameAttribute.getNodeValue().equals(elementNameWithoutNamespace)) {
-                        Node complexTypeAttribute = node.getAttributes().getNamedItem("type");
-                        if (complexTypeAttribute!=null) {
-                            complexTypeName = complexTypeAttribute.getNodeValue();
-                            break;
-                        }
+        while (node != null) {
+            if ( node instanceof Element && "element".equals(node.getLocalName())) {
+                Node nameAttribute = getNameOrRefElement(node);
+                if (nameAttribute.getNodeValue().equals(elementNameWithoutNamespace)) {
+                    Node complexTypeAttribute = node.getAttributes().getNamedItem("type");
+                    if (complexTypeAttribute!=null) {
+                        complexTypeName = complexTypeAttribute.getNodeValue();
+                        break;
                     }
                 }
             }
+            node = node.getNextSibling();
         }
         return complexTypeName;
     }
 
     private Node getComplexTypeNodeFromSchemaChildren(Node xmlSchema, Node complexTypeNode,
             String complexTypeName) {
-        NodeList  complexTypeList  = xmlSchema.getChildNodes();
-        for(int i=0; i< complexTypeList.getLength();i++) {
-            Node node = complexTypeList.item(i);
+        Node node = xmlSchema.getFirstChild();
+        while (node != null) {
             if ( node instanceof Element) {
-                if (node.getLocalName().equals("complexType")) {
+                if ("complexType".equals(node.getLocalName())) {
                     Node nameAttribute = getNameOrRefElement(node);
                     if (nameAttribute.getNodeValue().equals(complexTypeName)) {
-
-                        NodeList complexTypeChildList  =node.getChildNodes();
-                        for(int j=0; j<complexTypeChildList.getLength();j++) {
-                            Node sequence = complexTypeChildList.item(j);
+                        Node sequence = node.getFirstChild();
+                        while(sequence != null) {
 
                             if ( sequence instanceof Element) {
-                                if (sequence.getLocalName().equals("sequence") || sequence.getLocalName().equals("all")) {
+                                final String localName = sequence.getLocalName();
+                                if ("sequence".equals(localName) || "all".equals(localName)) {
                                     complexTypeNode = sequence;
                                     break;
                                 }
                             }
+                            sequence = sequence.getNextSibling();
                         }
                         if (complexTypeNode!=null) {
                             break;
@@ -540,6 +539,7 @@ public class XSSFExportToXml implements Comparator<String>{
                     }
                 }
             }
+            node = node.getNextSibling();
         }
         return complexTypeNode;
     }

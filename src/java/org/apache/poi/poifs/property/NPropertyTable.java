@@ -29,6 +29,7 @@ import org.apache.poi.poifs.common.POIFSConstants;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.NPOIFSStream;
 import org.apache.poi.poifs.storage.HeaderBlock;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 
@@ -40,6 +41,9 @@ import org.apache.poi.util.POILogger;
 public final class NPropertyTable extends PropertyTableBase {
     private static final POILogger _logger =
        POILogFactory.getLogger(NPropertyTable.class);
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
     private POIFSBigBlockSize _bigBigBlockSize;
 
     public NPropertyTable(HeaderBlock headerBlock)
@@ -73,16 +77,10 @@ public final class NPropertyTable extends PropertyTableBase {
         _bigBigBlockSize = headerBlock.getBigBlockSize();
     }
     
-    /**
-     * Builds
-     * @param startAt
-     * @param filesystem
-     * @throws IOException
-     */
     private static List<Property> buildProperties(final Iterator<ByteBuffer> dataSource,
           final POIFSBigBlockSize bigBlockSize) throws IOException
     {
-       List<Property> properties = new ArrayList<Property>();
+       List<Property> properties = new ArrayList<>();
        while(dataSource.hasNext()) {
           ByteBuffer bb = dataSource.next();
           
@@ -92,7 +90,7 @@ public final class NPropertyTable extends PropertyTableBase {
                 bb.array().length == bigBlockSize.getBigBlockSize()) {
              data = bb.array();
           } else {
-             data = new byte[bigBlockSize.getBigBlockSize()];
+             data = IOUtils.safelyAllocate(bigBlockSize.getBigBlockSize(), MAX_RECORD_LENGTH);
              
              int toRead = data.length;
              if (bb.remaining() < bigBlockSize.getBigBlockSize()) {
@@ -119,7 +117,7 @@ public final class NPropertyTable extends PropertyTableBase {
      */
     public int countBlocks()
     {
-       long rawSize = _properties.size() * POIFSConstants.PROPERTY_SIZE;
+       long rawSize = _properties.size() * (long)POIFSConstants.PROPERTY_SIZE;
        int blkSize = _bigBigBlockSize.getBigBlockSize();
        int numBlocks = (int)(rawSize / blkSize);
        if ((rawSize % blkSize) != 0) {
@@ -132,7 +130,7 @@ public final class NPropertyTable extends PropertyTableBase {
      * Prepare to be written
      */
     public void preWrite() {
-        List<Property> pList = new ArrayList<Property>();
+        List<Property> pList = new ArrayList<>();
         // give each property its index
         int i=0;
         for (Property p : _properties) {

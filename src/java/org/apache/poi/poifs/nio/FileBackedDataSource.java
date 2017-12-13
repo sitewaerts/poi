@@ -54,7 +54,7 @@ public class FileBackedDataSource extends DataSource {
    // See https://bz.apache.org/bugzilla/show_bug.cgi?id=58480, 
    // http://stackoverflow.com/questions/3602783/file-access-synchronized-on-java-object and
    // http://bugs.java.com/view_bug.do?bug_id=4724038 for related discussions
-   private List<ByteBuffer> buffersToClean = new ArrayList<ByteBuffer>();
+   private List<ByteBuffer> buffersToClean = new ArrayList<>();
 
    public FileBackedDataSource(File file) throws FileNotFoundException {
        this(newSrcFile(file, "r"), true);
@@ -85,33 +85,36 @@ public class FileBackedDataSource extends DataSource {
    @Override
    public ByteBuffer read(int length, long position) throws IOException {
       if(position >= size()) {
-         throw new IllegalArgumentException("Position " + position + " past the end of the file");
+         throw new IndexOutOfBoundsException("Position " + position + " past the end of the file");
       }
       
-      // Do we read or map (for read/write?
+      // TODO Could we do the read-only case with MapMode.PRIVATE instead?
+      // See https://docs.oracle.com/javase/7/docs/api/java/nio/channels/FileChannel.MapMode.html#PRIVATE
+      // Or should we have 3 modes instead of the current boolean - 
+      //  read-write, read-only, read-to-write-elsewhere? 
+      
+      // Do we read or map (for read/write)?
       ByteBuffer dst;
-      int worked = -1;
       if (writable) {
           dst = channel.map(FileChannel.MapMode.READ_WRITE, position, length);
-          worked = 0;
+
+          // remember this buffer for cleanup
+          buffersToClean.add(dst);
       } else {
-          // Read
+          // allocate the buffer on the heap if we cannot map the data in directly
           channel.position(position);
           dst = ByteBuffer.allocate(length);
-          worked = IOUtils.readFully(channel, dst);
+
+          // Read the contents and check that we could read some data
+          int worked = IOUtils.readFully(channel, dst);
+          if(worked == -1) {
+              throw new IndexOutOfBoundsException("Position " + position + " past the end of the file");
+          }
       }
 
-      // Check
-      if(worked == -1) {
-         throw new IllegalArgumentException("Position " + position + " past the end of the file");
-      }
-
-      // Ready it for reading
+      // make it ready for reading
       dst.position(0);
 
-      // remember the buffer for cleanup if necessary
-      buffersToClean.add(dst);
-      
       // All done
       return dst;
    }
@@ -162,22 +165,27 @@ public class FileBackedDataSource extends DataSource {
    // unfortunately this might break silently with newer/other Java implementations, 
    // but we at least have unit-tests which will indicate this when run on Windows
    private static void unmap(final ByteBuffer buffer) {
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            @SuppressForbidden("Java 9 Jigsaw whitelists access to sun.misc.Cleaner, so setAccessible works")
-            public Void run() {
-                try {
-                    final Method getCleanerMethod = buffer.getClass().getMethod("cleaner");
-                    getCleanerMethod.setAccessible(true);
-                    final Object cleaner = getCleanerMethod.invoke(buffer);
-                    if (cleaner != null) {
-                        cleaner.getClass().getMethod("clean").invoke(cleaner);
-                    }
-                } catch (Exception e) {
-                    logger.log(POILogger.WARN, "Unable to unmap memory mapped ByteBuffer.", e);
-                }
-                return null; // Void
-            }
-        });
+       // not necessary for HeapByteBuffer, avoid lots of log-output on this class
+       if(buffer.getClass().getName().endsWith("HeapByteBuffer")) {
+           return;
+       }
+
+       AccessController.doPrivileged(new PrivilegedAction<Void>() {
+           @Override
+           @SuppressForbidden("Java 9 Jigsaw whitelists access to sun.misc.Cleaner, so setAccessible works")
+           public Void run() {
+               try {
+                   final Method getCleanerMethod = buffer.getClass().getMethod("cleaner");
+                   getCleanerMethod.setAccessible(true);
+                   final Object cleaner = getCleanerMethod.invoke(buffer);
+                   if (cleaner != null) {
+                       cleaner.getClass().getMethod("clean").invoke(cleaner);
+                   }
+               } catch (Exception e) {
+                   logger.log(POILogger.WARN, "Unable to unmap memory mapped ByteBuffer.", e);
+               }
+               return null; // Void
+           }
+       });
     }
 }

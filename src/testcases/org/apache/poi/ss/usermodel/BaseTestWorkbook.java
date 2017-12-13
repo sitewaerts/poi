@@ -17,6 +17,7 @@
 
 package org.apache.poi.ss.usermodel;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -25,25 +26,27 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 
+import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.ss.ITestDataProvider;
-import org.apache.poi.ss.SpreadsheetVersion;
+import org.apache.poi.ss.usermodel.ClientAnchor.AnchorType;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.NullOutputStream;
+import org.apache.poi.util.TempFile;
 import org.junit.Test;
 
-/**
- * @author Yegor Kozlov
- */
 public abstract class BaseTestWorkbook {
 
-    private final ITestDataProvider _testDataProvider;
+    protected final ITestDataProvider _testDataProvider;
 
     protected BaseTestWorkbook(ITestDataProvider testDataProvider) {
-    _testDataProvider = testDataProvider;
+        _testDataProvider = testDataProvider;
     }
     
     @Test
@@ -162,7 +165,7 @@ public abstract class BaseTestWorkbook {
             fail("should have thrown exceptiuon due to duplicate sheet name");
         } catch (IllegalArgumentException e) {
             // expected during successful test
-            assertEquals("The workbook already contains a sheet of this name", e.getMessage());
+            assertEquals("The workbook already contains a sheet named 'sHeeT3'", e.getMessage());
         }
 
         //names cannot be blank or contain any of /\*?[]
@@ -256,7 +259,7 @@ public abstract class BaseTestWorkbook {
             fail("expected exception");
         } catch (IllegalArgumentException e) {
             // expected during successful test
-            assertEquals("The workbook already contains a sheet of this name", e.getMessage());
+            assertEquals("The workbook already contains a sheet named 'My very long sheet name which is longer than 31 chars and sheetName2.substring(0, 31) == sheetName1.substring(0, 31)'", e.getMessage());
         }
 
         String sheetName3 = "POI allows creating sheets with names longer than 31 characters";
@@ -516,26 +519,29 @@ public abstract class BaseTestWorkbook {
 
 
     /**
-     * Test is kept to ensure stub for deprecated business method passes test.
-     * 
-     * @Deprecated remove this test when 
-     * {@link Workbook#setRepeatingRowsAndColumns(int, int, int, int, int)} 
-     * is removed 
+     * Test to validate that replacement for removed setRepeatingRowsAnsColumns() methods
+     * is still working correctly 
      */
-    @Deprecated
     @Test
     public void setRepeatingRowsAnsColumns() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
+
+        CellRangeAddress cra = new CellRangeAddress(0, 3, 0, 0);
+        String expRows = "1:4", expCols = "A:A";
+
+        
         Sheet sheet1 = wb.createSheet();
-        wb.setRepeatingRowsAndColumns(wb.getSheetIndex(sheet1), 0, 0, 0, 3);
-        assertEquals("1:4", sheet1.getRepeatingRows().formatAsString());
-        assertEquals("A:A", sheet1.getRepeatingColumns().formatAsString());
+        sheet1.setRepeatingRows(cra);
+        sheet1.setRepeatingColumns(cra);
+        assertEquals(expRows, sheet1.getRepeatingRows().formatAsString());
+        assertEquals(expCols, sheet1.getRepeatingColumns().formatAsString());
 
         //must handle sheets with quotas, see Bugzilla #47294
         Sheet sheet2 = wb.createSheet("My' Sheet");
-        wb.setRepeatingRowsAndColumns(wb.getSheetIndex(sheet2), 0, 0, 0, 3);
-        assertEquals("1:4", sheet2.getRepeatingRows().formatAsString());
-        assertEquals("A:A", sheet1.getRepeatingColumns().formatAsString());
+        sheet2.setRepeatingRows(cra);
+        sheet2.setRepeatingColumns(cra);
+        assertEquals(expRows, sheet2.getRepeatingRows().formatAsString());
+        assertEquals(expCols, sheet2.getRepeatingColumns().formatAsString());
         wb.close();
     }
 
@@ -741,7 +747,7 @@ public abstract class BaseTestWorkbook {
         wb2.close();
     }
 
-    public void changeSheetNameWithSharedFormulas(String sampleFile) throws IOException {
+    protected void changeSheetNameWithSharedFormulas(String sampleFile) throws IOException {
         Workbook wb = _testDataProvider.openSampleWorkbook(sampleFile);
 
         FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
@@ -772,22 +778,13 @@ public abstract class BaseTestWorkbook {
 		for(int i = 0;i < wb.getNumberOfSheets();i++) {
 			sheetNames.append(wb.getSheetAt(i).getSheetName()).append(",");
 		}
-		assertEquals("Had: " + sheetNames.toString(), 
+		assertEquals("Had: " + sheetNames,
 				sheets.length, wb.getNumberOfSheets());
 		for(int i = 0;i < wb.getNumberOfSheets();i++) {
-			assertEquals("Had: " + sheetNames.toString(), 
+			assertEquals("Had: " + sheetNames,
 					sheets[i], wb.getSheetAt(i).getSheetName());
 		}
 	}
-
-    protected static class NullOutputStream extends OutputStream {
-        public NullOutputStream() {
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-        }
-    }
 
     @Test
     public void test58499() throws IOException {
@@ -825,11 +822,136 @@ public abstract class BaseTestWorkbook {
     }
 
     @Test
-    public abstract void getSpreadsheetVersion() throws IOException;
-    
-    protected void verifySpreadsheetVersion(SpreadsheetVersion expected) throws IOException {
+    public void getSpreadsheetVersion() throws IOException {
         final Workbook wb = _testDataProvider.createWorkbook();
-        assertEquals(expected, wb.getSpreadsheetVersion());
+        assertEquals(_testDataProvider.getSpreadsheetVersion(), wb.getSpreadsheetVersion());
         wb.close();
     }
+    
+    /* FIXME copied from {@link org.apache.poi.ss.TestWorkbookFactory} */
+    protected static void assertCloseDoesNotModifyFile(String filename, Workbook wb) throws IOException {
+        final byte[] before = HSSFTestDataSamples.getTestDataFileContent(filename);
+        wb.close();
+        final byte[] after = HSSFTestDataSamples.getTestDataFileContent(filename);
+        assertArrayEquals(filename + " sample file was modified as a result of closing the workbook",
+                before, after);
+    }
+
+    @Test
+    public void sheetClone() throws IOException {
+        // First up, try a simple file
+        final Workbook b = _testDataProvider.createWorkbook();
+        assertEquals(0, b.getNumberOfSheets());
+        b.createSheet("Sheet One");
+        b.createSheet("Sheet Two");
+
+        assertEquals(2, b.getNumberOfSheets());
+        b.cloneSheet(0);
+        assertEquals(3, b.getNumberOfSheets());
+
+        // Now try a problem one with drawing records in it
+        Workbook bBack = HSSFTestDataSamples.openSampleWorkbook("SheetWithDrawing.xls");
+        assertEquals(1, bBack.getNumberOfSheets());
+        bBack.cloneSheet(0);
+        assertEquals(2, bBack.getNumberOfSheets());
+
+        bBack.close();
+        b.close();
+    }
+
+    @Test
+    public void getSheetIndex() throws IOException {
+        final Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sheet1 = wb.createSheet("Sheet1");
+        Sheet sheet2 = wb.createSheet("Sheet2");
+        Sheet sheet3 = wb.createSheet("Sheet3");
+        Sheet sheet4 = wb.createSheet("Sheet4");
+
+        assertEquals(0, wb.getSheetIndex(sheet1));
+        assertEquals(1, wb.getSheetIndex(sheet2));
+        assertEquals(2, wb.getSheetIndex(sheet3));
+        assertEquals(3, wb.getSheetIndex(sheet4));
+
+        // remove sheets
+        wb.removeSheetAt(0);
+        wb.removeSheetAt(2);
+
+        // ensure that sheets are moved up and removed sheets are not found any more
+        assertEquals(-1, wb.getSheetIndex(sheet1));
+        assertEquals(0, wb.getSheetIndex(sheet2));
+        assertEquals(1, wb.getSheetIndex(sheet3));
+        assertEquals(-1, wb.getSheetIndex(sheet4));
+
+        wb.close();
+    }
+
+    @Test
+    public void addSheetTwice() throws IOException {
+        final Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sheet1 = wb.createSheet("Sheet1");
+        assertNotNull(sheet1);
+        try {
+            wb.createSheet("Sheet1");
+            fail("Should fail if we add the same sheet twice");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("already contains a sheet named 'Sheet1'"));
+        }
+
+        wb.close();
+    }
+    
+    // bug 51233 and 55075: correctly size image if added to a row with a custom height
+    @Test
+    public void createDrawing() throws Exception {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sheet = wb.createSheet("Main Sheet");
+        Row row0 = sheet.createRow(0);
+        Row row1 = sheet.createRow(1);
+        row1.createCell(0);
+        row0.createCell(1);
+        row1.createCell(0);
+        row1.createCell(1);
+
+        byte[] pictureData = _testDataProvider.getTestDataFileContent("logoKarmokar4.png");
+
+        int handle = wb.addPicture(pictureData, Workbook.PICTURE_TYPE_PNG);
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
+        CreationHelper helper = wb.getCreationHelper();
+        ClientAnchor anchor = helper.createClientAnchor();
+        anchor.setAnchorType(AnchorType.DONT_MOVE_AND_RESIZE);
+        anchor.setCol1(0);
+        anchor.setRow1(0);
+        Picture picture = drawing.createPicture(anchor, handle);
+
+        row0.setHeightInPoints(144);
+        // set a column width so that XSSF and SXSSF have the same width (default widths may be different otherwise)
+        sheet.setColumnWidth(0, 100*256);
+        picture.resize();
+        
+        // The actual dimensions don't matter as much as having XSSF and SXSSF produce the same size drawings
+        
+        // Check drawing height
+        assertEquals(0, anchor.getRow1());
+        assertEquals(0, anchor.getRow2());
+        assertEquals(0, anchor.getDy1());
+        assertEquals(1609725, anchor.getDy2()); //HSSF: 225
+        
+        // Check drawing width
+        assertEquals(0, anchor.getCol1());
+        assertEquals(0, anchor.getCol2());
+        assertEquals(0, anchor.getDx1());
+        assertEquals(1114425, anchor.getDx2()); //HSSF: 171
+        
+        final boolean writeOut = false;
+        if (writeOut) {
+            String ext = "." + _testDataProvider.getStandardFileNameExtension();
+            String prefix = wb.getClass().getName() + "-createDrawing";
+            File f = TempFile.createTempFile(prefix, ext);
+            FileOutputStream out = new FileOutputStream(f);
+            wb.write(out);
+            out.close();
+        }
+        wb.close();
+    }
+
 }

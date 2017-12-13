@@ -20,11 +20,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-import org.apache.poi.hssf.usermodel.HSSFCellStyle;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.hwpf.converter.AbstractWordUtils;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.util.Beta;
 import org.apache.poi.util.IOUtils;
@@ -34,60 +35,61 @@ import org.apache.poi.util.IOUtils;
  * 
  * @author Sergey Vladimirov (vlsergey {at} gmail {dot} com)
  * @see AbstractWordUtils
+ * @since POI 3.8 beta 5
  */
 @Beta
 public class AbstractExcelUtils
 {
-    static final String EMPTY = "";
+    /*package*/ static final String EMPTY = "";
     private static final short EXCEL_COLUMN_WIDTH_FACTOR = 256;
     private static final int UNIT_OFFSET_LENGTH = 7;
 
-    public static String getAlign( short alignment )
+    public static String getAlign( HorizontalAlignment alignment )
     {
         switch ( alignment )
         {
-        case HSSFCellStyle.ALIGN_CENTER:
+        case CENTER:
             return "center";
-        case HSSFCellStyle.ALIGN_CENTER_SELECTION:
+        case CENTER_SELECTION:
             return "center";
-        case HSSFCellStyle.ALIGN_FILL:
+        case FILL:
             // XXX: shall we support fill?
             return "";
-        case HSSFCellStyle.ALIGN_GENERAL:
+        case GENERAL:
             return "";
-        case HSSFCellStyle.ALIGN_JUSTIFY:
+        case JUSTIFY:
             return "justify";
-        case HSSFCellStyle.ALIGN_LEFT:
+        case LEFT:
             return "left";
-        case HSSFCellStyle.ALIGN_RIGHT:
+        case RIGHT:
             return "right";
         default:
             return "";
         }
     }
 
-    public static String getBorderStyle( short xlsBorder )
+    public static String getBorderStyle( BorderStyle xlsBorder )
     {
         final String borderStyle;
         switch ( xlsBorder )
         {
-        case HSSFCellStyle.BORDER_NONE:
+        case NONE:
             borderStyle = "none";
             break;
-        case HSSFCellStyle.BORDER_DASH_DOT:
-        case HSSFCellStyle.BORDER_DASH_DOT_DOT:
-        case HSSFCellStyle.BORDER_DOTTED:
-        case HSSFCellStyle.BORDER_HAIR:
-        case HSSFCellStyle.BORDER_MEDIUM_DASH_DOT:
-        case HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT:
-        case HSSFCellStyle.BORDER_SLANTED_DASH_DOT:
+        case DASH_DOT:
+        case DASH_DOT_DOT:
+        case DOTTED:
+        case HAIR:
+        case MEDIUM_DASH_DOT:
+        case MEDIUM_DASH_DOT_DOT:
+        case SLANTED_DASH_DOT:
             borderStyle = "dotted";
             break;
-        case HSSFCellStyle.BORDER_DASHED:
-        case HSSFCellStyle.BORDER_MEDIUM_DASHED:
+        case DASHED:
+        case MEDIUM_DASHED:
             borderStyle = "dashed";
             break;
-        case HSSFCellStyle.BORDER_DOUBLE:
+        case DOUBLE:
             borderStyle = "double";
             break;
         default:
@@ -97,17 +99,17 @@ public class AbstractExcelUtils
         return borderStyle;
     }
 
-    public static String getBorderWidth( short xlsBorder )
+    public static String getBorderWidth( BorderStyle xlsBorder )
     {
         final String borderWidth;
         switch ( xlsBorder )
         {
-        case HSSFCellStyle.BORDER_MEDIUM_DASH_DOT:
-        case HSSFCellStyle.BORDER_MEDIUM_DASH_DOT_DOT:
-        case HSSFCellStyle.BORDER_MEDIUM_DASHED:
+        case MEDIUM_DASH_DOT:
+        case MEDIUM_DASH_DOT_DOT:
+        case MEDIUM_DASHED:
             borderWidth = "2pt";
             break;
-        case HSSFCellStyle.BORDER_THICK:
+        case THICK:
             borderWidth = "thick";
             break;
         default:
@@ -174,11 +176,10 @@ public class AbstractExcelUtils
     {
         CellRangeAddress[] mergedRangeRowInfo = rowNumber < mergedRanges.length ? mergedRanges[rowNumber]
                 : null;
-        CellRangeAddress cellRangeAddress = mergedRangeRowInfo != null
+
+        return mergedRangeRowInfo != null
                 && columnNumber < mergedRangeRowInfo.length ? mergedRangeRowInfo[columnNumber]
                 : null;
-
-        return cellRangeAddress;
     }
 
     static boolean isEmpty( String str )

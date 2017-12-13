@@ -29,8 +29,11 @@ import org.apache.poi.hssf.record.cf.FontFormatting;
 import org.apache.poi.hssf.record.cf.IconMultiStateFormatting;
 import org.apache.poi.hssf.record.cf.PatternFormatting;
 import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.usermodel.ConditionFilterData;
+import org.apache.poi.ss.usermodel.ConditionFilterType;
 import org.apache.poi.ss.usermodel.ConditionType;
 import org.apache.poi.ss.usermodel.ConditionalFormattingRule;
+import org.apache.poi.ss.usermodel.ExcelNumberFormat;
 
 /**
  *
@@ -57,6 +60,26 @@ public final class HSSFConditionalFormattingRule implements ConditionalFormattin
         cfRuleRecord = pRuleRecord;
     }
 
+    /**
+     * Only newer style formatting rules have priorities. For older ones,
+     *  we don't know priority for these, other than definition/model order, 
+     *  which appears to be what Excel uses.
+     * @see org.apache.poi.ss.usermodel.ConditionalFormattingRule#getPriority()
+     */
+    public int getPriority() {
+        CFRule12Record rule12 = getCFRule12Record(false);
+        if (rule12 == null) return 0;
+        return rule12.getPriority();
+    }
+    
+    /**
+     * Always true for HSSF files, per Microsoft Excel documentation
+     * @see org.apache.poi.ss.usermodel.ConditionalFormattingRule#getStopIfTrue()
+     */
+    public boolean getStopIfTrue() {
+        return true;
+    }
+    
     CFRuleBase getCfRuleRecord() {
         return cfRuleRecord;
     }
@@ -68,6 +91,14 @@ public final class HSSFConditionalFormattingRule implements ConditionalFormattin
             return null;
         }
         return (CFRule12Record)cfRuleRecord;
+    }
+    
+    /**
+     * Always null for HSSF records, until someone figures out where to find it
+     * @see org.apache.poi.ss.usermodel.ConditionalFormattingRule#getNumberFormat()
+     */
+    public ExcelNumberFormat getNumberFormat() {
+        return null;
     }
 
     private HSSFFontFormatting getFontFormatting(boolean create) {
@@ -230,19 +261,28 @@ public final class HSSFConditionalFormattingRule implements ConditionalFormattin
     /**
      * @return -  the conditiontype for the cfrule
      */
-    public byte getConditionType() {
-        return cfRuleRecord.getConditionType();
-    }
-    /**
-     * @return -  the conditiontype for the cfrule
-     */
-    public ConditionType getConditionTypeType() {
-        return ConditionType.forId(getConditionType());
+    @Override
+    public ConditionType getConditionType() {
+        byte code = cfRuleRecord.getConditionType();
+        return ConditionType.forId(code);
     }
 
     /**
+     * always null (not a filter condition) or {@link ConditionFilterType#FILTER} if it is.
+     * @see org.apache.poi.ss.usermodel.ConditionalFormattingRule#getConditionFilterType()
+     */
+    public ConditionFilterType getConditionFilterType() {
+        return getConditionType() == ConditionType.FILTER ? ConditionFilterType.FILTER : null;
+    }
+    
+    public ConditionFilterData getFilterConfiguration() {
+        return null;
+    }
+    
+    /**
      * @return - the comparisionoperatation for the cfrule
      */
+    @Override
     public byte getComparisonOperation() {
         return cfRuleRecord.getComparisonOperation();
     }
@@ -265,6 +305,10 @@ public final class HSSFConditionalFormattingRule implements ConditionalFormattin
         return null;
     }
 
+    public String getText() {
+        return null; // not available here, unless it exists and is unimplemented in cfRuleRecord
+    }
+    
     protected String toFormulaString(Ptg[] parsedExpression) {
         return toFormulaString(parsedExpression, workbook);
     }
@@ -273,5 +317,13 @@ public final class HSSFConditionalFormattingRule implements ConditionalFormattin
             return null;
         }
         return HSSFFormulaParser.toFormulaString(workbook, parsedExpression);
+    }
+    
+    /**
+     * Conditional format rules don't define stripes, so always 0
+     * @see org.apache.poi.ss.usermodel.DifferentialStyleProvider#getStripeSize()
+     */
+    public int getStripeSize() {
+        return 0;
     }
 }

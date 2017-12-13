@@ -27,7 +27,7 @@ import com.microsoft.schemas.office.x2006.encryption.CTKeyData;
 import com.microsoft.schemas.office.x2006.encryption.EncryptionDocument;
 import com.microsoft.schemas.office.x2006.encryption.STCipherChaining;
 
-public class AgileEncryptionHeader extends EncryptionHeader {
+public class AgileEncryptionHeader extends EncryptionHeader implements Cloneable {
     private byte encryptedHmacKey[], encryptedHmacValue[];
     
     public AgileEncryptionHeader(String descriptor) {
@@ -45,17 +45,17 @@ public class AgileEncryptionHeader extends EncryptionHeader {
             throw new EncryptedDocumentException("Unable to parse keyData");
         }
 
-        setKeySize((int)keyData.getKeyBits());
-        setFlags(0);
-        setSizeExtra(0);
-        setCspName(null);
-        setBlockSize(keyData.getBlockSize());
-
         int keyBits = (int)keyData.getKeyBits();
         
         CipherAlgorithm ca = CipherAlgorithm.fromXmlId(keyData.getCipherAlgorithm().toString(), keyBits);
         setCipherAlgorithm(ca);
         setCipherProvider(ca.provider);
+
+        setKeySize(keyBits);
+        setFlags(0);
+        setSizeExtra(0);
+        setCspName(null);
+        setBlockSize(keyData.getBlockSize());
 
         switch (keyData.getCipherChaining().intValue()) {
         case STCipherChaining.INT_CHAINING_MODE_CBC:
@@ -65,7 +65,7 @@ public class AgileEncryptionHeader extends EncryptionHeader {
             setChainingMode(ChainingMode.cfb);
             break;
         default:
-            throw new EncryptedDocumentException("Unsupported chaining mode - "+keyData.getCipherChaining().toString());
+            throw new EncryptedDocumentException("Unsupported chaining mode - "+ keyData.getCipherChaining());
         }
     
         int hashSize = keyData.getHashSize();
@@ -73,7 +73,7 @@ public class AgileEncryptionHeader extends EncryptionHeader {
         HashAlgorithm ha = HashAlgorithm.fromEcmaId(keyData.getHashAlgorithm().toString());
         setHashAlgorithm(ha);
 
-        if (getHashAlgorithmEx().hashSize != hashSize) {
+        if (getHashAlgorithm().hashSize != hashSize) {
             throw new EncryptedDocumentException("Unsupported hash algorithm: " + 
                     keyData.getHashAlgorithm() + " @ " + hashSize + " bytes");
         }
@@ -99,6 +99,7 @@ public class AgileEncryptionHeader extends EncryptionHeader {
     }
 
     // make method visible for this package
+    @Override
     protected void setKeySalt(byte salt[]) {
         if (salt == null || salt.length != getBlockSize()) {
             throw new EncryptedDocumentException("invalid verifier salt");
@@ -121,4 +122,13 @@ public class AgileEncryptionHeader extends EncryptionHeader {
     protected void setEncryptedHmacValue(byte[] encryptedHmacValue) {
         this.encryptedHmacValue = (encryptedHmacValue == null) ? null : encryptedHmacValue.clone();
     }
+
+    @Override
+    public AgileEncryptionHeader clone() throws CloneNotSupportedException {
+        AgileEncryptionHeader other = (AgileEncryptionHeader)super.clone();
+        other.encryptedHmacKey = (encryptedHmacKey == null) ? null : encryptedHmacKey.clone();
+        other.encryptedHmacValue = (encryptedHmacValue == null) ? null : encryptedHmacValue.clone();
+        return other;
+    }
+
 }

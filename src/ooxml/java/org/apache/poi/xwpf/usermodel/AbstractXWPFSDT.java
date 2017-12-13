@@ -22,9 +22,9 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTString;
 
 /**
  * Experimental abstract class that is a base for XWPFSDT and XWPFSDTCell
- * <p/>
+ * <p>
  * WARNING - APIs expected to change rapidly.
- * <p/>
+ * <p>
  * These classes have so far been built only for read-only processing.
  */
 public abstract class AbstractXWPFSDT implements ISDTContents {
@@ -33,18 +33,22 @@ public abstract class AbstractXWPFSDT implements ISDTContents {
     private final IBody part;
 
     public AbstractXWPFSDT(CTSdtPr pr, IBody part) {
-
-        CTString[] aliases = pr.getAliasArray();
-        if (aliases != null && aliases.length > 0) {
-            title = aliases[0].getVal();
-        } else {
+        if (pr == null) {
             title = "";
-        }
-        CTString[] tags = pr.getTagArray();
-        if (tags != null && tags.length > 0) {
-            tag = tags[0].getVal();
-        } else {
             tag = "";
+        } else {
+            CTString[] aliases = pr.getAliasArray();
+            if (aliases != null && aliases.length > 0) {
+                title = aliases[0].getVal();
+            } else {
+                title = "";
+            }
+            CTString[] tags = pr.getTagArray();
+            if (tags != null && tags.length > 0) {
+                tag = tags[0].getVal();
+            } else {
+                tag = "";
+            }
         }
         this.part = part;
 

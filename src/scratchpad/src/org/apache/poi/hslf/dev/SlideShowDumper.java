@@ -19,6 +19,7 @@ package org.apache.poi.hslf.dev;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.util.Locale;
 
@@ -28,9 +29,10 @@ import org.apache.poi.ddf.EscherRecord;
 import org.apache.poi.ddf.EscherTextboxRecord;
 import org.apache.poi.hslf.record.HSLFEscherRecordFactory;
 import org.apache.poi.hslf.record.RecordTypes;
-import org.apache.poi.poifs.filesystem.DocumentEntry;
+import org.apache.poi.hslf.usermodel.HSLFSlideShow;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 
 /**
@@ -46,12 +48,16 @@ import org.apache.poi.util.LittleEndian;
  *  from hslf.record.RecordTypes also)
  */
 public final class SlideShowDumper {
-  private byte[] docstream;
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 100_000;
+
+	private byte[] docstream;
 
   /** Do we try to use DDF to understand the escher objects? */
-  private boolean ddfEscher = false;
+  private boolean ddfEscher;
   /** Do we use our own built-in basic escher groker to understand the escher objects? */
-  private boolean basicEscher = false;
+  private boolean basicEscher;
   
   private PrintStream out;
 
@@ -94,13 +100,10 @@ public final class SlideShowDumper {
    * @throws IOException if there is a problem while parsing the document.
    */
   public SlideShowDumper(NPOIFSFileSystem filesystem, PrintStream out) throws IOException {
-	// Get the main document stream
-	DocumentEntry docProps =
-		(DocumentEntry)filesystem.getRoot().getEntry("PowerPoint Document");
-
 	// Grab the document stream
-	docstream = new byte[docProps.getSize()];
-	filesystem.createDocumentInputStream("PowerPoint Document").read(docstream);
+	InputStream is = filesystem.createDocumentInputStream(HSLFSlideShow.POWERPOINT_DOCUMENT);
+	docstream = IOUtils.toByteArray(is);
+	is.close();
 	this.out = out;
   }
 
@@ -184,7 +187,7 @@ public void walkTree(int depth, int startPos, int maxLen) throws IOException {
 
         out.println();
 		if (type != 0L && container == 0x0f) {
-		    if (type == 1035l || type == 1036l) {
+		    if (type == 1035L || type == 1036L) {
     			// Special Handling of 1035=PPDrawingGroup and 1036=PPDrawing
     			if(ddfEscher) {
     				// Seems to be:
@@ -210,7 +213,7 @@ public void walkTree(int depth, int startPos, int maxLen) throws IOException {
 
 	final String ind = (indent == 0) ? "%1$s" : "%1$"+indent+"s";
 
-	byte[] contents = new byte[len];
+	byte[] contents = IOUtils.safelyAllocate(len, MAX_RECORD_LENGTH);
 	System.arraycopy(docstream,pos,contents,0,len);
 	DefaultEscherRecordFactory erf = new HSLFEscherRecordFactory();
 	EscherRecord record = erf.createRecord(contents,0);
@@ -242,11 +245,11 @@ public void walkTree(int depth, int startPos, int maxLen) throws IOException {
 	}
 
 	// Handle records that seem to lie
-	if(atomType == 61451l) {
+	if(atomType == 61451L) {
 		// Normally claims a size of 8
 		recordLen = (int)atomLen + 8;
 	}
-	if(atomType == 61453l) {
+	if(atomType == 61453L) {
 		// Returns EscherContainerRecord, but really msofbtClientTextbox
 		recordLen = (int)atomLen + 8;
 		record.fillFields( contents, 0, erf );
@@ -255,7 +258,7 @@ public void walkTree(int depth, int startPos, int maxLen) throws IOException {
 		}
 	}
 
-	// Decide on what to do, based on how the lenghts match up
+	// Decide on what to do, based on how the lengths match up
 	if(recordLen == 8 && atomLen > 8 ) {
 		// Assume it has children, rather than being corrupted
 		walkEscherDDF((indent+3), pos + 8, (int)atomLen );
@@ -297,7 +300,7 @@ public void walkTree(int depth, int startPos, int maxLen) throws IOException {
 	out.println(String.format(Locale.ROOT, ind+"%2$s", "That's an Escher Record: ", typeName));
 
 	// Record specific dumps
-	if(type == 61453l) {
+	if(type == 61453L) {
 		// Text Box. Print out first 8 bytes of data, then 8 4 later
 	    HexDump.dump(docstream, 0, out, pos+8, 8);
 	    HexDump.dump(docstream, 0, out, pos+20, 8);
@@ -309,7 +312,7 @@ public void walkTree(int depth, int startPos, int maxLen) throws IOException {
 	out.println();
 
 	// Look in children if we are a container
-	if(type == 61443l || type == 61444l) {
+	if(type == 61443L || type == 61444L) {
 		walkEscherBasic((indent+3), pos+8, (int)atomlen);
 	}
 

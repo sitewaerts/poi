@@ -17,8 +17,6 @@
 
 package org.apache.poi.openxml4j.opc;
 
-import org.apache.poi.openxml4j.opc.compliance.AllOpenXML4JComplianceTests;
-import org.apache.poi.openxml4j.opc.internal.AllOpenXML4JInternalTests;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 
@@ -33,8 +31,6 @@ import org.junit.runners.Suite;
     , TestPackageThumbnail.class
     , TestPackagingURIHelper.class
     , TestRelationships.class
-    , AllOpenXML4JComplianceTests.class
-    , AllOpenXML4JInternalTests.class
 })
 public final class AllOpenXML4JTests {
 }

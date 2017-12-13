@@ -17,11 +17,6 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
-
 import java.io.IOException;
 
 import org.apache.poi.POIXMLException;
@@ -51,6 +46,8 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STFontScheme;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STUnderlineValues;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STVerticalAlignRun;
 
+import static org.junit.Assert.*;
+
 public final class TestXSSFFont extends BaseTestFont{
 
 	public TestXSSFFont() {
@@ -69,7 +66,7 @@ public final class TestXSSFFont extends BaseTestFont{
 	}
 
 	@Test
-	public void testBoldweight() {
+	public void testBold() {
 		CTFont ctFont=CTFont.Factory.newInstance();
 		CTBooleanProperty bool=ctFont.addNewB();
 		bool.setVal(false);
@@ -83,6 +80,7 @@ public final class TestXSSFFont extends BaseTestFont{
 		assertEquals(true, ctFont.getBArray(0).getVal());
 	}
 
+	@SuppressWarnings("deprecation")
 	@Test
 	public void testCharSet() throws IOException {
 		CTFont ctFont=CTFont.Factory.newInstance();
@@ -111,7 +109,9 @@ public final class TestXSSFFont extends BaseTestFont{
         try {
            xssfFont.setCharSet(9999);
            fail("Shouldn't be able to set an invalid charset");
-        } catch(POIXMLException e) {}
+        } catch(POIXMLException e) {
+        	// expected here
+		}
       
 		
 		// Now try with a few sample files
@@ -123,7 +123,7 @@ public final class TestXSSFFont extends BaseTestFont{
         );
         wb1.close();
 		
-		// GB2312 charact set
+		// GB2312 charset
         XSSFWorkbook wb2 = XSSFTestDataSamples.openSampleWorkbook("49273.xlsx");
         assertEquals(134, 
               wb2.getSheetAt(0).getRow(0).getCell(0).getCellStyle().getFont().getCharSet()
@@ -256,7 +256,7 @@ public final class TestXSSFFont extends BaseTestFont{
 		
 		byte[] bytes = Integer.toHexString(0xF1F1F1).getBytes(LocaleUtil.CHARSET_1252);
         color.setRgb(bytes);
-		XSSFColor newColor=new XSSFColor(color);
+		XSSFColor newColor=XSSFColor.from(color, null);
 		xssfFont.setColor(newColor);
 		assertEquals(ctFont.getColorArray(0).getRgb()[2],newColor.getRGB()[2]);
 		
@@ -337,4 +337,110 @@ public final class TestXSSFFont extends BaseTestFont{
         // Even with invalid fonts we still get back useful data most of the time... 
         SheetUtil.canComputeColumnWidth(font);
     }
+
+	/**
+	 * Test that fonts get added properly
+	 */
+	@Test
+	public void testFindFont() throws IOException {
+		XSSFWorkbook wb = new XSSFWorkbook();
+		assertEquals(1, wb.getNumberOfFonts());
+
+		XSSFSheet s = wb.createSheet();
+		s.createRow(0);
+		s.createRow(1);
+		s.getRow(0).createCell(0);
+		s.getRow(1).createCell(0);
+
+		assertEquals(1, wb.getNumberOfFonts());
+
+		XSSFFont f1 = wb.getFontAt((short) 0);
+		assertFalse(f1.getBold());
+
+		// Check that asking for the same font
+		//  multiple times gives you the same thing.
+		// Otherwise, our tests wouldn't work!
+		assertSame(wb.getFontAt((short) 0), wb.getFontAt((short) 0));
+		assertEquals(
+				wb.getFontAt((short) 0),
+				wb.getFontAt((short) 0)
+		);
+
+		// Look for a new font we have
+		//  yet to add
+		assertNull(
+				wb.findFont(
+						false, IndexedColors.INDIGO.getIndex(), (short) 22,
+						"Thingy", false, true, (short) 2, (byte) 2
+				)
+		);
+		assertNull(
+				wb.getStylesSource().findFont(
+						false, new XSSFColor(IndexedColors.INDIGO, new DefaultIndexedColorMap()), (short) 22,
+						"Thingy", false, true, (short) 2, (byte) 2
+				)
+		);
+
+		XSSFFont nf = wb.createFont();
+		assertEquals(2, wb.getNumberOfFonts());
+
+		assertEquals(1, nf.getIndex());
+		assertEquals(nf, wb.getFontAt((short) 1));
+
+		nf.setBold(false);
+		nf.setColor(IndexedColors.INDIGO.getIndex());
+		nf.setFontHeight((short) 22);
+		nf.setFontName("Thingy");
+		nf.setItalic(false);
+		nf.setStrikeout(true);
+		nf.setTypeOffset((short) 2);
+		nf.setUnderline((byte) 2);
+
+		assertEquals(2, wb.getNumberOfFonts());
+		assertEquals(nf, wb.getFontAt((short) 1));
+
+		assertTrue(
+				wb.getFontAt((short) 0)
+						!=
+						wb.getFontAt((short) 1)
+		);
+
+		// Find it now
+		assertNotNull(
+				wb.findFont(
+						false, IndexedColors.INDIGO.getIndex(), (short) 22,
+						"Thingy", false, true, (short) 2, (byte) 2
+				)
+		);
+		assertNotNull(
+				wb.getStylesSource().findFont(
+						false, new XSSFColor(IndexedColors.INDIGO, new DefaultIndexedColorMap()), (short) 22,
+						"Thingy", false, true, (short) 2, (byte) 2
+				)
+		);
+
+		XSSFFont font = wb.findFont(
+				false, IndexedColors.INDIGO.getIndex(), (short) 22,
+				"Thingy", false, true, (short) 2, (byte) 2
+		);
+		assertNotNull(font);
+		assertEquals(
+				1,
+				font.getIndex()
+		);
+		assertEquals(nf,
+				wb.findFont(
+						false, IndexedColors.INDIGO.getIndex(), (short) 22,
+						"Thingy", false, true, (short) 2, (byte) 2
+				)
+		);
+		assertEquals(nf,
+				wb.getStylesSource().findFont(
+						false, new XSSFColor(IndexedColors.INDIGO, new DefaultIndexedColorMap()), (short) 22,
+						"Thingy", false, true, (short) 2, (byte) 2
+				)
+		);
+
+		wb.close();
+	}
 }

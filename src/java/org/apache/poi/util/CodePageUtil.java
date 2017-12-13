@@ -18,6 +18,9 @@
 package org.apache.poi.util;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * Utilities for working with Microsoft CodePages.
@@ -27,6 +30,9 @@ import java.io.UnsupportedEncodingException;
  */
 public class CodePageUtil
 {
+
+    public static final Set<Charset> DOUBLE_BYTE_CHARSETS = Collections.singleton(StringUtil.BIG5);
+
     /** <p>Codepage 037, a special case</p> */
     public static final int CP_037 = 37;
 
@@ -278,7 +284,7 @@ public class CodePageUtil
         
         switch (codepage) {
             case CP_UTF16:
-                return "UTF-16";
+                return "UTF-16LE";
             case CP_UTF16_BE:
                 return "UTF-16BE";
             case CP_UTF8:
@@ -439,5 +445,28 @@ public class CodePageUtil
             default:
                 return "cp" + codepage;
         }
+    }
+
+    /**
+     * This tries to convert a LE byte array in cp950
+     * (Microsoft's dialect of Big5) to a String.
+     * We know MS zero-padded ascii, and we drop those.
+     * There may be areas for improvement in this.
+     *
+     * @param data
+     * @param offset
+     * @param lengthInBytes
+     * @return Decoded String
+     */
+    public static String cp950ToString(byte[] data, int offset, int lengthInBytes) {
+        StringBuilder sb = new StringBuilder();
+        LittleEndianCP950Reader reader = new LittleEndianCP950Reader(data, offset, lengthInBytes);
+        int c = reader.read();
+        while (c != -1) {
+            sb.append((char)c);
+            c = reader.read();
+        }
+        reader.close();
+        return sb.toString();
     }
 }

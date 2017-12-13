@@ -16,27 +16,38 @@
 ==================================================================== */
 package org.apache.poi.xdgf.extractor;
 
+import static org.apache.poi.POITestCase.assertContains;
+import static org.junit.Assert.assertEquals;
+
 import java.io.IOException;
+import java.io.InputStream;
 
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.xdgf.usermodel.XmlVisioDocument;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
-import junit.framework.TestCase;
+public class TestXDGFVisioExtractor {
 
-public class TestXDGFVisioExtractor extends TestCase {
-
-    private POIDataSamples diagrams;
+    private static final POIDataSamples SAMPLES = POIDataSamples.getDiagramInstance();
     private OPCPackage pkg;
     private XmlVisioDocument xml;
 
-    protected void setUp() throws Exception {
-        diagrams = POIDataSamples.getDiagramInstance();
-        
-        pkg = OPCPackage.open(diagrams.openResourceAsStream("test_text_extraction.vsdx"));
+    @Before
+    public void setUp() throws Exception {
+        pkg = OPCPackage.open(SAMPLES.openResourceAsStream("test_text_extraction.vsdx"));
         xml = new XmlVisioDocument(pkg);
     }
+    
+    @After
+    public void closeResoures() throws IOException {
+        xml.close();
+        pkg.close();
+    }
 
+    @Test
     public void testGetSimpleText() throws IOException {
         new XDGFVisioExtractor(xml).close();
         new XDGFVisioExtractor(pkg).close();
@@ -45,11 +56,42 @@ public class TestXDGFVisioExtractor extends TestCase {
         extractor.getText();
         
         String text = extractor.getText();
-        assertTrue(text.length() > 0);
+        String expected = "Text here\nText there\nText, text, everywhere!\nRouter here\n";
+        assertEquals(expected, text);
         
-        assertEquals("Text here\nText there\nText, text, everywhere!\nRouter here\n",
-                     text);
-        
+        extractor.close();
+    }
+
+
+    //the point of this is to trigger the addition of
+    //some common visio classes -- ConnectsType
+    @Test
+    public void testVisioConnects() throws IOException {
+        InputStream is = SAMPLES.openResourceAsStream("60489.vsdx");
+        XmlVisioDocument document = new XmlVisioDocument(is);
+        is.close();
+        XDGFVisioExtractor extractor = new XDGFVisioExtractor(document);
+        String text = extractor.getText();
+        assertContains(text, "Arrears");
+        extractor.close();
+    }
+    
+    /**
+     * Some confusion on PolylineTo vs PolyLineTo, both should be handled.
+     * Previously failed with:
+     * org.apache.poi.POIXMLException: Invalid 'Row_Type' name 'PolylineTo'
+     *  at org.apache.poi.xdgf.util.ObjectFactory.load
+     *  at org.apache.poi.xdgf.usermodel.section.geometry.GeometryRowFactory.load
+     */
+    @Test
+    public void testPolylineTo() throws IOException {
+        InputStream is = SAMPLES.openResourceAsStream("60973.vsdx");
+        XmlVisioDocument document = new XmlVisioDocument(is);
+        is.close();
+        XDGFVisioExtractor extractor = new XDGFVisioExtractor(document);
+        String text = extractor.getText();
+        assertContains(text, "42 U");
+        assertContains(text, "Access VLANS");
         extractor.close();
     }
 }

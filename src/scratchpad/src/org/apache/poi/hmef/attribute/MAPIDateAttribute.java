@@ -25,7 +25,7 @@ import java.util.Locale;
 
 import org.apache.poi.hmef.Attachment;
 import org.apache.poi.hmef.HMEFMessage;
-import org.apache.poi.hpsf.Util;
+import org.apache.poi.hpsf.Filetime;
 import org.apache.poi.hsmf.datatypes.MAPIProperty;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LocaleUtil;
@@ -42,7 +42,7 @@ import org.apache.poi.util.POILogger;
  * @see <a href="https://msdn.microsoft.com/en-us/library/cc433490(v=exchg.80).aspx">[MS-OXPROPS]: Exchange Server Protocols Master Property List</a>
  */
 public final class MAPIDateAttribute extends MAPIAttribute {
-   private static POILogger logger = POILogFactory.getLogger(MAPIDateAttribute.class);
+   private final static POILogger logger = POILogFactory.getLogger(MAPIDateAttribute.class);
    private Date data;
    
    /**
@@ -53,7 +53,7 @@ public final class MAPIDateAttribute extends MAPIAttribute {
       super(property, type, data);
       
       // The value is a 64 bit Windows Filetime
-      this.data = Util.filetimeToDate(
+      this.data = Filetime.filetimeToDate(
             LittleEndian.getLong(data, 0)
       );
    }
@@ -66,7 +66,7 @@ public final class MAPIDateAttribute extends MAPIAttribute {
        DateFormatSymbols dfs = DateFormatSymbols.getInstance(Locale.ROOT);
        DateFormat df = new SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy", dfs);
        df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
-       return getProperty().toString() + " " + df.format(data);
+       return getProperty() + " " + df.format(data);
    }
    
    /**
@@ -80,7 +80,7 @@ public final class MAPIDateAttribute extends MAPIAttribute {
          return ((MAPIDateAttribute)attr).getDate();
       }
       
-      logger.log(POILogger.WARN, "Warning, non date property found: " + attr.toString());
+      logger.log(POILogger.WARN, "Warning, non date property found: " + attr);
       return null;
   }
 }

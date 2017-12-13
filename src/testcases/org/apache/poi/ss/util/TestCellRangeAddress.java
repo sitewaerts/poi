@@ -17,21 +17,29 @@ limitations under the License.
 
 package org.apache.poi.ss.util;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import org.apache.poi.hssf.record.TestcaseRecordInputStream;
 import org.apache.poi.util.LittleEndianOutputStream;
+import org.junit.Test;
 
-//TODO: replace junit3 with junit4 code
-import junit.framework.TestCase; //junit3
+public final class TestCellRangeAddress {
+    static final byte[] data = new byte[] {
+            0x02, 0x00, 0x04, 0x00,
+            0x00, 0x00, 0x03, 0x00,
+    };
 
-public final class TestCellRangeAddress extends TestCase {
-    byte[] data = new byte[] { (byte) 0x02, (byte) 0x00, (byte) 0x04,
-            (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x03, (byte) 0x00, };
-
+    @Test
     public void testLoad() {
         CellRangeAddress ref = new CellRangeAddress(
                 TestcaseRecordInputStream.create(0x000, data));
@@ -43,22 +51,24 @@ public final class TestCellRangeAddress extends TestCase {
         assertEquals(8, CellRangeAddress.ENCODED_SIZE);
     }
 
+    @Test
     public void testLoadInvalid() {
         try {
-            assertNotNull(new CellRangeAddress(
-                TestcaseRecordInputStream.create(0x000, new byte[] { (byte)0x02 })));
+            new CellRangeAddress(
+                TestcaseRecordInputStream.create(0x000, new byte[] { (byte)0x02 }));
+            fail();
         } catch (RuntimeException e) {
             assertTrue("Had: " + e, e.getMessage().contains("Ran out of data"));
         }
     }
 
+    @Test
     public void testStore() throws IOException {
         CellRangeAddress ref = new CellRangeAddress(0, 0, 0, 0);
 
         byte[] recordBytes;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        LittleEndianOutputStream out = new LittleEndianOutputStream(baos);
-        try {
+        try (LittleEndianOutputStream out = new LittleEndianOutputStream(baos)) {
             // With nothing set
             ref.serialize(out);
             recordBytes = baos.toByteArray();
@@ -82,64 +92,39 @@ public final class TestCellRangeAddress extends TestCase {
             for (int i = 0; i < data.length; i++) {
                 assertEquals("At offset " + i, data[i], recordBytes[i]);
             }
-        } finally {
-            out.close();
-        }
-    }
-
-    @SuppressWarnings("deprecation")
-    public void testStoreDeprecated() throws IOException {
-        CellRangeAddress ref = new CellRangeAddress(0, 0, 0, 0);
-
-        byte[] recordBytes = new byte[CellRangeAddress.ENCODED_SIZE];
-        // With nothing set
-        ref.serialize(0, recordBytes);
-        assertEquals(recordBytes.length, data.length);
-        for (int i = 0; i < data.length; i++) {
-            assertEquals("At offset " + i, 0, recordBytes[i]);
-        }
-
-        // Now set the flags
-        ref.setFirstRow((short) 2);
-        ref.setLastRow((short) 4);
-        ref.setFirstColumn((short) 0);
-        ref.setLastColumn((short) 3);
-
-        // Re-test
-        ref.serialize(0, recordBytes);
-
-        assertEquals(recordBytes.length, data.length);
-        for (int i = 0; i < data.length; i++) {
-            assertEquals("At offset " + i, data[i], recordBytes[i]);
         }
     }
     
+    @Test
     public void testCreateIllegal() throws IOException {
         // for some combinations we expected exceptions
         try {
-            assertNotNull(new CellRangeAddress(1, 0, 0, 0));
+            new CellRangeAddress(1, 0, 0, 0);
             fail("Expect to catch an exception");
         } catch (IllegalArgumentException e) {
             // expected here
         }
         try {
-            assertNotNull(new CellRangeAddress(0, 0, 1, 0));
+            new CellRangeAddress(0, 0, 1, 0);
             fail("Expect to catch an exception");
         } catch (IllegalArgumentException e) {
             // expected here
         }
     }
 
+    @Test
     public void testCopy() throws IOException {
         CellRangeAddress ref = new CellRangeAddress(1, 2, 3, 4);
         CellRangeAddress copy = ref.copy();
         assertEquals(ref.toString(), copy.toString());
     }
 
+    @Test
     public void testGetEncodedSize() throws IOException {
         assertEquals(2*CellRangeAddress.ENCODED_SIZE, CellRangeAddress.getEncodedSize(2));
     }
 
+    @Test
     public void testFormatAsString() throws IOException {
         CellRangeAddress ref = new CellRangeAddress(1, 2, 3, 4);
         
@@ -194,6 +179,7 @@ public final class TestCellRangeAddress extends TestCase {
         assertEquals(":", ref.formatAsString());
     }
     
+    @Test
     public void testEquals() {
         final CellRangeAddress ref1 = new CellRangeAddress(1, 2, 3, 4);
         final CellRangeAddress ref2 = new CellRangeAddress(1, 2, 3, 4);
@@ -213,6 +199,7 @@ public final class TestCellRangeAddress extends TestCase {
         assertNotEquals(ref1, new CellRangeAddress(3, 4, 1, 2));
     }
     
+    @Test
     public void testGetMinMaxRow() {
         final CellRangeAddress ref = new CellRangeAddress(1, 2, 3, 4);
         assertEquals(1, ref.getMinRow());
@@ -224,6 +211,7 @@ public final class TestCellRangeAddress extends TestCase {
         assertEquals(10, ref.getMaxRow());
     }
     
+    @Test
     public void testGetMinMaxColumn() {
         final CellRangeAddress ref = new CellRangeAddress(1, 2, 3, 4);
         assertEquals(3, ref.getMinColumn());
@@ -235,6 +223,7 @@ public final class TestCellRangeAddress extends TestCase {
         assertEquals(10, ref.getMaxColumn());
     }
     
+    @Test
     public void testIntersects() {
         final CellRangeAddress baseRegion = new CellRangeAddress(0, 1, 0, 1);
         
@@ -252,6 +241,61 @@ public final class TestCellRangeAddress extends TestCase {
         
         final CellRangeAddress disjointRegion = new CellRangeAddress(10, 11, 10, 11);
         assertNotIntersects(baseRegion, disjointRegion);
+    }
+    
+    @Test
+    public void containsRow() {
+        final CellRangeAddress region = new CellRangeAddress(10, 12, 3, 5);
+        
+        assertFalse(region.containsRow(9));
+        assertTrue(region.containsRow(10));
+        assertTrue(region.containsRow(11));
+        assertTrue(region.containsRow(12));
+        assertFalse(region.containsRow(13));
+    }
+    
+    @Test
+    public void containsColumn() {
+        final CellRangeAddress region = new CellRangeAddress(10, 12, 3, 5);
+        
+        assertFalse(region.containsColumn(2));
+        assertTrue(region.containsColumn(3));
+        assertTrue(region.containsColumn(4));
+        assertTrue(region.containsColumn(5));
+        assertFalse(region.containsColumn(6));
+    }
+    
+    @Test
+    public void iterator() {
+        final CellRangeAddress A1_B2 = new CellRangeAddress(0, 1, 0, 1);
+        
+        // the cell address iterator iterates in row major order
+        final Iterator<CellAddress> iter = A1_B2.iterator();
+        assertEquals("A1", new CellAddress(0, 0), iter.next());
+        assertEquals("B1", new CellAddress(0, 1), iter.next());
+        assertEquals("A2", new CellAddress(1, 0), iter.next());
+        assertEquals("B2", new CellAddress(1, 1), iter.next());
+        assertFalse(iter.hasNext());
+        try {
+            iter.next();
+            fail("Expected NoSuchElementException");
+        } catch (final NoSuchElementException e) {
+            //expected
+        }
+        try {
+            iter.remove();
+            fail("Expected UnsupportedOperationException");
+        } catch (final UnsupportedOperationException e) {
+            //expected
+        }
+        
+        // for each interface
+        int count = 0;
+        for (final CellAddress addr : A1_B2) {
+            assertNotNull(addr);
+            count++;
+        }
+        assertEquals(4, count);
     }
     
     private static void assertIntersects(CellRangeAddress regionA, CellRangeAddress regionB) {

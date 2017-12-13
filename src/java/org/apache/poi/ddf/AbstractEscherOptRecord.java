@@ -16,30 +16,32 @@
 ==================================================================== */
 package org.apache.poi.ddf;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 
-import org.apache.poi.util.HexDump;
 import org.apache.poi.util.LittleEndian;
 
 /**
  * Common abstract class for {@link EscherOptRecord} and
  * {@link EscherTertiaryOptRecord}
- * 
- * @author Sergey Vladimirov (vlsergey {at} gmail {dot} com)
- * @author Glen Stampoultzis
  */
 public abstract class AbstractEscherOptRecord extends EscherRecord
 {
-    protected List<EscherProperty> properties = new ArrayList<EscherProperty>();
+    private List<EscherProperty> properties = new ArrayList<>();
 
     /**
      * Add a property to this record.
+     * 
+     * @param prop the escher property to add
      */
     public void addEscherProperty( EscherProperty prop )
     {
         properties.add( prop );
     }
 
+    @Override
     public int fillFields( byte[] data, int offset,
             EscherRecordFactory recordFactory )
     {
@@ -54,6 +56,8 @@ public abstract class AbstractEscherOptRecord extends EscherRecord
 
     /**
      * The list of properties stored by this record.
+     * 
+     * @return the list of properties
      */
     public List<EscherProperty> getEscherProperties()
     {
@@ -62,12 +66,16 @@ public abstract class AbstractEscherOptRecord extends EscherRecord
 
     /**
      * The list of properties stored by this record.
+     * 
+     * @param index the ordinal index of the property
+     * @return the escher property
      */
     public EscherProperty getEscherProperty( int index )
     {
         return properties.get( index );
     }
 
+    
     private int getPropertiesSize()
     {
         int totalSize = 0;
@@ -99,6 +107,7 @@ public abstract class AbstractEscherOptRecord extends EscherRecord
         return null;
     }
 
+    @Override
     public int serialize( int offset, byte[] data,
             EscherSerializationListener listener )
     {
@@ -125,15 +134,14 @@ public abstract class AbstractEscherOptRecord extends EscherRecord
      */
     public void sortProperties()
     {
-        Collections.sort( properties, new Comparator<EscherProperty>()
-        {
-            public int compare( EscherProperty p1, EscherProperty p2 )
-            {
+        properties.sort(new Comparator<EscherProperty>() {
+            @Override
+            public int compare(EscherProperty p1, EscherProperty p2) {
                 short s1 = p1.getPropertyNumber();
                 short s2 = p2.getPropertyNumber();
-                return s1 < s2 ? -1 : s1 == s2 ? 0 : 1;
+                return Short.compare(s1, s2);
             }
-        } );
+        });
     }
 
     /**
@@ -163,52 +171,20 @@ public abstract class AbstractEscherOptRecord extends EscherRecord
         }
     }
 
-    /**
-     * Retrieve the string representation of this record.
-     */
-    public String toString()
-    {
-        String nl = System.getProperty( "line.separator" );
-
-        StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append( getClass().getName() );
-        stringBuilder.append( ":" );
-        stringBuilder.append( nl );
-        stringBuilder.append( "  isContainer: " );
-        stringBuilder.append( isContainerRecord() );
-        stringBuilder.append( nl );
-        stringBuilder.append( "  version: 0x" );
-        stringBuilder.append( HexDump.toHex( getVersion() ) );
-        stringBuilder.append( nl );
-        stringBuilder.append( "  instance: 0x" );
-        stringBuilder.append( HexDump.toHex( getInstance() ) );
-        stringBuilder.append( nl );
-        stringBuilder.append( "  recordId: 0x" );
-        stringBuilder.append( HexDump.toHex( getRecordId() ) );
-        stringBuilder.append( nl );
-        stringBuilder.append( "  numchildren: " );
-        stringBuilder.append( getChildRecords().size() );
-        stringBuilder.append( nl );
-        stringBuilder.append( "  properties:" );
-        stringBuilder.append( nl );
-
-        for ( EscherProperty property : properties )
-        {
-            stringBuilder.append( "    " + property.toString() + nl );
-        }
-
-        return stringBuilder.toString();
-    }
-
     @Override
-    public String toXml(String tab) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(),
-                HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())));
-        for (EscherProperty property: getEscherProperties()){
-            builder.append(property.toXml(tab+"\t"));
+    protected Object[][] getAttributeMap() {
+        List<Object> attrList = new ArrayList<>(properties.size() * 2 + 2);
+        attrList.add("properties");
+        attrList.add(properties.size());
+        for ( EscherProperty property : properties ) {
+            attrList.add(property.getName());
+            attrList.add(property);
         }
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
+        
+        return new Object[][]{
+            { "isContainer", isContainerRecord() },
+            { "numchildren", getChildRecords().size() },
+            attrList.toArray()
+        };
     }
 }

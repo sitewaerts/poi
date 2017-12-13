@@ -21,43 +21,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.poi.hssf.record.BOFRecord;
-import org.apache.poi.hssf.record.CFHeader12Record;
-import org.apache.poi.hssf.record.CFHeaderRecord;
-import org.apache.poi.hssf.record.CalcCountRecord;
-import org.apache.poi.hssf.record.CalcModeRecord;
-import org.apache.poi.hssf.record.CellValueRecordInterface;
-import org.apache.poi.hssf.record.ColumnInfoRecord;
-import org.apache.poi.hssf.record.DVALRecord;
-import org.apache.poi.hssf.record.DefaultColWidthRecord;
-import org.apache.poi.hssf.record.DefaultRowHeightRecord;
-import org.apache.poi.hssf.record.DeltaRecord;
-import org.apache.poi.hssf.record.DimensionsRecord;
-import org.apache.poi.hssf.record.DrawingRecord;
-import org.apache.poi.hssf.record.EOFRecord;
-import org.apache.poi.hssf.record.EscherAggregate;
-import org.apache.poi.hssf.record.FeatHdrRecord;
-import org.apache.poi.hssf.record.FeatRecord;
-import org.apache.poi.hssf.record.GridsetRecord;
-import org.apache.poi.hssf.record.GutsRecord;
-import org.apache.poi.hssf.record.IndexRecord;
-import org.apache.poi.hssf.record.IterationRecord;
-import org.apache.poi.hssf.record.MergeCellsRecord;
-import org.apache.poi.hssf.record.NoteRecord;
-import org.apache.poi.hssf.record.PaneRecord;
-import org.apache.poi.hssf.record.PrintGridlinesRecord;
-import org.apache.poi.hssf.record.PrintHeadersRecord;
-import org.apache.poi.hssf.record.Record;
-import org.apache.poi.hssf.record.RecordBase;
-import org.apache.poi.hssf.record.RecordFormatException;
-import org.apache.poi.hssf.record.RefModeRecord;
-import org.apache.poi.hssf.record.RowRecord;
-import org.apache.poi.hssf.record.SCLRecord;
-import org.apache.poi.hssf.record.SaveRecalcRecord;
-import org.apache.poi.hssf.record.SelectionRecord;
-import org.apache.poi.hssf.record.UncalcedRecord;
-import org.apache.poi.hssf.record.WSBoolRecord;
-import org.apache.poi.hssf.record.WindowTwoRecord;
+import org.apache.poi.hssf.record.*;
 import org.apache.poi.hssf.record.aggregates.ChartSubstreamRecordAggregate;
 import org.apache.poi.hssf.record.aggregates.ColumnInfoRecordsAggregate;
 import org.apache.poi.hssf.record.aggregates.ConditionalFormattingTable;
@@ -70,12 +34,13 @@ import org.apache.poi.hssf.record.aggregates.RecordAggregate.PositionTrackingVis
 import org.apache.poi.hssf.record.aggregates.RecordAggregate.RecordVisitor;
 import org.apache.poi.hssf.record.aggregates.RowRecordsAggregate;
 import org.apache.poi.hssf.record.aggregates.WorksheetProtectionBlock;
-import org.apache.poi.hssf.util.PaneInformation;
 import org.apache.poi.ss.formula.FormulaShifter;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.PaneInformation;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * Low level model implementation of a Sheet (one workbook contains many sheets)
@@ -87,7 +52,6 @@ import org.apache.poi.util.POILogger;
  * really know what you're doing.  I recommend you read the Microsoft Excel 97 Developer's
  * Kit (Microsoft Press) and the documentation at http://sc.openoffice.org/excelfileformat.pdf
  * before even attempting to use this.
- * <P>
  *
  * @see org.apache.poi.hssf.model.InternalWorkbook
  * @see org.apache.poi.hssf.usermodel.HSSFSheet
@@ -102,21 +66,22 @@ public final class InternalSheet {
     private static POILogger            log              = POILogFactory.getLogger(InternalSheet.class);
 
     private List<RecordBase>             _records;
-    protected PrintGridlinesRecord       printGridlines    =     null;
-    protected GridsetRecord              gridset           =     null;
+    protected PrintGridlinesRecord       printGridlines;
+    protected PrintHeadersRecord         printHeaders;
+    protected GridsetRecord              gridset;
     private   GutsRecord                 _gutsRecord;
     protected DefaultColWidthRecord      defaultcolwidth   =     new DefaultColWidthRecord();
     protected DefaultRowHeightRecord     defaultrowheight  =     new DefaultRowHeightRecord();
     private PageSettingsBlock _psBlock;
 
     /**
-     * 'Worksheet Protection Block'<br/>
+     * 'Worksheet Protection Block'<br>
      *  Aggregate object is always present, but possibly empty.
      */
     private final WorksheetProtectionBlock _protectionBlock = new WorksheetProtectionBlock();
 
-    protected WindowTwoRecord            windowTwo         =     null;
-    protected SelectionRecord            _selection         =     null;
+    protected WindowTwoRecord            windowTwo;
+    protected SelectionRecord            _selection;
     /** java object always present, but if empty no BIFF records are written */
     private final MergedCellsTable       _mergedCellsTable;
     /** always present in this POI object, not always written to Excel file */
@@ -125,13 +90,13 @@ public final class InternalSheet {
     private DimensionsRecord             _dimensions;
     /** always present */
     protected final RowRecordsAggregate  _rowsAggregate;
-    private   DataValidityTable          _dataValidityTable=     null;
+    private   DataValidityTable          _dataValidityTable;
     private   ConditionalFormattingTable condFormatting;
 
-    private   Iterator<RowRecord>        rowRecIterator    =     null;
+    private   Iterator<RowRecord>        rowRecIterator;
 
     /** Add an UncalcedRecord if not true indicating formulas have not been calculated */
-    protected boolean _isUncalced = false;
+    protected boolean _isUncalced;
 
     public static final byte PANE_LOWER_RIGHT = (byte)0;
     public static final byte PANE_UPPER_RIGHT = (byte)1;
@@ -160,7 +125,7 @@ public final class InternalSheet {
         _mergedCellsTable = new MergedCellsTable();
         RowRecordsAggregate rra = null;
 
-        List<RecordBase> records = new ArrayList<RecordBase>(128);
+        List<RecordBase> records = new ArrayList<>(128);
         _records = records; // needed here due to calls to findFirstRecordLocBySid before we're done
         int dimsloc = -1;
 
@@ -313,6 +278,10 @@ public final class InternalSheet {
             {
                 printGridlines = (PrintGridlinesRecord) rec;
             }
+            else if ( recSid == PrintHeadersRecord.sid )
+            {
+                printHeaders = (PrintHeadersRecord) rec;
+            }
             else if ( recSid == GridsetRecord.sid )
             {
                 gridset = (GridsetRecord) rec;
@@ -405,9 +374,11 @@ public final class InternalSheet {
      * can be added to a sheet. The <b>Record</b> object does not implement cloneable.
      * When adding a new record, implement a public clone method if and only if the record
      * belongs to a sheet.
+     * 
+     * @return the cloned sheet
      */
     public InternalSheet cloneSheet() {
-        List<Record> clonedRecords = new ArrayList<Record>(_records.size());
+        List<Record> clonedRecords = new ArrayList<>(_records.size());
         for (int i = 0; i < _records.size(); i++) {
             RecordBase rb = _records.get(i);
             if (rb instanceof RecordAggregate) {
@@ -442,7 +413,7 @@ public final class InternalSheet {
     }
     private InternalSheet() {
         _mergedCellsTable = new MergedCellsTable();
-        List<RecordBase> records = new ArrayList<RecordBase>(32);
+        List<RecordBase> records = new ArrayList<>(32);
 
         if (log.check( POILogger.DEBUG ))
             log.log(POILogger.DEBUG, "Sheet createsheet from scratch called");
@@ -455,7 +426,8 @@ public final class InternalSheet {
         records.add(createIteration() );
         records.add(createDelta() );
         records.add(createSaveRecalc() );
-        records.add(createPrintHeaders() );
+        printHeaders = createPrintHeaders();
+        records.add(printHeaders);
         printGridlines = createPrintGridlines();
         records.add( printGridlines );
         gridset = createGridset();
@@ -506,6 +478,8 @@ public final class InternalSheet {
 
     /**
      * Updates formulas in cells and conditional formats due to moving of cells
+     * 
+     * @param shifter the formular shifter
      * @param externSheetIndex the externSheet index of this sheet
      */
     public void updateFormulasAfterCellShift(FormulaShifter shifter, int externSheetIndex) {
@@ -566,10 +540,14 @@ public final class InternalSheet {
      * sets the values in the sheet's DimensionsRecord object to be correct.  Excel doesn't
      * really care, but we want to play nice with other libraries.
      *
+     * @param firstrow the first row index
+     * @param firstcol the first column index
+     * @param lastrow the last row index
+     * @param lastcol the last column index
+     *
      * @see org.apache.poi.hssf.record.DimensionsRecord
      */
-    public void setDimensions(int firstrow, short firstcol, int lastrow,
-                              short lastcol)
+    public void setDimensions(int firstrow, short firstcol, int lastrow, short lastcol)
     {
         if (log.check( POILogger.DEBUG ))
         {
@@ -688,8 +666,7 @@ public final class InternalSheet {
      */
     public void removeValueRecord(int row, CellValueRecordInterface col) {
 
-        log.logFormatted(POILogger.DEBUG, "remove value record row %",
-                         new int[]{row } );
+        log.log(POILogger.DEBUG, "remove value record row "+row);
         _rowsAggregate.removeCell(col);
     }
 
@@ -778,25 +755,6 @@ public final class InternalSheet {
      */
     public Iterator<CellValueRecordInterface> getCellValueIterator(){
     	return _rowsAggregate.getCellValueIterator();
-    }
-
-    /**
-     * Get all the value records (from LOC). Records will be returned from the first
-     *  record (starting at LOC) which is a value record.
-     *
-     * <P>
-     * This method is "loc" sensitive.  Meaning you need to set LOC to where you
-     * want it to start searching.  If you don't know do this: setLoc(getDimsLoc).
-     * When adding several rows you can just start at the last one by leaving loc
-     * at what this sets it to.  For this method, set loc to dimsloc to start with,
-     * subsequent calls will return values in (physical) sequence or NULL when you get to the end.
-     *
-     * @return Array of CellValueRecordInterface representing the remaining value records
-     * @deprecated use {@link #getCellValueIterator()} instead
-     */
-    @Deprecated
-    public CellValueRecordInterface[] getValueRecords() {
-        return _rowsAggregate.getValueRecords();
     }
 
     /**
@@ -1037,6 +995,8 @@ public final class InternalSheet {
 
     /**
      * set the default row height for the sheet (if the rows do not define their own height)
+     * 
+     * @param dch the default row height
      */
     public void setDefaultRowHeight(short dch) {
         defaultrowheight.setRowHeight(dch);
@@ -1076,11 +1036,11 @@ public final class InternalSheet {
      * the column at specified 0-based index. (In this case, an
      * ExtendedFormatRecord index is actually associated with a
      * ColumnInfoRecord which spans 1 or more columns)
-     * <br/>
+     * <p>
      * Returns the index to the default ExtendedFormatRecord (0xF)
      * if no ColumnInfoRecord exists that includes the column
      * index specified.
-     * @param columnIndex
+     * @param columnIndex the column index
      * @return index of ExtendedFormatRecord associated with
      * ColumnInfoRecord that includes the column index or the
      * index of the default ExtendedFormatRecord (0xF)
@@ -1287,6 +1247,8 @@ public final class InternalSheet {
 
     /**
      * Gets the gridset record for this sheet.
+     * 
+     * @return the gridset record for this sheet
      */
     public GridsetRecord getGridsetRecord()
     {
@@ -1295,6 +1257,10 @@ public final class InternalSheet {
 
     /**
      * Returns the first occurrence of a record matching a particular sid.
+     * 
+     * @param sid the sid to search for
+     * 
+     * @return the matching record or {@code null} if it wasn't found
      */
     public Record findFirstRecordBySid(short sid) {
         int ix = findFirstRecordLocBySid(sid);
@@ -1363,6 +1329,24 @@ public final class InternalSheet {
     public void setPrintGridlines (PrintGridlinesRecord newPrintGridlines)
     {
         printGridlines = newPrintGridlines;
+    }
+    
+    /**
+     * Returns the PrintHeadersRecord.
+     * @return PrintHeadersRecord for the sheet.
+     */
+    public PrintHeadersRecord getPrintHeaders()
+    {
+        return printHeaders;
+    }
+
+    /**
+     * Sets the PrintHeadersRecord.
+     * @param newPrintHeaders The new PrintHeadersRecord for the sheet.
+     */
+    public void setPrintHeaders(PrintHeadersRecord newPrintHeaders)
+    {
+        printHeaders = newPrintHeaders;
     }
 
     /**
@@ -1530,6 +1514,22 @@ public final class InternalSheet {
     public boolean isDisplayRowColHeadings() {
         return windowTwo.getDisplayRowColHeadings();
     }
+    
+    /**
+     * Sets whether the RowColHeadings are shown in a viewer.
+     * @param show whether to show RowColHeadings or not
+     */
+    public void setPrintRowColHeadings(boolean show) {
+        windowTwo.setDisplayRowColHeadings(show);
+    }
+
+    /**
+     * Returns if RowColHeadings are displayed.
+     * @return whether RowColHeadings are displayed
+     */
+    public boolean isPrintRowColHeadings() {
+        return windowTwo.getDisplayRowColHeadings();
+    }
 
 
     /**
@@ -1662,7 +1662,7 @@ public final class InternalSheet {
      * @return never <code>null</code>, typically empty array
      */
     public NoteRecord[] getNoteRecords() {
-        List<NoteRecord> temp = new ArrayList<NoteRecord>();
+        List<NoteRecord> temp = new ArrayList<>();
         for(int i=_records.size()-1; i>=0; i--) {
             RecordBase rec = _records.get(i);
             if (rec instanceof NoteRecord) {
@@ -1679,5 +1679,13 @@ public final class InternalSheet {
     
     public int getColumnOutlineLevel(int columnIndex) {
         return _columnInfos.getOutlineLevel(columnIndex);
+    }
+
+    public int getMinColumnIndex() {
+        return _columnInfos.getMinColumnIndex();
+    }
+
+    public int getMaxColumnIndex() {
+        return _columnInfos.getMaxColumnIndex();
     }
 }

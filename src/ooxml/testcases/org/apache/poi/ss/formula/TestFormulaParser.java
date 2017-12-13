@@ -18,21 +18,25 @@
  */
 package org.apache.poi.ss.formula;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.util.Locale;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.IOException;
 
 import org.apache.poi.hssf.usermodel.HSSFEvaluationWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.ptg.AbstractFunctionPtg;
 import org.apache.poi.ss.formula.ptg.NameXPxg;
 import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.formula.ptg.Ref3DPxg;
 import org.apache.poi.ss.formula.ptg.StringPtg;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.apache.poi.xssf.usermodel.XSSFEvaluationWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-
-import junit.framework.TestCase;
+import org.junit.Test;
 
 /**
  * Test {@link FormulaParser}'s handling of row numbers at the edge of the
@@ -40,8 +44,9 @@ import junit.framework.TestCase;
  * 
  * @author David North
  */
-public class TestFormulaParser extends TestCase {
+public class TestFormulaParser {
 
+    @Test
     public void testHSSFFailsForOver65536() {
         FormulaParsingWorkbook workbook = HSSFEvaluationWorkbook.create(new HSSFWorkbook());
         try {
@@ -49,19 +54,38 @@ public class TestFormulaParser extends TestCase {
             fail("Expected exception");
         }
         catch (FormulaParseException expected) {
+            // expected here
         }
     }
 
+    private static void checkHSSFFormula(String formula) {
+        HSSFWorkbook wb = new HSSFWorkbook();
+        FormulaParsingWorkbook workbook = HSSFEvaluationWorkbook.create(wb);
+        FormulaParser.parse(formula, workbook, FormulaType.CELL, 0);
+        IOUtils.closeQuietly(wb);
+    } 
+    private static void checkXSSFFormula(String formula) {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        FormulaParsingWorkbook workbook = XSSFEvaluationWorkbook.create(wb);
+        FormulaParser.parse(formula, workbook, FormulaType.CELL, 0);
+        IOUtils.closeQuietly(wb);
+    } 
+    private static void checkFormula(String formula) {
+        checkHSSFFormula(formula);
+        checkXSSFFormula(formula);
+    }
+
+    @Test
     public void testHSSFPassCase() {
-        FormulaParsingWorkbook workbook = HSSFEvaluationWorkbook.create(new HSSFWorkbook());
-        FormulaParser.parse("Sheet1!1:65536", workbook, FormulaType.CELL, 0);
+        checkHSSFFormula("Sheet1!1:65536");
     }
 
+    @Test
     public void testXSSFWorksForOver65536() {
-        FormulaParsingWorkbook workbook = XSSFEvaluationWorkbook.create(new XSSFWorkbook());
-        FormulaParser.parse("Sheet1!1:65537", workbook, FormulaType.CELL, 0);
+        checkXSSFFormula("Sheet1!1:65537");
     }
 
+    @Test
     public void testXSSFFailCase() {
         FormulaParsingWorkbook workbook = XSSFEvaluationWorkbook.create(new XSSFWorkbook());
         try {
@@ -69,10 +93,12 @@ public class TestFormulaParser extends TestCase {
             fail("Expected exception");
         }
         catch (FormulaParseException expected) {
+            // expected here
         }
     }
     
     // copied from org.apache.poi.hssf.model.TestFormulaParser
+    @Test
     public void testMacroFunction() throws Exception {
         // testNames.xlsm contains a VB function called 'myFunc'
         final String testFile = "testNames.xlsm";
@@ -128,6 +154,7 @@ public class TestFormulaParser extends TestCase {
         }
     }
     
+    @Test
     public void testParserErrors() throws Exception {
         XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("testNames.xlsm");
         try {
@@ -150,8 +177,6 @@ public class TestFormulaParser extends TestCase {
     }
     
     /** confirm formula has invalid syntax and parsing the formula results in FormulaParseException
-     * @param formula
-     * @param wb
      */
     private static void parseExpectedException(String formula, FormulaParsingWorkbook wb) {
         try {
@@ -162,5 +187,44 @@ public class TestFormulaParser extends TestCase {
             assertNotNull(e.getMessage());
         }
     }
+    
+    // trivial case for bug 60219: FormulaParser can't parse external references when sheet name is quoted
+    @Test
+    public void testParseExternalReferencesWithUnquotedSheetName() throws Exception {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        XSSFEvaluationWorkbook fpwb = XSSFEvaluationWorkbook.create(wb);
+        Ptg[] ptgs = FormulaParser.parse("[1]Sheet1!A1", fpwb, FormulaType.CELL, -1);
+        // org.apache.poi.ss.formula.ptg.Ref3DPxg [ [workbook=1] sheet=Sheet 1 ! A1]
+        assertEquals("Ptgs length", 1, ptgs.length);
+        assertTrue("Ptg class", ptgs[0] instanceof Ref3DPxg);
+        Ref3DPxg pxg = (Ref3DPxg) ptgs[0];
+        assertEquals("External workbook number", 1, pxg.getExternalWorkbookNumber());
+        assertEquals("Sheet name", "Sheet1", pxg.getSheetName());
+        assertEquals("Row", 0, pxg.getRow());
+        assertEquals("Column", 0, pxg.getColumn());
+        wb.close();
+    }
+    
+    // bug 60219: FormulaParser can't parse external references when sheet name is quoted
+    @Test
+    public void testParseExternalReferencesWithQuotedSheetName() throws Exception {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        XSSFEvaluationWorkbook fpwb = XSSFEvaluationWorkbook.create(wb);
+        Ptg[] ptgs = FormulaParser.parse("'[1]Sheet 1'!A1", fpwb, FormulaType.CELL, -1);
+        // org.apache.poi.ss.formula.ptg.Ref3DPxg [ [workbook=1] sheet=Sheet 1 ! A1]
+        assertEquals("Ptgs length", 1, ptgs.length);
+        assertTrue("Ptg class", ptgs[0] instanceof Ref3DPxg);
+        Ref3DPxg pxg = (Ref3DPxg) ptgs[0];
+        assertEquals("External workbook number", 1, pxg.getExternalWorkbookNumber());
+        assertEquals("Sheet name", "Sheet 1", pxg.getSheetName());
+        assertEquals("Row", 0, pxg.getRow());
+        assertEquals("Column", 0, pxg.getColumn());
+        wb.close();
+    }
 
+    // bug 60260
+    @Test
+    public void testUnicodeSheetName() {
+        checkFormula("'Sheet\u30FB1'!A1:A6");
+    }
 }

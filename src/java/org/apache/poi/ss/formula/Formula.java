@@ -23,6 +23,7 @@ import org.apache.poi.ss.formula.ptg.ExpPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.ptg.TblPtg;
 import org.apache.poi.ss.util.CellReference;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianByteArrayInputStream;
 import org.apache.poi.util.LittleEndianInput;
@@ -35,6 +36,9 @@ import org.apache.poi.util.LittleEndianOutput;
  */
 public class Formula {
 
+	//Arbitrarily set.  May need to increase.
+	private static final int MAX_ENCODED_LEN = 100000;
+
 	private static final Formula EMPTY = new Formula(new byte[0], 0);
 
 	/** immutable */
@@ -42,7 +46,7 @@ public class Formula {
 	private final int _encodedTokenLen;
 
 	private Formula(byte[] byteEncoding, int encodedTokenLen) {
-		_byteEncoding = byteEncoding;
+		_byteEncoding = byteEncoding.clone();
 		_encodedTokenLen = encodedTokenLen;
 //		if (false) { // set to true to eagerly check Ptg decoding
 //			LittleEndianByteArrayInputStream in = new LittleEndianByteArrayInputStream(byteEncoding);
@@ -72,7 +76,7 @@ public class Formula {
 	 * @return A new formula object as read from the stream.  Possibly empty, never <code>null</code>.
 	 */
 	public static Formula read(int encodedTokenLen, LittleEndianInput in, int totalEncodedLen) {
-		byte[] byteEncoding = new byte[totalEncodedLen];
+		byte[] byteEncoding = IOUtils.safelyAllocate(totalEncodedLen, MAX_ENCODED_LEN);
 		in.readFully(byteEncoding);
 		return new Formula(byteEncoding, encodedTokenLen);
 	}
@@ -168,7 +172,7 @@ public class Formula {
 	 * returned by this method will  match the top left corner of the range of that grouping.
 	 * The return value is usually not the same as the location of the cell containing this formula.
 	 *
-	 * @return the firstRow & firstColumn of an array formula or shared formula that this formula
+	 * @return the firstRow &amp; firstColumn of an array formula or shared formula that this formula
 	 * belongs to.  <code>null</code> if this formula is not part of an array or shared formula.
 	 */
 	public CellReference getExpReference() {

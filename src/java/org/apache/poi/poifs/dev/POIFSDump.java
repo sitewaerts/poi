@@ -33,56 +33,72 @@ import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.NPOIFSStream;
 import org.apache.poi.poifs.property.NPropertyTable;
 import org.apache.poi.poifs.storage.HeaderBlock;
+import org.apache.poi.util.IOUtils;
 
 /**
  * Dump internal structure of a OLE2 file into file system
  */
 public class POIFSDump {
-    public static void main(String[] args) throws Exception {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
+    public static void main(String[] args) throws IOException {
         if (args.length == 0) {
             System.err.println("Must specify at least one file to dump");
             System.exit(1);
         }
         
         boolean dumpProps = false, dumpMini = false;
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].equalsIgnoreCase("-dumprops") ||
-                args[i].equalsIgnoreCase("-dump-props") ||
-                args[i].equalsIgnoreCase("-dump-properties")) {
+        for (String filename : args) {
+            if (filename.equalsIgnoreCase("-dumprops") ||
+                    filename.equalsIgnoreCase("-dump-props") ||
+                    filename.equalsIgnoreCase("-dump-properties")) {
                 dumpProps = true;
                 continue;
             }
-            if (args[i].equalsIgnoreCase("-dumpmini") ||
-                args[i].equalsIgnoreCase("-dump-mini") ||
-                args[i].equalsIgnoreCase("-dump-ministream") ||
-                args[i].equalsIgnoreCase("-dump-mini-stream")) {
+            if (filename.equalsIgnoreCase("-dumpmini") ||
+                    filename.equalsIgnoreCase("-dump-mini") ||
+                    filename.equalsIgnoreCase("-dump-ministream") ||
+                    filename.equalsIgnoreCase("-dump-mini-stream")) {
                 dumpMini = true;
                 continue;
             }
-            
-            System.out.println("Dumping " + args[i]);
-            FileInputStream is = new FileInputStream(args[i]);
-            NPOIFSFileSystem fs = new NPOIFSFileSystem(is);
-            is.close();
 
-            DirectoryEntry root = fs.getRoot();
-            File file = new File(root.getName());
-            file.mkdir();
-
-            dump(root, file);
-            
-            if (dumpProps) {
-                HeaderBlock header = fs.getHeaderBlock();
-                dump(fs, header.getPropertyStart(), "properties", file);
+            System.out.println("Dumping " + filename);
+            FileInputStream is = new FileInputStream(filename);
+            NPOIFSFileSystem fs;
+            try {
+                fs = new NPOIFSFileSystem(is);
+            } finally {
+                is.close();
             }
-            if (dumpMini) {
-                NPropertyTable props = fs.getPropertyTable();
-                int startBlock = props.getRoot().getStartBlock(); 
-                if (startBlock == POIFSConstants.END_OF_CHAIN) {
-                    System.err.println("No Mini Stream in file");
-                } else {
-                    dump(fs, startBlock, "mini-stream", file);
+            try {
+                DirectoryEntry root = fs.getRoot();
+                String filenameWithoutPath = new File(filename).getName();
+                File dumpDir = new File(filenameWithoutPath + "_dump");
+                File file = new File(dumpDir, root.getName());
+                if (!file.exists() && !file.mkdirs()) {
+                    throw new IOException("Could not create directory " + file);
                 }
+    
+                dump(root, file);
+    
+                if (dumpProps) {
+                    HeaderBlock header = fs.getHeaderBlock();
+                    dump(fs, header.getPropertyStart(), "properties", file);
+                }
+                if (dumpMini) {
+                    NPropertyTable props = fs.getPropertyTable();
+                    int startBlock = props.getRoot().getStartBlock();
+                    if (startBlock == POIFSConstants.END_OF_CHAIN) {
+                        System.err.println("No Mini Stream in file");
+                    } else {
+                        dump(fs, startBlock, "mini-stream", file);
+                    }
+                }
+            } finally {
+                fs.close();
             }
         }
     }
@@ -93,8 +109,7 @@ public class POIFSDump {
             if(entry instanceof DocumentNode){
                 DocumentNode node = (DocumentNode)entry;
                 DocumentInputStream is = new DocumentInputStream(node);
-                byte[] bytes = new byte[node.getSize()];
-                is.read(bytes);
+                byte[] bytes = IOUtils.toByteArray(is);
                 is.close();
 
                 OutputStream out = new FileOutputStream(new File(parent, node.getName().trim()));
@@ -106,7 +121,9 @@ public class POIFSDump {
             } else if (entry instanceof DirectoryEntry){
                 DirectoryEntry dir = (DirectoryEntry)entry;
                 File file = new File(parent, entry.getName());
-                file.mkdir();
+                if(!file.exists() && !file.mkdirs()) {
+                    throw new IOException("Could not create directory " + file);
+                }
                 dump(dir, file);
             } else {
                 System.err.println("Skipping unsupported POIFS entry: " + entry);
@@ -116,14 +133,17 @@ public class POIFSDump {
     public static void dump(NPOIFSFileSystem fs, int startBlock, String name, File parent) throws IOException {
         File file = new File(parent, name);
         FileOutputStream out = new FileOutputStream(file);
-        NPOIFSStream stream = new NPOIFSStream(fs, startBlock);
-        
-        byte[] b = new byte[fs.getBigBlockSize()];
-        for (ByteBuffer bb : stream) {
-            int len = bb.remaining();
-            bb.get(b);
-            out.write(b, 0, len);
+        try {
+            NPOIFSStream stream = new NPOIFSStream(fs, startBlock);
+
+            byte[] b = IOUtils.safelyAllocate(fs.getBigBlockSize(), MAX_RECORD_LENGTH);
+            for (ByteBuffer bb : stream) {
+                int len = bb.remaining();
+                bb.get(b);
+                out.write(b, 0, len);
+            }
+        } finally {
+            out.close();
         }
-        out.close();
     }
 }

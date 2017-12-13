@@ -123,7 +123,7 @@ public final class TestPropertySorter extends TestCase {
         DirectoryNode vba = (DirectoryNode)vba_project.getEntry(VBA);
         DirectoryProperty  p = (DirectoryProperty)vba.getProperty();
 
-        List<Property> lst = new ArrayList<Property>();
+        List<Property> lst = new ArrayList<>();
         for (Iterator<Property> it = p.getChildren(); it.hasNext();){
             Property ch = it.next();
             lst.add(ch);
@@ -136,6 +136,7 @@ public final class TestPropertySorter extends TestCase {
      */
     private static final Comparator<Property> OldCaseSensitivePropertyComparator = new Comparator<Property>() {
 
+        @Override
         public int compare(Property o1, Property o2) {
             String name1  = o1.getName();
             String name2  = o2.getName();

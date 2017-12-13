@@ -20,6 +20,7 @@ import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +30,7 @@ import javax.xml.namespace.QName;
 
 import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.util.DocumentHelper;
 import org.apache.poi.util.Internal;
 import org.apache.poi.wp.usermodel.CharacterRun;
 import org.apache.xmlbeans.XmlCursor;
@@ -66,6 +68,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTOnOff;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPTab;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRuby;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRubyContent;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSignedHpsMeasure;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSignedTwipsMeasure;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTText;
@@ -80,6 +84,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STUnderline;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STVerticalAlignRun;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Text;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 /**
  * XWPFRun object defines a region of text with a common set of properties
@@ -117,7 +123,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
 
         // Look for any text in any of our pictures or drawings
         StringBuilder text = new StringBuilder();
-        List<XmlObject> pictTextObjs = new ArrayList<XmlObject>();
+        List<XmlObject> pictTextObjs = new ArrayList<>();
         pictTextObjs.addAll(Arrays.asList(r.getPictArray()));
         pictTextObjs.addAll(Arrays.asList(r.getDrawingArray()));
         for (XmlObject o : pictTextObjs) {
@@ -137,7 +143,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
 
         // Do we have any embedded pictures?
         // (They're a different CTPicture, under the drawingml namespace)
-        pictures = new ArrayList<XWPFPicture>();
+        pictures = new ArrayList<>();
         for (XmlObject o : pictTextObjs) {
             for (CTPicture pict : getCTPictures(o)) {
                 XWPFPicture picture = new XWPFPicture(pict, this);
@@ -145,8 +151,6 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
             }
         }
     }
-
-    ;
 
     /**
      * @deprecated Use {@link XWPFRun#XWPFRun(CTR, IRunBody)}
@@ -171,7 +175,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     }
 
     private List<CTPicture> getCTPictures(XmlObject o) {
-        List<CTPicture> pictures = new ArrayList<CTPicture>();
+        List<CTPicture> pics = new ArrayList<>();
         XmlObject[] picts = o.selectPath("declare namespace pic='" + CTPicture.type.getName().getNamespaceURI() + "' .//pic:pic");
         for (XmlObject pict : picts) {
             if (pict instanceof XmlAnyTypeImpl) {
@@ -183,10 +187,10 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
                 }
             }
             if (pict instanceof CTPicture) {
-                pictures.add((CTPicture) pict);
+                pics.add((CTPicture) pict);
             }
         }
-        return pictures;
+        return pics;
     }
 
     /**
@@ -233,14 +237,15 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     /**
      * For isBold, isItalic etc
      */
-    private boolean isCTOnOff(CTOnOff onoff) {
+    private static boolean isCTOnOff(CTOnOff onoff) {
         if (!onoff.isSetVal())
             return true;
-        if (onoff.getVal() == STOnOff.ON)
-            return true;
-        if (onoff.getVal() == STOnOff.TRUE)
-            return true;
-        return false;
+        final STOnOff.Enum val = onoff.getVal();
+        return (
+            (STOnOff.TRUE == val) ||
+            (STOnOff.X_1 == val) ||
+            (STOnOff.ON == val)
+        );
     }
 
     /**
@@ -369,8 +374,8 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     /**
      * Whether the bold property shall be applied to all non-complex script
      * characters in the contents of this run when displayed in a document
-     * <p/>
-     * <p/>
+     * <p>
+     * <p>
      * This formatting property is a toggle property, which specifies that its
      * behavior differs between its use within a style definition and its use as
      * direct formatting. When used as part of a style definition, setting this
@@ -381,7 +386,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
      * direct formatting, setting this property to true or false shall set the
      * absolute state of the resulting property.
      * </p>
-     * <p/>
+     * <p>
      * If this element is not present, the default value is to leave the
      * formatting applied at previous level in the style hierarchy. If this
      * element is never applied in the style hierarchy, then bold shall not be
@@ -414,8 +419,8 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     /**
      * Specifies that the contents of this run should be displayed along with an
      * underline appearing directly below the character heigh
-     * <p/>
-     * <p/>
+     * <p>
+     * <p>
      * If this element is not present, the default value is to leave the
      * formatting applied at previous level in the style hierarchy. If this
      * element is never applied in the style hierarchy, then an underline shall
@@ -448,7 +453,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     /**
      * Specifies that the contents of this run shall be displayed with a single
      * horizontal line through the center of the line.
-     * <p/>
+     * <p>
      * This formatting property is a toggle property, which specifies that its
      * behaviour differs between its use within a style definition and its use as
      * direct formatting. When used as part of a style definition, setting this
@@ -459,7 +464,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
      * formatting, setting this property to true or false shall set the absolute
      * state of the resulting property.
      * </p>
-     * <p/>
+     * <p>
      * If this element is not present, the default value is to leave the
      * formatting applied at previous level in the style hierarchy. If this
      * element is never applied in the style hierarchy, then strikethrough shall
@@ -594,7 +599,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
      * run in relation to the default appearance of the run's text. This allows
      * the text to be repositioned as subscript or superscript without altering
      * the font size of the run properties.
-     * <p/>
+     * <p>
      * If this element is not present, the default value is to leave the
      * formatting applied at previous level in the style hierarchy. If this
      * element is never applied in the style hierarchy, then the text shall not
@@ -663,7 +668,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
      * Specifies the fonts which shall be used to display the text contents of
      * this run. Specifies a font which shall be used to format all characters
      * in the ASCII range (0 - 127) within the parent run.
-     * <p/>
+     * <p>
      * Also sets the other font ranges, if they haven't been set before
      *
      * @param fontFamily
@@ -761,7 +766,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     /**
      * Specifies the font size which shall be applied to all non complex script
      * characters in the contents of this run when displayed.
-     * <p/>
+     * <p>
      * If this element is not present, the default value is to leave the value
      * applied at previous level in the style hierarchy. If this element is
      * never applied in the style hierarchy, then any appropriate font size may
@@ -796,14 +801,14 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
      * lowered for this run in relation to the default baseline of the
      * surrounding non-positioned text. This allows the text to be repositioned
      * without altering the font size of the contents.
-     * <p/>
+     * <p>
      * If the val attribute is positive, then the parent run shall be raised
      * above the baseline of the surrounding text by the specified number of
      * half-points. If the val attribute is negative, then the parent run shall
      * be lowered below the baseline of the surrounding text by the specified
      * number of half-points.
      * </p>
-     * <p/>
+     * <p>
      * If this element is not present, the default value is to leave the
      * formatting applied at previous level in the style hierarchy. If this
      * element is never applied in the style hierarchy, then the text shall not
@@ -940,6 +945,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
             relationId = headerFooter.addPictureData(pictureData, pictureType);
             picData = (XWPFPictureData) headerFooter.getRelationById(relationId);
         } else {
+            @SuppressWarnings("resource")
             XWPFDocument doc = parent.getDocument();
             relationId = doc.addPictureData(pictureData, pictureType);
             picData = (XWPFPictureData) doc.getRelationById(relationId);
@@ -958,7 +964,9 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
                             "<pic:pic xmlns:pic=\"" + CTPicture.type.getName().getNamespaceURI() + "\" />" +
                             "</a:graphicData>" +
                             "</a:graphic>";
-            inline.set(XmlToken.Factory.parse(xml, DEFAULT_XML_OPTIONS));
+            InputSource is = new InputSource(new StringReader(xml));
+            org.w3c.dom.Document doc = DocumentHelper.readDocument(is);
+            inline.set(XmlToken.Factory.parse(doc.getDocumentElement(), DEFAULT_XML_OPTIONS));
 
             // Setup the inline
             inline.setDistT(0);
@@ -997,7 +1005,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
 
             CTBlipFillProperties blipFill = pic.addNewBlipFill();
             CTBlip blip = blipFill.addNewBlip();
-            blip.setEmbed(parent.getDocument().getRelationId(picData));
+            blip.setEmbed(parent.getPart().getRelationId(picData));
             blipFill.addNewStretch().addNewFillRect();
 
             CTShapeProperties spPr = pic.addNewSpPr();
@@ -1021,6 +1029,8 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
             return xwpfPicture;
         } catch (XmlException e) {
             throw new IllegalStateException(e);
+        } catch (SAXException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -1034,10 +1044,15 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
     }
 
     /**
-     * Returns the string version of the text
+     * Returns the string version of the text and the phonetic string
      */
     public String toString() {
-        return text();
+        String phonetic = getPhonetic();
+        if (phonetic.length() > 0) {
+            return text() +" ("+ phonetic +")";
+        } else {
+            return text();
+        }
     }
 
     /**
@@ -1045,7 +1060,7 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
      * carriage returns in place of their xml equivalents.
      */
     public String text() {
-        StringBuffer text = new StringBuffer();
+        StringBuilder text = new StringBuilder(64);
 
         // Grab the text and tabs of the text run
         // Do so in a way that preserves the ordering
@@ -1053,71 +1068,136 @@ public class XWPFRun implements ISDTContents, IRunElement, CharacterRun {
         c.selectPath("./*");
         while (c.toNextSelection()) {
             XmlObject o = c.getObject();
-            if (o instanceof CTText) {
+            if (o instanceof CTRuby) {
+                handleRuby(o, text, false);
+                continue;
+            }
+            _getText(o, text);
+        }
+        c.dispose();
+        return text.toString();
+
+    }
+
+    /**
+     *
+     * @return the phonetic (ruby) string associated with this run or an empty String if none exists
+     */
+    public String getPhonetic() {
+        StringBuilder text = new StringBuilder(64);
+
+        // Grab the text and tabs of the text run
+        // Do so in a way that preserves the ordering
+        XmlCursor c = run.newCursor();
+        c.selectPath("./*");
+        while (c.toNextSelection()) {
+            XmlObject o = c.getObject();
+            if (o instanceof CTRuby) {
+                handleRuby(o, text, true);
+            }
+        }
+        // Any picture text?
+        if (pictureText != null && pictureText.length() > 0) {
+            text.append("\n").append(pictureText).append("\n");
+        }
+        c.dispose();
+        return text.toString();
+    }
+
+    /**
+     *
+     * @param rubyObj rubyobject
+     * @param text buffer to which to append the content
+     * @param extractPhonetic extract the phonetic (rt) component or the base component
+     */
+    private void handleRuby(XmlObject rubyObj, StringBuilder text, boolean extractPhonetic) {
+        XmlCursor c = rubyObj.newCursor();
+
+        //according to the spec, a ruby object
+        //has the phonetic (rt) first, then the actual text (base)
+        //second.
+
+        c.selectPath(".//*");
+        boolean inRT = false;
+        boolean inBase = false;
+        while (c.toNextSelection()) {
+            XmlObject o = c.getObject();
+            if (o instanceof CTRubyContent) {
                 String tagName = o.getDomNode().getNodeName();
-                // Field Codes (w:instrText, defined in spec sec. 17.16.23)
-                //  come up as instances of CTText, but we don't want them
-                //  in the normal text output
-                if (!"w:instrText".equals(tagName)) {
-                    text.append(((CTText) o).getStringValue());
+                if ("w:rt".equals(tagName)) {
+                    inRT = true;
+                } else if ("w:rubyBase".equals(tagName)) {
+                    inRT = false;
+                    inBase = true;
+                }
+            } else {
+                if (extractPhonetic && inRT) {
+                    _getText(o, text);
+                } else if (! extractPhonetic && inBase) {
+                    _getText(o, text);
                 }
             }
+        }
+        c.dispose();
+    }
 
-            // Complex type evaluation (currently only for extraction of check boxes)
-            if (o instanceof CTFldChar) {
-                CTFldChar ctfldChar = ((CTFldChar) o);
-                if (ctfldChar.getFldCharType() == STFldCharType.BEGIN) {
-                    if (ctfldChar.getFfData() != null) {
-                        for (CTFFCheckBox checkBox : ctfldChar.getFfData().getCheckBoxList()) {
-                            if (checkBox.getDefault().getVal() == STOnOff.X_1) {
-                                text.append("|X|");
-                            } else {
-                                text.append("|_|");
-                            }
+    private void _getText(XmlObject o, StringBuilder text) {
+
+        if (o instanceof CTText) {
+            String tagName = o.getDomNode().getNodeName();
+            // Field Codes (w:instrText, defined in spec sec. 17.16.23)
+            //  come up as instances of CTText, but we don't want them
+            //  in the normal text output
+            if (!"w:instrText".equals(tagName)) {
+                text.append(((CTText) o).getStringValue());
+            }
+        }
+
+        // Complex type evaluation (currently only for extraction of check boxes)
+        if (o instanceof CTFldChar) {
+            CTFldChar ctfldChar = ((CTFldChar) o);
+            if (ctfldChar.getFldCharType() == STFldCharType.BEGIN) {
+                if (ctfldChar.getFfData() != null) {
+                    for (CTFFCheckBox checkBox : ctfldChar.getFfData().getCheckBoxList()) {
+                        if (checkBox.getDefault() != null && checkBox.getDefault().getVal() == STOnOff.X_1) {
+                            text.append("|X|");
+                        } else {
+                            text.append("|_|");
                         }
                     }
                 }
             }
-
-            if (o instanceof CTPTab) {
-                text.append("\t");
-            }
-            if (o instanceof CTBr) {
-                text.append("\n");
-            }
-            if (o instanceof CTEmpty) {
-                // Some inline text elements get returned not as
-                //  themselves, but as CTEmpty, owing to some odd
-                //  definitions around line 5642 of the XSDs
-                // This bit works around it, and replicates the above
-                //  rules for that case
-                String tagName = o.getDomNode().getNodeName();
-                if ("w:tab".equals(tagName) || "tab".equals(tagName)) {
-                    text.append("\t");
-                }
-                if ("w:br".equals(tagName) || "br".equals(tagName)) {
-                    text.append("\n");
-                }
-                if ("w:cr".equals(tagName) || "cr".equals(tagName)) {
-                    text.append("\n");
-                }
-            }
-            if (o instanceof CTFtnEdnRef) {
-                CTFtnEdnRef ftn = (CTFtnEdnRef) o;
-                String footnoteRef = ftn.getDomNode().getLocalName().equals("footnoteReference") ?
-                        "[footnoteRef:" + ftn.getId().intValue() + "]" : "[endnoteRef:" + ftn.getId().intValue() + "]";
-                text.append(footnoteRef);
-            }
         }
 
-        c.dispose();
-
-        // Any picture text?
-        if (pictureText != null && pictureText.length() > 0) {
-            text.append("\n").append(pictureText);
+        if (o instanceof CTPTab) {
+            text.append('\t');
         }
-
-        return text.toString();
+        if (o instanceof CTBr) {
+            text.append('\n');
+        }
+        if (o instanceof CTEmpty) {
+            // Some inline text elements get returned not as
+            //  themselves, but as CTEmpty, owing to some odd
+            //  definitions around line 5642 of the XSDs
+            // This bit works around it, and replicates the above
+            //  rules for that case
+            String tagName = o.getDomNode().getNodeName();
+            if ("w:tab".equals(tagName) || "tab".equals(tagName)) {
+                text.append('\t');
+            }
+            if ("w:br".equals(tagName) || "br".equals(tagName)) {
+                text.append('\n');
+            }
+            if ("w:cr".equals(tagName) || "cr".equals(tagName)) {
+                text.append('\n');
+            }
+        }
+        if (o instanceof CTFtnEdnRef) {
+            CTFtnEdnRef ftn = (CTFtnEdnRef) o;
+            String footnoteRef = ftn.getDomNode().getLocalName().equals("footnoteReference") ?
+                    "[footnoteRef:" + ftn.getId().intValue() + "]" : "[endnoteRef:" + ftn.getId().intValue() + "]";
+            text.append(footnoteRef);
+        }
     }
 
     /**

@@ -19,8 +19,7 @@
 
 package org.apache.poi.xslf.usermodel;
 
-import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
-
+import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -28,12 +27,13 @@ import java.util.List;
 
 import javax.xml.namespace.QName;
 
-import org.apache.poi.POIXMLException;
+import org.apache.poi.sl.draw.DrawFactory;
+import org.apache.poi.sl.draw.DrawTableShape;
+import org.apache.poi.sl.draw.DrawTextShape;
 import org.apache.poi.sl.usermodel.TableShape;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.Units;
 import org.apache.xmlbeans.XmlCursor;
-import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.impl.values.XmlAnyTypeImpl;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTGraphicalObjectData;
@@ -45,12 +45,11 @@ import org.openxmlformats.schemas.presentationml.x2006.main.CTGraphicalObjectFra
 
 /**
  * Represents a table in a .pptx presentation
- *
- * @author Yegor Kozlov
  */
 public class XSLFTable extends XSLFGraphicFrame implements Iterable<XSLFTableRow>,
     TableShape<XSLFShape,XSLFTextParagraph> {
-    static String TABLE_URI = "http://schemas.openxmlformats.org/drawingml/2006/table";
+    /* package */ static final String TABLE_URI = "http://schemas.openxmlformats.org/drawingml/2006/table";
+    /* package */ static final String DRAWINGML_URI = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
     private CTTable _table;
     private List<XSLFTableRow> _rows;
@@ -58,26 +57,32 @@ public class XSLFTable extends XSLFGraphicFrame implements Iterable<XSLFTableRow
     /*package*/ XSLFTable(CTGraphicalObjectFrame shape, XSLFSheet sheet){
         super(shape, sheet);
 
-        XmlObject[] rs = shape.getGraphic().getGraphicData()
-                .selectPath("declare namespace a='http://schemas.openxmlformats.org/drawingml/2006/main' ./a:tbl");
-        if (rs.length == 0) {
-            throw new IllegalStateException("a:tbl element was not found in\n " + shape.getGraphic().getGraphicData());
+        CTGraphicalObjectData god = shape.getGraphic().getGraphicData();
+        XmlCursor xc = god.newCursor();
+        if (!xc.toChild(DRAWINGML_URI, "tbl")) {
+            throw new IllegalStateException("a:tbl element was not found in\n " + god);
         }
 
+        XmlObject xo = xc.getObject();
         // Pesky XmlBeans bug - see Bugzilla #49934
         // it never happens when using the full ooxml-schemas jar but may happen with the abridged poi-ooxml-schemas
-        if(rs[0] instanceof XmlAnyTypeImpl){
-            try {
-                rs[0] = CTTable.Factory.parse(rs[0].toString(), DEFAULT_XML_OPTIONS);
-            }catch (XmlException e){
-                throw new POIXMLException(e);
-            }
+        if (xo instanceof XmlAnyTypeImpl){
+            String errStr =
+                "Schemas (*.xsb) for CTTable can't be loaded - usually this happens when OSGI " +
+                "loading is used and the thread context classloader has no reference to " +
+                "the xmlbeans classes - use POIXMLTypeLoader.setClassLoader() to set the loader, " +
+                "e.g. with CTTable.class.getClassLoader()"
+            ;
+            throw new IllegalStateException(errStr);
         }
+        _table = (CTTable)xo;
+        xc.dispose();
 
-        _table = (CTTable) rs[0];
-        CTTableRow[] trArray = _table.getTrArray();
-        _rows = new ArrayList<XSLFTableRow>(trArray.length);
-        for(CTTableRow row : trArray) _rows.add(new XSLFTableRow(row, this));
+        _rows = new ArrayList<>(_table.sizeOfTrArray());
+        for(CTTableRow row : _table.getTrArray()) {
+            _rows.add(new XSLFTableRow(row, this));
+        }
+        updateRowColIndexes();
     }
 
     @Override
@@ -146,8 +151,10 @@ public class XSLFTable extends XSLFGraphicFrame implements Iterable<XSLFTableRow
     public XSLFTableRow addRow(){
         CTTableRow tr = _table.addNewTr();
         XSLFTableRow row = new XSLFTableRow(tr, this);
-        row.setHeight(20.0);    // default height is 20 points
+        // default height is 20 points
+        row.setHeight(20.0);    
         _rows.add(row);
+        updateRowColIndexes();
         return row;
     }
 
@@ -163,13 +170,18 @@ public class XSLFTable extends XSLFGraphicFrame implements Iterable<XSLFTableRow
 
         frame.addNewXfrm();
         CTGraphicalObjectData gr = frame.addNewGraphic().addNewGraphicData();
-        XmlCursor cursor = gr.newCursor();
-        cursor.toNextToken();
-        cursor.beginElement(new QName("http://schemas.openxmlformats.org/drawingml/2006/main", "tbl"));
-        cursor.beginElement(new QName("http://schemas.openxmlformats.org/drawingml/2006/main", "tblPr"));
-        cursor.toNextToken();
-        cursor.beginElement(new QName("http://schemas.openxmlformats.org/drawingml/2006/main", "tblGrid"));
-        cursor.dispose();
+        XmlCursor grCur = gr.newCursor();
+        grCur.toNextToken();
+        grCur.beginElement(new QName(DRAWINGML_URI, "tbl"));
+        
+        CTTable tbl = CTTable.Factory.newInstance();
+        tbl.addNewTblPr();
+        tbl.addNewTblGrid();
+        XmlCursor tblCur = tbl.newCursor();
+        
+        tblCur.moveXmlContents(grCur);
+        tblCur.dispose();
+        grCur.dispose();
         gr.setUri(TABLE_URI);
         return frame;
     }
@@ -223,5 +235,116 @@ public class XSLFTable extends XSLFGraphicFrame implements Iterable<XSLFTableRow
     			}
     		}
     	}
+    }
+    
+    /**
+     * Get assigned TableStyle
+     *
+     * @return the assigned TableStyle
+     * 
+     * @since POI 3.15-beta2
+     */
+    protected XSLFTableStyle getTableStyle() {
+        CTTable tab = getCTTable();
+        // TODO: support inline table style
+        if (!tab.isSetTblPr() || !tab.getTblPr().isSetTableStyleId()) {
+            return null;
+        }
+        
+        String styleId = tab.getTblPr().getTableStyleId();
+        XSLFTableStyles styles = getSheet().getSlideShow().getTableStyles();
+        for (XSLFTableStyle style : styles.getStyles()) {
+            if (style.getStyleId().equals(styleId)) {
+                return style;
+            }
+        }
+        return null;
+    }
+    
+    /* package */ void updateRowColIndexes() {
+        int rowIdx = 0;
+        for (XSLFTableRow xr : this) {
+            int colIdx = 0;
+            for (XSLFTableCell tc : xr) {
+                tc.setRowColIndex(rowIdx, colIdx);
+                colIdx++;
+            }
+            rowIdx++;
+        }
+    }
+
+    /* package */ void updateCellAnchor() {
+        int rows = getNumberOfRows();
+        int cols = getNumberOfColumns();
+
+        double colWidths[] = new double[cols];
+        double rowHeights[] = new double[rows];
+
+        for (int row=0; row<rows; row++) {
+            rowHeights[row] = getRowHeight(row);
+        }
+        for (int col=0; col<cols; col++) {
+            colWidths[col] = getColumnWidth(col);
+        }
+
+        Rectangle2D tblAnc = getAnchor();
+        DrawFactory df = DrawFactory.getInstance(null);
+        
+        double newY = tblAnc.getY();
+
+        // #1 pass - determine row heights, the height values might be too low or 0 ...
+        for (int row=0; row<rows; row++) {
+            double maxHeight = 0;
+            for (int col=0; col<cols; col++) {
+                XSLFTableCell tc = getCell(row, col);
+                if (tc == null || tc.getGridSpan() != 1 || tc.getRowSpan() != 1) {
+                    continue;
+                }
+                // need to set the anchor before height calculation
+                tc.setAnchor(new Rectangle2D.Double(0,0,colWidths[col],0));
+                DrawTextShape dts = df.getDrawable(tc);
+                maxHeight = Math.max(maxHeight, dts.getTextHeight());
+            }
+            rowHeights[row] = Math.max(rowHeights[row],maxHeight);
+        }
+        
+        // #2 pass - init properties
+        for (int row=0; row<rows; row++) {
+            double newX = tblAnc.getX();
+            for (int col=0; col<cols; col++) {
+                Rectangle2D bounds = new Rectangle2D.Double(newX, newY, colWidths[col], rowHeights[row]);
+                XSLFTableCell tc = getCell(row, col);
+                if (tc != null) {
+                    tc.setAnchor(bounds);
+                    newX += colWidths[col]+DrawTableShape.borderSize;
+                }
+            }
+            newY += rowHeights[row]+DrawTableShape.borderSize;
+        }
+        
+        // #3 pass - update merge info
+        for (int row=0; row<rows; row++) {
+            for (int col=0; col<cols; col++) {
+                XSLFTableCell tc = getCell(row, col);
+                if (tc == null) {
+                    continue;
+                }
+                Rectangle2D mergedBounds = tc.getAnchor();
+                for (int col2=col+1; col2<col+tc.getGridSpan(); col2++) {
+                    assert(col2 < cols);
+                    XSLFTableCell tc2 = getCell(row, col2);
+                    assert(tc2.getGridSpan() == 1 && tc2.getRowSpan() == 1);
+                    mergedBounds.add(tc2.getAnchor());
+                }
+                for (int row2=row+1; row2<row+tc.getRowSpan(); row2++) {
+                    assert(row2 < rows);
+                    XSLFTableCell tc2 = getCell(row2, col);
+                    assert(tc2.getGridSpan() == 1 && tc2.getRowSpan() == 1);
+                    mergedBounds.add(tc2.getAnchor());
+                }
+                tc.setAnchor(mergedBounds);
+            }
+        }
+        
     }
 }

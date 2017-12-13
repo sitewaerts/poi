@@ -20,25 +20,21 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PushbackInputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.security.GeneralSecurityException;
 
 import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.OldFileFormatException;
 import org.apache.poi.hssf.record.crypto.Biff8EncryptionKey;
 import org.apache.poi.poifs.crypt.Decryptor;
-import org.apache.poi.poifs.crypt.EncryptionInfo;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
+import org.apache.poi.poifs.filesystem.DocumentFactoryHelper;
+import org.apache.poi.poifs.filesystem.FileMagic;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.OfficeXmlFileException;
 import org.apache.poi.util.IOUtils;
 
 public class SlideShowFactory {
-    /** The first 4 bytes of an OOXML file, used in detection */
-    private static final byte[] OOXML_FILE_HEADER = { 0x50, 0x4b, 0x03, 0x04 };
-    
     /**
      * Creates a SlideShow from the given NPOIFSFileSystem.
      *
@@ -63,51 +59,34 @@ public class SlideShowFactory {
      *
      * @throws IOException if an error occurs while reading the data
      */
-    public static SlideShow<?,?> create(NPOIFSFileSystem fs, String password) throws IOException {
+    public static SlideShow<?,?> create(final NPOIFSFileSystem fs, String password) throws IOException {
         DirectoryNode root = fs.getRoot();
 
         // Encrypted OOXML files go inside OLE2 containers, is this one?
         if (root.hasEntry(Decryptor.DEFAULT_POIFS_ENTRY)) {
-            EncryptionInfo info = new EncryptionInfo(fs);
-            Decryptor d = Decryptor.getInstance(info);
-
-            boolean passwordCorrect = false;
             InputStream stream = null;
             try {
-                if (password != null && d.verifyPassword(password)) {
-                    passwordCorrect = true;
-                }
-                if (!passwordCorrect && d.verifyPassword(Decryptor.DEFAULT_PASSWORD)) {
-                    passwordCorrect = true;
-                }
-                if (passwordCorrect) {
-                    stream = d.getDataStream(root);
-                }
-
-                if (!passwordCorrect) {
-                    String err = (password != null)
-                        ? "Password incorrect"
-                        : "The supplied spreadsheet is protected, but no password was supplied";
-                    throw new EncryptedDocumentException(err);
-                }
+                stream = DocumentFactoryHelper.getDecryptedStream(fs, password);
 
                 return createXSLFSlideShow(stream);
-            } catch (GeneralSecurityException e) {
-                throw new IOException(e);
             } finally {
-                if (stream != null) stream.close();
+                IOUtils.closeQuietly(stream);
             }
         }
 
         // If we get here, it isn't an encrypted PPTX file
         // So, treat it as a regular HSLF PPT one
+        boolean passwordSet = false;
         if (password != null) {
             Biff8EncryptionKey.setCurrentUserPassword(password);
+            passwordSet = true;
         }
         try {
             return createHSLFSlideShow(fs);
         } finally {
-            Biff8EncryptionKey.setCurrentUserPassword(null);
+            if (passwordSet) {
+                Biff8EncryptionKey.setCurrentUserPassword(null);
+            }
         }
     }
 
@@ -115,9 +94,7 @@ public class SlideShowFactory {
      * Creates the appropriate HSLFSlideShow / XMLSlideShow from
      *  the given InputStream.
      *
-     * <p>Your input stream MUST either support mark/reset, or
-     *  be wrapped as a {@link PushbackInputStream}! Note that
-     *  using an {@link InputStream} has a higher memory footprint
+     * <p>Note that using an {@link InputStream} has a higher memory footprint
      *  than using a {@link File}.</p>
      *
      * <p>Note that in order to properly release resources the
@@ -139,9 +116,8 @@ public class SlideShowFactory {
     /**
      * Creates the appropriate HSLFSlideShow / XMLSlideShow from
      *  the given InputStream, which may be password protected.
-     * <p>Your input stream MUST either support mark/reset, or
-     *  be wrapped as a {@link PushbackInputStream}! Note that
-     *  using an {@link InputStream} has a higher memory footprint
+     *  
+     * <p>Note that using an {@link InputStream} has a higher memory footprint
      *  than using a {@link File}.</p>
      *
      * <p>Note that in order to properly release resources the
@@ -158,23 +134,18 @@ public class SlideShowFactory {
      *  @throws EncryptedDocumentException If the wrong password is given for a protected file
      */
     public static SlideShow<?,?> create(InputStream inp, String password) throws IOException, EncryptedDocumentException {
-        // If clearly doesn't do mark/reset, wrap up
-        if (! inp.markSupported()) {
-            inp = new PushbackInputStream(inp, 8);
-        }
-
-        // Ensure that there is at least some data there
-        byte[] header8 = IOUtils.peekFirst8Bytes(inp);
-
-        // Try to create
-        if (NPOIFSFileSystem.hasPOIFSHeader(header8)) {
-            NPOIFSFileSystem fs = new NPOIFSFileSystem(inp);
+        InputStream is = FileMagic.prepareToCheckMagic(inp);
+        FileMagic fm = FileMagic.valueOf(is);
+        
+        switch (fm) {
+        case OLE2:
+            NPOIFSFileSystem fs = new NPOIFSFileSystem(is);
             return create(fs, password);
+        case OOXML:
+            return createXSLFSlideShow(is);
+        default:
+            throw new IllegalArgumentException("Your InputStream was neither an OLE2 stream, nor an OOXML stream");
         }
-        if (hasOOXMLHeader(inp)) {
-            return createXSLFSlideShow(inp);
-        }
-        throw new IllegalArgumentException("Your InputStream was neither an OLE2 stream, nor an OOXML stream");
     }
 
     /**
@@ -240,14 +211,10 @@ public class SlideShowFactory {
             fs = new NPOIFSFileSystem(file, readOnly);
             return create(fs, password);
         } catch(OfficeXmlFileException e) {
-            if(fs != null) {
-                fs.close();
-            }
+            IOUtils.closeQuietly(fs);
             return createXSLFSlideShow(file, readOnly);
         } catch(RuntimeException e) {
-            if(fs != null) {
-                fs.close();
-            }
+            IOUtils.closeQuietly(fs);
             throw e;
         }
     }
@@ -291,35 +258,4 @@ public class SlideShowFactory {
             throw new IOException(e);
         }
     }
-
-    /**
-     * This copied over from ooxml, because we can't rely on these classes in the main package
-     * 
-     * @see org.apache.poi.POIXMLDocument#hasOOXMLHeader(InputStream)
-     */
-    protected static boolean hasOOXMLHeader(InputStream inp) throws IOException {
-        // We want to peek at the first 4 bytes
-        inp.mark(4);
-
-        byte[] header = new byte[4];
-        int bytesRead = IOUtils.readFully(inp, header);
-
-        // Wind back those 4 bytes
-        if(inp instanceof PushbackInputStream) {
-            PushbackInputStream pin = (PushbackInputStream)inp;
-            pin.unread(header, 0, bytesRead);
-        } else {
-            inp.reset();
-        }
-
-        // Did it match the ooxml zip signature?
-        return (
-            bytesRead == 4 &&
-            header[0] == OOXML_FILE_HEADER[0] &&
-            header[1] == OOXML_FILE_HEADER[1] &&
-            header[2] == OOXML_FILE_HEADER[2] &&
-            header[3] == OOXML_FILE_HEADER[3]
-        );
-    }
-
 }

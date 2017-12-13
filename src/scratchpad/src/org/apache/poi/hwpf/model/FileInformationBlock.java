@@ -17,13 +17,14 @@
 
 package org.apache.poi.hwpf.model;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashSet;
+import java.util.Locale;
 
-import org.apache.poi.EncryptedDocumentException;
-import org.apache.poi.hwpf.model.io.HWPFOutputStream;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.POILogFactory;
@@ -41,8 +42,12 @@ import org.apache.poi.util.POILogger;
  * </ul>
  */
 @Internal
-public final class FileInformationBlock implements Cloneable
+public final class FileInformationBlock
 {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
     public static final POILogger logger = POILogFactory
             .getLogger( FileInformationBlock.class );
 
@@ -65,12 +70,6 @@ public final class FileInformationBlock implements Cloneable
         _fibBase = new FibBase( mainDocument, offset );
         offset = FibBase.getSize();
         assert offset == 32;
-
-        if ( _fibBase.isFEncrypted() )
-        {
-            throw new EncryptedDocumentException(
-                    "Cannot process encrypted word file" );
-        }
 
         _csw = LittleEndian.getUShort( mainDocument, offset );
         offset += LittleEndian.SHORT_SIZE;
@@ -127,8 +126,8 @@ public final class FileInformationBlock implements Cloneable
             // first short is already read as _nFibNew
             final int fibRgCswNewLength = ( _cswNew - 1 )
                     * LittleEndian.SHORT_SIZE;
-            _fibRgCswNew = new byte[fibRgCswNewLength];
-            LittleEndian.getByteArray( mainDocument, offset, fibRgCswNewLength );
+            _fibRgCswNew = IOUtils.safelyAllocate(fibRgCswNewLength, MAX_RECORD_LENGTH);
+            LittleEndian.getByteArray( mainDocument, offset, fibRgCswNewLength, MAX_RECORD_LENGTH );
             offset += fibRgCswNewLength;
         }
         else
@@ -143,23 +142,45 @@ public final class FileInformationBlock implements Cloneable
 
     private void assertCbRgFcLcb()
     {
-        switch ( getNFib() )
+        int nfib = getNFib();
+        String nfibHex = String.format(Locale.ROOT, "%04X", nfib);
+        
+        // Note - CommonCrawl shows there's more variation in these than
+        //        the documentation suggests, so accept common clusters around
+        //        the "correct" value as well
+        switch ( nfib )
         {
-        case 0x00C1:
-            assertCbRgFcLcb( "0x00C1", 0x005D, "0x005D", _cbRgFcLcb );
+        case 0x0071:
+            // Found in CommonCrawl corpus but not in the docs...
             break;
-        case 0x00D9:
-            assertCbRgFcLcb( "0x00D9", 0x006C, "0x006C", _cbRgFcLcb );
+        case 0x00BE:
+        case 0x00BF:
+        case 0x00C0:
+        case 0x00C1: // Docs "official"
+        case 0x00C2:
+        case 0x00C3:
+            assertCbRgFcLcb(nfibHex, 0x005D, "0x005D", _cbRgFcLcb );
+            break;
+        case 0x00D8:
+        case 0x00D9: //  Docs "official"
+            assertCbRgFcLcb(nfibHex, 0x006C, "0x006C", _cbRgFcLcb );
             break;
         case 0x0101:
             assertCbRgFcLcb( "0x0101", 0x0088, "0x0088", _cbRgFcLcb );
             break;
-        case 0x010C:
-            assertCbRgFcLcb( "0x010C", 0x00A4, "0x00A4", _cbRgFcLcb );
+        // TODO Is CommonCrawl 265 = 0x109 the one above or below?
+        case 0x010B:
+        case 0x010C: //  Docs "official"
+            assertCbRgFcLcb(nfibHex, 0x00A4, "0x00A4", _cbRgFcLcb );
             break;
         case 0x0112:
             assertCbRgFcLcb( "0x0112", 0x00B7, "0x00B7", _cbRgFcLcb );
             break;
+        default:
+            /* The Word spec has a much smaller list of "valid" values
+             * to what the large CommonCrawl corpus contains!
+             */
+            logger.log(POILogger.WARN, "Invalid file format version number: " + nfib + "("+nfibHex+")");
         }
     }
 
@@ -194,6 +215,8 @@ public final class FileInformationBlock implements Cloneable
         case 0x0112:
             assertCswNew( "0x0112", 0x0005, "0x0005", _cswNew );
             break;
+        default:
+            logger.log(POILogger.WARN, "Invalid file format version number: " + getNFib());
         }
     }
 
@@ -216,7 +239,7 @@ public final class FileInformationBlock implements Cloneable
          * fields FIBFieldHandler will load it content into
          * UnhandledDataStructure and save them on save.
          */
-        HashSet<Integer> knownFieldSet = new HashSet<Integer>();
+        HashSet<Integer> knownFieldSet = new HashSet<>();
         knownFieldSet.add( Integer.valueOf( FIBFieldHandler.STSHF ) );
         knownFieldSet.add( Integer.valueOf( FIBFieldHandler.CLX ) );
         knownFieldSet.add( Integer.valueOf( FIBFieldHandler.DOP ) );
@@ -317,7 +340,7 @@ public final class FileInformationBlock implements Cloneable
         }
         catch ( Exception exc )
         {
-            stringBuilder.append( "(exc: " + exc.getMessage() + ")" );
+            stringBuilder.append("(exc: ").append(exc.getMessage()).append(")");
         }
         stringBuilder.append( "[/FIB2]\n" );
         return stringBuilder.toString();
@@ -1049,7 +1072,7 @@ public final class FileInformationBlock implements Cloneable
                 offset );
     }
 
-    public void writeTo( byte[] mainStream, HWPFOutputStream tableStream )
+    public void writeTo( byte[] mainStream, ByteArrayOutputStream tableStream )
             throws IOException
     {
         _cbRgFcLcb = _fieldHandler.getFieldsCount();

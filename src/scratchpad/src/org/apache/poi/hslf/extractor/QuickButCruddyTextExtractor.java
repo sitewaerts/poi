@@ -17,18 +17,21 @@
 
 package org.apache.poi.hslf.extractor;
 
-import java.io.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.poi.hslf.record.*;
+import org.apache.poi.hslf.record.CString;
+import org.apache.poi.hslf.record.Record;
+import org.apache.poi.hslf.record.RecordTypes;
+import org.apache.poi.hslf.record.TextBytesAtom;
+import org.apache.poi.hslf.record.TextCharsAtom;
+import org.apache.poi.hslf.usermodel.HSLFSlideShow;
 import org.apache.poi.hslf.usermodel.HSLFTextParagraph;
-import org.apache.poi.hslf.usermodel.HSLFTextShape;
-import org.apache.poi.poifs.filesystem.DocumentEntry;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 
 /**
@@ -77,7 +80,8 @@ public final class QuickButCruddyTextExtractor {
 	 * Creates an extractor from a given file name
 	 * @param fileName
 	 */
-	public QuickButCruddyTextExtractor(String fileName) throws IOException {
+	@SuppressWarnings("resource")
+    public QuickButCruddyTextExtractor(String fileName) throws IOException {
 		this(new NPOIFSFileSystem(new File(fileName)));
 	}
 
@@ -85,6 +89,7 @@ public final class QuickButCruddyTextExtractor {
 	 * Creates an extractor from a given input stream
 	 * @param iStream
 	 */
+    @SuppressWarnings("resource")
 	public QuickButCruddyTextExtractor(InputStream iStream) throws IOException {
 		this(new NPOIFSFileSystem(iStream));
 		is = iStream;
@@ -98,10 +103,9 @@ public final class QuickButCruddyTextExtractor {
 		fs = poifs;
 
 		// Find the PowerPoint bit, and get out the bytes
-		DocumentEntry docProps =
-			(DocumentEntry)fs.getRoot().getEntry("PowerPoint Document");
-		pptContents = new byte[docProps.getSize()];
-		fs.createDocumentInputStream("PowerPoint Document").read(pptContents);
+		InputStream pptIs = fs.createDocumentInputStream(HSLFSlideShow.POWERPOINT_DOCUMENT);
+		pptContents = IOUtils.toByteArray(pptIs);
+		pptIs.close();
 	}
 
 
@@ -133,15 +137,14 @@ public final class QuickButCruddyTextExtractor {
 	 *  strings, one per text record
 	 */
 	public List<String> getTextAsVector() {
-	    List<String> textV = new ArrayList<String>();
+	    List<String> textV = new ArrayList<>();
 
 		// Set to the start of the file
 		int walkPos = 0;
 
 		// Start walking the file, looking for the records
 		while(walkPos != -1) {
-			int newPos = findTextRecords(walkPos,textV);
-			walkPos = newPos;
+            walkPos = findTextRecords(walkPos,textV);
 		}
 
 		// Return what we find

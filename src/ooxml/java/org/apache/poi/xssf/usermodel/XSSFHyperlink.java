@@ -19,11 +19,13 @@ package org.apache.poi.xssf.usermodel;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.ss.usermodel.Hyperlink;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTHyperlink;
 
 /**
@@ -32,17 +34,18 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTHyperlink;
  * are largely stored as relations of the sheet
  */
 public class XSSFHyperlink implements Hyperlink {
-    final private int _type;
+    final private HyperlinkType _type;
     final private PackageRelationship _externalRel;
     final private CTHyperlink _ctHyperlink; //contains a reference to the cell where the hyperlink is anchored, getRef()
     private String _location; //what the hyperlink refers to
 
     /**
-     * Create a new XSSFHyperlink. This method is protected to be used only by XSSFCreationHelper
+     * Create a new XSSFHyperlink. This method is protected to be used only by
+     * {@link XSSFCreationHelper#createHyperlink(HyperlinkType)}.
      *
-     * @param type - the type of hyperlink to create, see {@link Hyperlink}
+     * @param type - the type of hyperlink to create
      */
-    protected XSSFHyperlink(int type) {
+    protected XSSFHyperlink(HyperlinkType type) {
         _type = type;
         _ctHyperlink = CTHyperlink.Factory.newInstance();
         _externalRel = null;
@@ -58,44 +61,47 @@ public class XSSFHyperlink implements Hyperlink {
         _ctHyperlink = ctHyperlink;
         _externalRel = hyperlinkRel;
 
-        // Figure out the Hyperlink type and distination
+        // Figure out the Hyperlink type and destination
 
-        // If it has a location, it's internal
-        if (ctHyperlink.getLocation() != null) {
-            _type = Hyperlink.LINK_DOCUMENT;
-            _location = ctHyperlink.getLocation();
-        } else {
-            // Otherwise it's somehow external, check
-            //  the relation to see how
-            if (_externalRel == null) {
-                if (ctHyperlink.getId() != null) {
-                    throw new IllegalStateException("The hyperlink for cell " + ctHyperlink.getRef() +
-                            " references relation " + ctHyperlink.getId() + ", but that didn't exist!");
-                }
-                // hyperlink is internal and is not related to other parts
-                _type = Hyperlink.LINK_DOCUMENT;
+        if (_externalRel == null) {
+            // If it has a location, it's internal
+            if (ctHyperlink.getLocation() != null) {
+                _type = HyperlinkType.DOCUMENT;
+                _location = ctHyperlink.getLocation();
+            } else if (ctHyperlink.getId() != null) {
+                throw new IllegalStateException("The hyperlink for cell "
+                        + ctHyperlink.getRef() + " references relation "
+                        + ctHyperlink.getId() + ", but that didn't exist!");
             } else {
-                URI target = _externalRel.getTargetURI();
-                _location = target.toString();
-
-                // Try to figure out the type
-                if (_location.startsWith("http://") || _location.startsWith("https://")
-                        || _location.startsWith("ftp://")) {
-                    _type = Hyperlink.LINK_URL;
-                } else if (_location.startsWith("mailto:")) {
-                    _type = Hyperlink.LINK_EMAIL;
-                } else {
-                    _type = Hyperlink.LINK_FILE;
-                }
+                // hyperlink is internal and is not related to other parts
+                _type = HyperlinkType.DOCUMENT;
+            }
+        } else {
+            URI target = _externalRel.getTargetURI();
+            _location = target.toString();
+            if (ctHyperlink.getLocation() != null) {
+                // URI fragment
+                _location += "#" + ctHyperlink.getLocation();
             }
 
-
+            // Try to figure out the type
+               if (_location.startsWith("http://") || _location.startsWith("https://")
+                    || _location.startsWith("ftp://")) {
+                _type = HyperlinkType.URL;
+            } else if (_location.startsWith("mailto:")) {
+                _type = HyperlinkType.EMAIL;
+            } else {
+                _type = HyperlinkType.FILE;
+            }
         }
-    }
-    
+
+     }
+
     /**
      * Create a new XSSFHyperlink. This method is for Internal use only.
-     * XSSFHyperlinks can be created by XSSFCreationHelper.
+     * XSSFHyperlinks can be created by {@link XSSFCreationHelper}.
+     * See the <a href="https://poi.apache.org/spreadsheet/quick-guide.html#Hyperlinks">spreadsheet quick-guide</a>
+     * for an example.
      *
      * @param other the hyperlink to copy
      */
@@ -129,7 +135,7 @@ public class XSSFHyperlink implements Hyperlink {
      * this hyperlink?
      */
     public boolean needsRelationToo() {
-        return (_type != Hyperlink.LINK_DOCUMENT);
+        return (_type != HyperlinkType.DOCUMENT);
     }
 
     /**
@@ -150,10 +156,24 @@ public class XSSFHyperlink implements Hyperlink {
      * Return the type of this hyperlink
      *
      * @return the type of this hyperlink
+     * @see HyperlinkType#forInt
      */
     @Override
-    public int getType() {
+    public HyperlinkType getType() {
         return _type;
+    }
+    
+    /**
+     * Return the type of this hyperlink
+     *
+     * @return the type of this hyperlink
+     * @deprecated use <code>getType</code> instead
+     */
+    @Deprecated
+    @Removal(version = "4.2")
+    @Override
+    public HyperlinkType getTypeEnum() {
+        return getType();
     }
 
     /**
@@ -165,7 +185,8 @@ public class XSSFHyperlink implements Hyperlink {
     }
 
     /**
-     * Hyperlink address. Depending on the hyperlink type it can be URL, e-mail, path to a file
+     * Hyperlink address. Depending on the hyperlink type it can be URL, e-mail, path to a file.
+     * The is the hyperlink target.
      *
      * @return the address of this hyperlink
      */
@@ -216,6 +237,7 @@ public class XSSFHyperlink implements Hyperlink {
 
     /**
      * Hyperlink address. Depending on the hyperlink type it can be URL, e-mail, path to a file
+     * This is the hyperlink target.
      *
      * @param address - the address of this hyperlink
      */
@@ -225,25 +247,29 @@ public class XSSFHyperlink implements Hyperlink {
 
        _location = address;
         //we must set location for internal hyperlinks
-        if (_type == Hyperlink.LINK_DOCUMENT) {
+        if (_type == HyperlinkType.DOCUMENT) {
             setLocation(address);
         }
     }
 
+    @SuppressWarnings("fall-through")
     private void validate(String address) {
-        switch (_type){
+        switch (_type) {
             // email, path to file and url must be valid URIs
-            case Hyperlink.LINK_EMAIL:
-            case Hyperlink.LINK_FILE:
-            case Hyperlink.LINK_URL:
+            case EMAIL:
+            case FILE:
+            case URL:
                 try {
                     new URI(address);
-                } catch (URISyntaxException x) {
-                    IllegalArgumentException y = new IllegalArgumentException("Address of hyperlink must be a valid URI");
-                    y.initCause(x);
-                    throw y;
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Address of hyperlink must be a valid URI", e);
                 }
                 break;
+            case DOCUMENT:
+                // currently not evaluating anything.
+                break;
+            default:
+                throw new IllegalStateException("Invalid Hyperlink type: " + _type);
         }
     }
 
@@ -254,7 +280,8 @@ public class XSSFHyperlink implements Hyperlink {
     public void setCellReference(String ref) {
         _ctHyperlink.setRef(ref);
     }
-    protected void setCellReference(CellReference ref) {
+    @Internal
+    public void setCellReference(CellReference ref) {
         setCellReference(ref.formatAsString());
     }
 

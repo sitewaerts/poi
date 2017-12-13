@@ -42,7 +42,7 @@ public final class Chunk {
 	protected CommandDefinition[] commandDefinitions;
 	/** The command+value pairs we hold */
 	private Command[] commands;
-	/** The blocks (if any) we hold */
+	/* The blocks (if any) we hold */
 	//private Block[] blocks
 	/** The name of the chunk, as found from the commandDefinitions */
 	private String name;
@@ -95,7 +95,7 @@ public final class Chunk {
 	public int getOnDiskSize() {
 		int size = header.getSizeInBytes() + contents.length;
 		if(trailer != null) {
-			size += trailer.trailerData.length;
+			size += trailer.getTrailerData().length;
 		}
 		if(separator != null) {
 			size += separator.separatorData.length;
@@ -115,7 +115,7 @@ public final class Chunk {
 
 		// Loop over the definitions, building the commands
 		//  and getting their values
-		ArrayList<Command> commandList = new ArrayList<Command>();
+		ArrayList<Command> commandList = new ArrayList<>();
 		for(CommandDefinition cdef : commandDefinitions) {
 			int type = cdef.getType();
 			int offset = cdef.getOffset();
@@ -137,7 +137,7 @@ public final class Chunk {
 				command = new Command(cdef);
 			}
 
-			// Bizarely, many of the offsets are from the start of the
+			// Bizarrely, many of the offsets are from the start of the
 			//  header, not from the start of the chunk body
 			switch(type) {
 			case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
@@ -172,7 +172,7 @@ public final class Chunk {
 					command.value = Byte.valueOf(contents[offset]);
 					break;
 				case 9:
-					command.value = new Double(
+					command.value = Double.valueOf(
 							LittleEndian.getDouble(contents, offset)
 					);
 					break;
@@ -265,7 +265,7 @@ public final class Chunk {
 		public CommandDefinition getDefinition() { return definition; }
 		public Object getValue() { return value; }
 	}
-	/**
+	/*
 	 * A special kind of command that is an artificat of how we
 	 *  process CommandDefinitions, and so doesn't actually exist
 	 *  in the chunk

@@ -16,39 +16,102 @@
 ==================================================================== */
 package org.apache.poi.xssf.usermodel;
 
+import java.util.Arrays;
+
 import org.apache.poi.ss.usermodel.Color;
 import org.apache.poi.ss.usermodel.ExtendedColor;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColor;
 
 /**
  * Represents a color in SpreadsheetML
  */
 public class XSSFColor extends ExtendedColor {
-    private CTColor ctColor;
+    private final CTColor ctColor;
+    private final IndexedColorMap indexedColorMap;
 
     /**
-     * Create an instance of XSSFColor from the supplied XML bean
+     * @param color
+     * @param map
+     * @return null if color is null, new instance otherwise
      */
+    public static XSSFColor from(CTColor color, IndexedColorMap map) {
+        return color == null ? null : new XSSFColor(color, map);
+    }
+    
+    /**
+     * Create an instance of XSSFColor from the supplied XML bean, with default color indexes
+     * @param color The {@link CTColor} to use as color-value.
+     * @deprecated 3.17 beta 1 - pass the workbook styles indexed color map, if any
+     */
+    @Deprecated
+    @Removal(version="3.19")
     public XSSFColor(CTColor color) {
+        this(color, new DefaultIndexedColorMap());
+    }
+    
+    /**
+     * Create an instance of XSSFColor from the supplied XML bean, with the given color indexes
+     * @param color The {@link CTColor} to use as color-value.
+     * @param map The IndexedColorMap to use instead of the default one
+     * @deprecated 4.0.0 - use the factory {@link #from(CTColor, IndexedColorMap)} method instead to check for null CTColor instances.  Make private eventually
+     */
+    @Deprecated
+    public XSSFColor(CTColor color, IndexedColorMap map) {
         this.ctColor = color;
+        this.indexedColorMap = map;
     }
 
     /**
-     * Create an new instance of XSSFColor
+     * Create an new instance of XSSFColor, without knowledge of any custom indexed colors.
+     * This is OK for just transiently setting indexes, etc. but is discouraged in read/get uses
+     * @deprecated as of 4.0.0, we want to have the indexed map, and all calling contexts have access to it.
+     * @see #XSSFColor(IndexedColorMap)
+     * @see #from(CTColor, IndexedColorMap)
      */
+    @Deprecated
+    @Removal(version="4.1")
     public XSSFColor() {
-        this.ctColor = CTColor.Factory.newInstance();
+        this(CTColor.Factory.newInstance(), new DefaultIndexedColorMap());
     }
 
-    public XSSFColor(java.awt.Color clr) {
-        this();
+    /**
+     * new color with the given indexed color map
+     * @param colorMap
+     */
+    public XSSFColor(IndexedColorMap colorMap) {
+        this(CTColor.Factory.newInstance(), colorMap);
+    }
+    
+    /**
+     * TEST ONLY
+     * @param clr awt Color
+     * @param map 
+     */
+    public XSSFColor(java.awt.Color clr, IndexedColorMap map) {
+        this(map);
         setColor(clr);
     }
 
-    public XSSFColor(byte[] rgb) {
-        this();
+    /**
+     *
+     * @param rgb The RGB-byte-values for the Color
+     * @param colorMap The IndexedColorMap to use instead of the default one
+     */
+    public XSSFColor(byte[] rgb, IndexedColorMap colorMap) {
+        this(CTColor.Factory.newInstance(), colorMap);
         ctColor.setRgb(rgb);
+    }
+    
+    /**
+     * @param indexedColor color index (Enum named for default colors)
+     * @param colorMap The IndexedColorMap to use instead of the default one
+     */
+    public XSSFColor(IndexedColors indexedColor, IndexedColorMap colorMap) {
+        this(CTColor.Factory.newInstance(), colorMap);
+        ctColor.setIndexed(indexedColor.index);
     }
 
     /**
@@ -59,7 +122,7 @@ public class XSSFColor extends ExtendedColor {
         return ctColor.getAuto();
     }
     /**
-     * A boolean value indicating the ctColor is automatic and system ctColor dependent.
+     * @param auto true if the ctColor is automatic and system ctColor dependent.
      */
     public void setAuto(boolean auto) {
         ctColor.setAuto(auto);
@@ -74,7 +137,7 @@ public class XSSFColor extends ExtendedColor {
     }
 
     /**
-     * A boolean value indicating the ctColor is RGB or ARGB based
+     * @return true if the ctColor is RGB or ARGB based
      */
     @Override
     public boolean isRGB() {
@@ -82,7 +145,7 @@ public class XSSFColor extends ExtendedColor {
     }
 
     /**
-     * A boolean value indicating the ctColor is Theme based
+     * @return true if the ctColor is Theme based
      */
     @Override
     public boolean isThemed() {
@@ -90,13 +153,17 @@ public class XSSFColor extends ExtendedColor {
     }
     
     /**
-     * A boolean value indicating if the ctColor has a tint or not
+     * @return true if the ctColor has a alpha
+     */
+    public boolean hasAlpha() {
+        return ctColor.isSetRgb() && ctColor.getRgb().length == 4;
+    }
+
+    /**
+     * @return true if the ctColor has a tint
      */
     public boolean hasTint() {
-        if (! ctColor.isSetRgb()) {
-            return false;
-        }
-        return ctColor.getRgb().length == 4;
+        return ctColor.isSetTint() && ctColor.getTint() != 0;
     }
 
     /**
@@ -107,7 +174,7 @@ public class XSSFColor extends ExtendedColor {
         return (short)ctColor.getIndexed();
     }
     /**
-     * Indexed ctColor value. Only used for backwards compatibility. References a ctColor in indexedColors.
+     * @return Indexed ctColor value. Only used for backwards compatibility. References a ctColor in indexedColors.
      */
     public short getIndexed() {
         return getIndex();
@@ -115,6 +182,7 @@ public class XSSFColor extends ExtendedColor {
 
     /**
      * Indexed ctColor value. Only used for backwards compatibility. References a ctColor in indexedColors.
+     * @param indexed color index
      */
     public void setIndexed(int indexed) {
         ctColor.setIndexed(indexed);
@@ -167,6 +235,14 @@ public class XSSFColor extends ExtendedColor {
        return ctColor.getRgb();
    }
 
+   protected byte[] getIndexedRGB() {
+       if (isIndexed()) {
+           if (indexedColorMap != null) return indexedColorMap.getRGB(getIndex());
+           return DefaultIndexedColorMap.getDefaultRGB(getIndex());
+       }
+       return null;
+   }
+   
     /**
      * Standard Alpha Red Green Blue ctColor value (ARGB).
      */
@@ -187,6 +263,7 @@ public class XSSFColor extends ExtendedColor {
     /**
      * Index into the <clrScheme> collection, referencing a particular <sysClr> or
      *  <srgbClr> value expressed in the Theme part.
+     * @param theme index
      */
     public void setTheme(int theme) {
         ctColor.setTheme(theme);
@@ -294,9 +371,19 @@ public class XSSFColor extends ExtendedColor {
         return ctColor;
     }
 
+    /**
+     * Checked type cast <tt>color</tt> to an XSSFColor.
+     *
+     * @param color the color to type cast
+     * @return the type casted color
+     * @throws IllegalArgumentException if color is null or is not an instance of XSSFColor
+     */
     public static XSSFColor toXSSFColor(Color color) {
+        // FIXME: this method would be more useful if it could convert any Color to an XSSFColor
+        // Currently the only benefit of this method is to throw an IllegalArgumentException
+        // instead of a ClassCastException.
         if (color != null && !(color instanceof XSSFColor)) {
-            throw new IllegalArgumentException("Only XSSFColor objects are supported");
+            throw new IllegalArgumentException("Only XSSFColor objects are supported, but had " + color.getClass());
         }
         return (XSSFColor)color;
     }
@@ -306,13 +393,50 @@ public class XSSFColor extends ExtendedColor {
         return ctColor.toString().hashCode();
     }
 
+    // Helper methods for {@link #equals(Object)}
+    private boolean sameIndexed(XSSFColor other) {
+        if (isIndexed() == other.isIndexed()) {
+            return !isIndexed() || getIndexed() == other.getIndexed();
+        }
+        return false;
+    }
+    private boolean sameARGB(XSSFColor other) {
+        if (isRGB() == other.isRGB()) {
+            return !isRGB() || Arrays.equals(getARGB(), other.getARGB());
+        }
+        return false;
+    }
+    private boolean sameTheme(XSSFColor other) {
+        if (isThemed() == other.isThemed()) {
+            return !isThemed() || getTheme() == other.getTheme();
+        }
+        return false;
+    }
+    private boolean sameTint(XSSFColor other) {
+        if (hasTint() == other.hasTint()) {
+            return !hasTint() || getTint() == other.getTint();
+        }
+        return false;
+    }
+    private boolean sameAuto(XSSFColor other) {
+        return isAuto() == other.isAuto();
+    }
+    
     @Override
     public boolean equals(Object o){
         if(!(o instanceof XSSFColor)) {
             return false;
         }
 
-        XSSFColor cf = (XSSFColor)o;
-        return ctColor.toString().equals(cf.getCTColor().toString());
+        XSSFColor other = (XSSFColor)o;
+        
+        // Compare each field in ctColor.
+        // Cannot compare ctColor's XML string representation because equivalent
+        // colors may have different relation namespace URI's
+        return sameARGB(other)
+                && sameTheme(other)
+                && sameIndexed(other)
+                && sameTint(other)
+                && sameAuto(other);
     }
 }

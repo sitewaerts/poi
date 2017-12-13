@@ -19,20 +19,19 @@ package org.apache.poi.hssf.record;
 
 import org.apache.poi.hssf.record.cont.ContinuableRecord;
 import org.apache.poi.hssf.record.cont.ContinuableRecordOutput;
+import org.apache.poi.hssf.usermodel.HSSFRichTextString;
 import org.apache.poi.ss.formula.ptg.OperandPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
-import org.apache.poi.hssf.usermodel.HSSFRichTextString;
 import org.apache.poi.util.BitField;
 import org.apache.poi.util.BitFieldFactory;
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * The TXO record (0x01B6) is used to define the properties of a text box. It is
  * followed by two or more continue records unless there is no actual text. The
  * first continue records contain the text data and the last continue record
- * contains the formatting runs.<p/>
- *
- * @author Glen Stampoultzis (glens at apache.org)
+ * contains the formatting runs.
  */
 public final class TextObjectRecord extends ContinuableRecord {
 	public final static short sid = 0x01B6;

@@ -42,14 +42,14 @@ public class ExcelAntEvaluateCell extends Task {
 	private double precision ;
 	private double precisionToUse ;
 	private double globalPrecision ;
-	private boolean requiredToPass = false ;
+	private boolean requiredToPass;
 	
 	
 	private ExcelAntEvaluationResult result  ;
 	
 	private ExcelAntWorkbookUtil wbUtil ;
 	
-	private boolean showDelta = false ;
+	private boolean showDelta;
 	
 	
 	public ExcelAntEvaluateCell() {}
@@ -102,7 +102,8 @@ public class ExcelAntEvaluateCell extends Task {
 		return precisionToUse;
 	}
 	
-	public void execute() throws BuildException {
+	@Override
+    public void execute() throws BuildException {
 		
 		precisionToUse = 0 ;
 		
@@ -125,13 +126,13 @@ public class ExcelAntEvaluateCell extends Task {
 		}
 		result = wbUtil.evaluateCell(cell, expectedValue, precisionToUse ) ;
 		
-		StringBuffer sb = new StringBuffer() ;
+		StringBuilder sb = new StringBuilder() ;
 		sb.append( "evaluation of cell " ) ;
 		sb.append( cell ) ; 
 		sb.append( " resulted in " ) ;
 		sb.append( result.getReturnValue() ) ;
-		if( showDelta == true ) {
-			sb.append( " with a delta of " + result.getDelta() ) ;
+		if(showDelta) {
+			sb.append(" with a delta of ").append(result.getDelta());
 		}
 		
 		log( sb.toString(), Project.MSG_DEBUG) ;
@@ -141,6 +142,4 @@ public class ExcelAntEvaluateCell extends Task {
 	public ExcelAntEvaluationResult getResult() {
 		return result ;
 	}
-	
-	
 }

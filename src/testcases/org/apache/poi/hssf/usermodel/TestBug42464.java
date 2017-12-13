@@ -24,9 +24,9 @@ import java.util.Iterator;
 import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.hssf.record.FormulaRecord;
 import org.apache.poi.hssf.record.aggregates.FormulaRecordAggregate;
-import org.apache.poi.hssf.util.CellReference;
-import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.Row;
 import org.junit.Test;
@@ -67,14 +67,14 @@ public final class TestBug42464 {
 		Iterator<Cell> it = row.cellIterator();
 		while(it.hasNext()) {
 			HSSFCell cell = (HSSFCell)it.next();
-			if(cell.getCellType() != HSSFCell.CELL_TYPE_FORMULA) {
+			if(cell.getCellType() != CellType.FORMULA) {
 			    continue;
 			}
 			FormulaRecordAggregate record = (FormulaRecordAggregate) cell.getCellValueRecord();
 			FormulaRecord r = record.getFormulaRecord();
-			Ptg[] ptgs = r.getParsedExpression();
+			/*Ptg[] ptgs =*/ r.getParsedExpression();
 
-			String cellRef = new CellReference(row.getRowNum(), cell.getColumnIndex(), false, false).formatAsString();
+			/*String cellRef =*/ new CellReference(row.getRowNum(), cell.getColumnIndex(), false, false).formatAsString();
 //			if(false && cellRef.equals("BP24")) { // TODO - replace System.out.println()s with asserts
 //				System.out.print(cellRef);
 //				System.out.println(" - has " + ptgs.length + " ptgs:");

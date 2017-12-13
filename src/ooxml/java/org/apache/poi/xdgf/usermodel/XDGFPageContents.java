@@ -24,7 +24,6 @@ import java.util.Map;
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.xdgf.exceptions.XDGFException;
 import org.apache.xmlbeans.XmlException;
 
@@ -32,7 +31,7 @@ import com.microsoft.schemas.office.visio.x2012.main.PageContentsDocument;
 
 public class XDGFPageContents extends XDGFBaseContents {
 
-    protected Map<Long, XDGFMaster> _masters = new HashMap<Long, XDGFMaster>();
+    protected Map<Long, XDGFMaster> _masters = new HashMap<>();
     protected XDGFPage _page;
 
     /**
@@ -40,14 +39,6 @@ public class XDGFPageContents extends XDGFBaseContents {
      */
     public XDGFPageContents(PackagePart part, XDGFDocument document) {
         super(part, document);
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XDGFPageContents(PackagePart part, PackageRelationship rel, XDGFDocument document) {
-        this(part, document);
     }
     
     @Override

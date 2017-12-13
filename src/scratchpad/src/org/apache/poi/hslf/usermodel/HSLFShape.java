@@ -26,7 +26,10 @@ import java.util.List;
 import org.apache.poi.ddf.AbstractEscherOptRecord;
 import org.apache.poi.ddf.EscherChildAnchorRecord;
 import org.apache.poi.ddf.EscherClientAnchorRecord;
+import org.apache.poi.ddf.EscherClientDataRecord;
 import org.apache.poi.ddf.EscherColorRef;
+import org.apache.poi.ddf.EscherColorRef.SysIndexProcedure;
+import org.apache.poi.ddf.EscherColorRef.SysIndexSource;
 import org.apache.poi.ddf.EscherContainerRecord;
 import org.apache.poi.ddf.EscherProperties;
 import org.apache.poi.ddf.EscherProperty;
@@ -38,7 +41,9 @@ import org.apache.poi.hslf.record.ColorSchemeAtom;
 import org.apache.poi.hslf.record.HSLFEscherClientDataRecord;
 import org.apache.poi.hslf.record.Record;
 import org.apache.poi.hslf.record.RecordTypes;
+import org.apache.poi.sl.draw.DrawFactory;
 import org.apache.poi.sl.usermodel.FillStyle;
+import org.apache.poi.sl.usermodel.PresetColor;
 import org.apache.poi.sl.usermodel.Shape;
 import org.apache.poi.sl.usermodel.ShapeContainer;
 import org.apache.poi.sl.usermodel.ShapeType;
@@ -61,31 +66,29 @@ import org.apache.poi.util.Units;
  * <p>
  */
 public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
-
-    // For logging
-    protected POILogger logger = POILogFactory.getLogger(this.getClass());
+    private static final POILogger LOG = POILogFactory.getLogger(HSLFShape.class);
 
     /**
      * Either EscherSpContainer or EscheSpgrContainer record
      * which holds information about this shape.
      */
-    protected EscherContainerRecord _escherContainer;
+    private EscherContainerRecord _escherContainer;
 
     /**
      * Parent of this shape.
      * <code>null</code> for the topmost shapes.
      */
-    protected ShapeContainer<HSLFShape,HSLFTextParagraph> _parent;
+    private ShapeContainer<HSLFShape,HSLFTextParagraph> _parent;
 
     /**
      * The <code>Sheet</code> this shape belongs to
      */
-    protected HSLFSheet _sheet;
+    private HSLFSheet _sheet;
 
     /**
      * Fill
      */
-    protected HSLFFill _fill;
+    private HSLFFill _fill;
     
     /**
      * Create a Shape object. This constructor is used when an existing Shape is read from from a PowerPoint document.
@@ -99,13 +102,20 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
      }
 
     /**
-     * Creates the lowerlevel escher records for this shape.
+     * Create and assign the lower level escher record to this shape
      */
-    protected abstract EscherContainerRecord createSpContainer(boolean isChild);
+    protected EscherContainerRecord createSpContainer(boolean isChild) {
+        if (_escherContainer == null) {
+            _escherContainer = new EscherContainerRecord();
+            _escherContainer.setOptions((short)15);
+        }
+        return _escherContainer;
+    }
 
     /**
      *  @return the parent of this shape
      */
+    @Override
     public ShapeContainer<HSLFShape,HSLFTextParagraph> getParent(){
         return _parent;
     }
@@ -134,6 +144,7 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
      *
      * @return the anchor of this shape
      */
+    @Override
     public Rectangle2D getAnchor() {
         EscherSpRecord spRecord = getEscherChild(EscherSpRecord.RECORD_ID);
         int flags = spRecord.getFlags();
@@ -147,7 +158,7 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
             y2 = childRec.getDy2();
         } else {
             if (useChildRec) {
-                logger.log(POILogger.WARN, "EscherSpRecord.FLAG_CHILD is set but EscherChildAnchorRecord was not found");
+                LOG.log(POILogger.WARN, "EscherSpRecord.FLAG_CHILD is set but EscherChildAnchorRecord was not found");
             }
             EscherClientAnchorRecord clientRec = getEscherChild(EscherClientAnchorRecord.RECORD_ID);
             x1 = clientRec.getCol1();
@@ -157,14 +168,13 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
         }
 
         // TODO: find out where this -1 value comes from at #57820 (link to ms docs?)
-        Rectangle2D anchor = new Rectangle2D.Double(
+
+        return new Rectangle2D.Double(
             (x1 == -1 ? -1 : Units.masterToPoints(x1)),
             (y1 == -1 ? -1 : Units.masterToPoints(y1)),
             (x2 == -1 ? -1 : Units.masterToPoints(x2-x1)),
             (y2 == -1 ? -1 : Units.masterToPoints(y2-y1))
         );
-        
-        return anchor;
     }
 
     /**
@@ -181,13 +191,13 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
         EscherSpRecord spRecord = getEscherChild(EscherSpRecord.RECORD_ID);
         int flags = spRecord.getFlags();
         if ((flags & EscherSpRecord.FLAG_CHILD) != 0){
-            EscherChildAnchorRecord rec = (EscherChildAnchorRecord)getEscherChild(EscherChildAnchorRecord.RECORD_ID);
+            EscherChildAnchorRecord rec = getEscherChild(EscherChildAnchorRecord.RECORD_ID);
             rec.setDx1(x);
             rec.setDy1(y);
             rec.setDx2(w);
             rec.setDy2(h);
         } else {
-            EscherClientAnchorRecord rec = (EscherClientAnchorRecord)getEscherChild(EscherClientAnchorRecord.RECORD_ID);
+            EscherClientAnchorRecord rec = getEscherChild(EscherClientAnchorRecord.RECORD_ID);
             rec.setCol1((short)x);
             rec.setFlag((short)y);
             rec.setDx1((short)w);
@@ -243,7 +253,7 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
      * @return escher property or <code>null</code> if not found.
      */
      public static <T extends EscherProperty> T getEscherProperty(AbstractEscherOptRecord opt, int propId){
-         return (opt == null) ? null : opt.<T>lookup(propId);
+         return (opt == null) ? null : opt.lookup(propId);
      }
 
     /**
@@ -325,6 +335,7 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
     /**
      *  @return the <code>SlideShow</code> this shape belongs to
      */
+    @Override
     public HSLFSheet getSheet(){
         return _sheet;
     }
@@ -346,7 +357,16 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
         int val = (p == null) ? defaultColor : p.getPropertyValue();
 
         EscherColorRef ecr = new EscherColorRef(val);
-        
+        Color col = getColor(ecr);
+        if (col == null) {
+            return null;
+        }
+
+        double alpha = getAlpha(opacityProperty);
+        return new Color(col.getRed(), col.getGreen(), col.getBlue(), (int)(alpha*255.0));
+    }
+
+    Color getColor(EscherColorRef ecr) {
         boolean fPaletteIndex = ecr.hasPaletteIndexFlag();
         boolean fPaletteRGB = ecr.hasPaletteRGBFlag();
         boolean fSystemRGB = ecr.hasSystemRGBFlag();
@@ -364,20 +384,121 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
             rgb[0] = (schemeColor >> 0) & 0xFF;
             rgb[1] = (schemeColor >> 8) & 0xFF;
             rgb[2] = (schemeColor >> 16) & 0xFF;
-        } else if (fPaletteIndex){
+        } else if (fPaletteIndex) {
             //TODO
-        } else if (fPaletteRGB){
+        } else if (fPaletteRGB) {
             //TODO
-        } else if (fSystemRGB){
+        } else if (fSystemRGB) {
             //TODO
-        } else if (fSysIndex){
-            //TODO
+        } else if (fSysIndex) {
+            Color col = getSysIndexColor(ecr);
+            col = applySysIndexProcedure(ecr, col);
+            return col;
         }
-
-        double alpha = getAlpha(opacityProperty);
-        return new Color(rgb[0], rgb[1], rgb[2], (int)(alpha*255.0));
+        
+        return new Color(rgb[0], rgb[1], rgb[2]);
     }
-
+    
+    private Color getSysIndexColor(EscherColorRef ecr) {
+        SysIndexSource sis = ecr.getSysIndexSource();
+        if (sis == null) {
+            int sysIdx = ecr.getSysIndex();
+            PresetColor pc = PresetColor.valueOfNativeId(sysIdx);
+            return (pc != null) ? pc.color : null;
+        }
+        
+        // TODO: check for recursive loops, when color getter also reference
+        // a different color type
+        switch (sis) {
+            case FILL_COLOR: {
+                return getFill().getForegroundColor();
+            }
+            case LINE_OR_FILL_COLOR: {
+                Color col = null;
+                if (this instanceof HSLFSimpleShape) {
+                    col = ((HSLFSimpleShape)this).getLineColor();
+                }
+                if (col == null) {
+                    col = getFill().getForegroundColor();
+                }
+                return col;
+            }
+            case LINE_COLOR: {
+                if (this instanceof HSLFSimpleShape) {
+                    return ((HSLFSimpleShape)this).getLineColor();
+                }
+                break;
+            }
+            case SHADOW_COLOR: {
+                if (this instanceof HSLFSimpleShape) {
+                    return ((HSLFSimpleShape)this).getShadowColor();
+                }
+                break;
+            }
+            case CURRENT_OR_LAST_COLOR: {
+                // TODO ... read from graphics context???
+                break;
+            }
+            case FILL_BACKGROUND_COLOR: {
+                return getFill().getBackgroundColor();
+            }
+            case LINE_BACKGROUND_COLOR: {
+                if (this instanceof HSLFSimpleShape) {
+                    return ((HSLFSimpleShape)this).getLineBackgroundColor();
+                }
+                break;
+            }
+            case FILL_OR_LINE_COLOR: {
+                Color col = getFill().getForegroundColor();
+                if (col == null && this instanceof HSLFSimpleShape) {
+                    col = ((HSLFSimpleShape)this).getLineColor();
+                }
+                return col;
+            }
+            default:
+                break;
+        }
+            
+        return null;
+    }
+        
+    private Color applySysIndexProcedure(EscherColorRef ecr, Color col) {
+        
+        final SysIndexProcedure sip = ecr.getSysIndexProcedure();
+        if (col == null || sip == null) {
+            return col;
+        }
+        
+        switch (sip) {
+            case DARKEN_COLOR: {
+                // see java.awt.Color#darken()
+                double FACTOR = (ecr.getRGB()[2])/255.;
+                int r = (int)Math.rint(col.getRed()*FACTOR);
+                int g = (int)Math.rint(col.getGreen()*FACTOR);
+                int b = (int)Math.rint(col.getBlue()*FACTOR);
+                return new Color(r,g,b);                
+            }
+            case LIGHTEN_COLOR: {
+                double FACTOR = (0xFF-ecr.getRGB()[2])/255.;
+                               
+                int r = col.getRed();
+                int g = col.getGreen();
+                int b = col.getBlue();
+                
+                r += Math.rint((0xFF-r)*FACTOR);
+                g += Math.rint((0xFF-g)*FACTOR);
+                b += Math.rint((0xFF-b)*FACTOR);
+                
+                return new Color(r,g,b);
+            }
+            default:
+                // TODO ...
+                break;
+        }
+        
+        return col;
+    }
+    
     double getAlpha(short opacityProperty) {
         AbstractEscherOptRecord opt = getEscherOptRecord();
         EscherSimpleProperty op = getEscherProperty(opt, opacityProperty);
@@ -442,8 +563,9 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
         return getFill().getFillStyle();
     }
 
-    public void draw(Graphics2D graphics){
-        logger.log(POILogger.INFO, "Rendering " + getShapeName());
+    @Override
+    public void draw(Graphics2D graphics, Rectangle2D bounds){
+        DrawFactory.getInstance(graphics).drawShape(graphics, this, bounds);
     }
 
     public AbstractEscherOptRecord getEscherOptRecord() {
@@ -524,11 +646,11 @@ public abstract class HSLFShape implements Shape<HSLFShape,HSLFTextParagraph> {
      * @return the client record or null if it was missing and create wasn't activated
      */
     protected HSLFEscherClientDataRecord getClientData(boolean create) {
-        HSLFEscherClientDataRecord clientData = getEscherChild(HSLFEscherClientDataRecord.RECORD_ID);
+        HSLFEscherClientDataRecord clientData = getEscherChild(EscherClientDataRecord.RECORD_ID);
         if (clientData == null && create) {
             clientData = new HSLFEscherClientDataRecord();
             clientData.setOptions((short)15);
-            clientData.setRecordId(HSLFEscherClientDataRecord.RECORD_ID);
+            clientData.setRecordId(EscherClientDataRecord.RECORD_ID);
             getSpContainer().addChildBefore(clientData, EscherTextboxRecord.RECORD_ID);
         }
         return clientData;

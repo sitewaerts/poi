@@ -16,24 +16,23 @@
 ==================================================================== */
 package org.apache.poi.ss.usermodel;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PushbackInputStream;
-import java.security.GeneralSecurityException;
 
 import org.apache.poi.EmptyFileException;
 import org.apache.poi.EncryptedDocumentException;
-import org.apache.poi.POIXMLDocument;
 import org.apache.poi.hssf.record.crypto.Biff8EncryptionKey;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.poifs.crypt.Decryptor;
-import org.apache.poi.poifs.crypt.EncryptionInfo;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
+import org.apache.poi.poifs.filesystem.DocumentFactoryHelper;
+import org.apache.poi.poifs.filesystem.FileMagic;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.OfficeXmlFileException;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
@@ -81,36 +80,12 @@ public class WorkbookFactory {
      *  @throws IOException if an error occurs while reading the data
      *  @throws InvalidFormatException if the contents of the file cannot be parsed into a {@link Workbook}
      */
-    private static Workbook create(NPOIFSFileSystem fs, String password) throws IOException, InvalidFormatException {
+    private static Workbook create(final NPOIFSFileSystem fs, String password) throws IOException, InvalidFormatException {
         DirectoryNode root = fs.getRoot();
 
         // Encrypted OOXML files go inside OLE2 containers, is this one?
         if (root.hasEntry(Decryptor.DEFAULT_POIFS_ENTRY)) {
-            EncryptionInfo info = new EncryptionInfo(fs);
-            Decryptor d = Decryptor.getInstance(info);
-
-            boolean passwordCorrect = false;
-            InputStream stream = null;
-            try {
-                if (password != null && d.verifyPassword(password)) {
-                    passwordCorrect = true;
-                }
-                if (!passwordCorrect && d.verifyPassword(Decryptor.DEFAULT_PASSWORD)) {
-                    passwordCorrect = true;
-                }
-                if (passwordCorrect) {
-                    stream = d.getDataStream(root);
-                }
-            } catch (GeneralSecurityException e) {
-                throw new IOException(e);
-            }
-
-            if (! passwordCorrect) {
-                if (password != null)
-                    throw new EncryptedDocumentException("Password incorrect");
-                else
-                    throw new EncryptedDocumentException("The supplied spreadsheet is protected, but no password was supplied");
-            }
+            InputStream stream = DocumentFactoryHelper.getDecryptedStream(fs, password);
 
             OPCPackage pkg = OPCPackage.open(stream);
             return create(pkg);
@@ -118,13 +93,17 @@ public class WorkbookFactory {
 
         // If we get here, it isn't an encrypted XLSX file
         // So, treat it as a regular HSSF XLS one
+        boolean passwordSet = false;
         if (password != null) {
             Biff8EncryptionKey.setCurrentUserPassword(password);
+            passwordSet = true;
         }
         try {
             return new HSSFWorkbook(root, true);
         } finally {
-            Biff8EncryptionKey.setCurrentUserPassword(null);
+            if (passwordSet) {
+                Biff8EncryptionKey.setCurrentUserPassword(null);
+            }
         }
     }
 
@@ -149,7 +128,7 @@ public class WorkbookFactory {
      *  the given InputStream.
      *
      * <p>Your input stream MUST either support mark/reset, or
-     *  be wrapped as a {@link PushbackInputStream}! Note that
+     *  be wrapped as a {@link BufferedInputStream}! Note that
      *  using an {@link InputStream} has a higher memory footprint
      *  than using a {@link File}.</p>
      *
@@ -172,16 +151,15 @@ public class WorkbookFactory {
 
     /**
      * Creates the appropriate HSSFWorkbook / XSSFWorkbook from
-     *  the given InputStream, which may be password protected.
-     * <p>Your input stream MUST either support mark/reset, or
-     *  be wrapped as a {@link PushbackInputStream}! Note that
-     *  using an {@link InputStream} has a higher memory footprint
-     *  than using a {@link File}.</p>
+     *  the given InputStream, which may be password protected.<p>
+     *  
+     * Note that using an {@link InputStream} has a higher memory footprint
+     *  than using a {@link File}.<p>
      *
-     * <p>Note that in order to properly release resources the
+     * Note that in order to properly release resources the
      *  Workbook should be closed after use. Note also that loading
      *  from an InputStream requires more memory than loading
-     *  from a File, so prefer {@link #create(File)} where possible.</p>
+     *  from a File, so prefer {@link #create(File)} where possible.
      *
      *  @param inp The {@link InputStream} to read data from.
      *  @param password The password that should be used or null if no password is necessary.
@@ -194,23 +172,19 @@ public class WorkbookFactory {
      *  @throws EmptyFileException If an empty stream is given
      */
     public static Workbook create(InputStream inp, String password) throws IOException, InvalidFormatException, EncryptedDocumentException {
-        // If clearly doesn't do mark/reset, wrap up
-        if (! inp.markSupported()) {
-            inp = new PushbackInputStream(inp, 8);
-        }
-
-        // Ensure that there is at least some data there
-        byte[] header8 = IOUtils.peekFirst8Bytes(inp);
-
-        // Try to create
-        if (NPOIFSFileSystem.hasPOIFSHeader(header8)) {
-            NPOIFSFileSystem fs = new NPOIFSFileSystem(inp);
+        InputStream is = FileMagic.prepareToCheckMagic(inp);
+        
+        FileMagic fm = FileMagic.valueOf(is);
+        
+        switch (fm) {
+        case OLE2:
+            NPOIFSFileSystem fs = new NPOIFSFileSystem(is);
             return create(fs, password);
+        case OOXML:
+            return new XSSFWorkbook(OPCPackage.open(is));
+        default:
+            throw new InvalidFormatException("Your InputStream was neither an OLE2 stream, nor an OOXML stream");
         }
-        if (POIXMLDocument.hasOOXMLHeader(inp)) {
-            return new XSSFWorkbook(OPCPackage.open(inp));
-        }
-        throw new InvalidFormatException("Your InputStream was neither an OLE2 stream, nor an OOXML stream");
     }
 
     /**
@@ -276,35 +250,25 @@ public class WorkbookFactory {
             throw new FileNotFoundException(file.toString());
         }
 
-        try {
-            NPOIFSFileSystem fs = new NPOIFSFileSystem(file, readOnly);
-            try {
-                return create(fs, password);
-            } catch (RuntimeException e) {
-                // ensure that the file-handle is closed again
-                fs.close();
-                
-                throw e;
-            }
+        try (NPOIFSFileSystem fs = new NPOIFSFileSystem(file, readOnly)) {
+            return create(fs, password);
         } catch(OfficeXmlFileException e) {
             // opening as .xls failed => try opening as .xlsx
-            OPCPackage pkg = OPCPackage.open(file, readOnly ? PackageAccess.READ : PackageAccess.READ_WRITE);
+            OPCPackage pkg = OPCPackage.open(file, readOnly ? PackageAccess.READ : PackageAccess.READ_WRITE); // NOSONAR
             try {
                 return new XSSFWorkbook(pkg);
-            } catch (IOException ioe) {
-                // ensure that file handles are closed (use revert() to not re-write the file)
+            } catch (Exception ioe) {
+                // ensure that file handles are closed - use revert() to not re-write the file
                 pkg.revert();
-                //pkg.close();
+                // do not pkg.close();
 
-                // rethrow exception
-                throw ioe;
-            } catch (RuntimeException ioe) {
-                // ensure that file handles are closed (use revert() to not re-write the file)
-                pkg.revert();
-                //pkg.close();
-
-                // rethrow exception
-                throw ioe;
+                if (ioe instanceof IOException) {
+                    throw (IOException)ioe;
+                } else if (ioe instanceof RuntimeException) {
+                    throw (RuntimeException)ioe;
+                } else {
+                    throw new IOException(ioe);
+                }
             }
         }
     }

@@ -17,7 +17,10 @@
 
 package org.apache.poi.openxml4j.opc.internal;
 
-import java.util.Hashtable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,17 +55,17 @@ public final class ContentType {
 	/**
 	 * Type in Type/Subtype.
 	 */
-	private String type;
+	private final String type;
 
 	/**
 	 * Subtype
 	 */
-	private String subType;
+	private final String subType;
 
 	/**
 	 * Parameters
 	 */
-	private Hashtable<String, String> parameters;
+	private final Map<String, String> parameters;
 
 	/**
 	 * Media type compiled pattern, without parameters
@@ -143,15 +146,15 @@ public final class ContentType {
 	public ContentType(String contentType) throws InvalidFormatException {
 		Matcher mMediaType = patternTypeSubType.matcher(contentType);
 		if (!mMediaType.matches()) {
-		    // How about with parameters?
-		    mMediaType = patternTypeSubTypeParams.matcher(contentType);
+			// How about with parameters?
+			mMediaType = patternTypeSubTypeParams.matcher(contentType);
 		}
-        if (!mMediaType.matches()) {
+		if (!mMediaType.matches()) {
 			throw new InvalidFormatException(
 					"The specified content type '"
 					+ contentType
 					+ "' is not compliant with RFC 2616: malformed content type.");
-        }
+		}
 
 		// Type/subtype
 		if (mMediaType.groupCount() >= 2) {
@@ -159,15 +162,20 @@ public final class ContentType {
 			this.subType = mMediaType.group(2);
 			
 			// Parameters
-			this.parameters = new Hashtable<String, String>(1);
+			this.parameters = new HashMap<>();
 			// Java RegExps are unhelpful, and won't do multiple group captures
 			// See http://docs.oracle.com/javase/6/docs/api/java/util/regex/Pattern.html#cg
 			if (mMediaType.groupCount() >= 5) {
-			    Matcher mParams = patternParams.matcher(contentType.substring(mMediaType.end(2)));
-			    while (mParams.find()) {
-			        this.parameters.put(mParams.group(1), mParams.group(2));
-			    }
+				Matcher mParams = patternParams.matcher(contentType.substring(mMediaType.end(2)));
+				while (mParams.find()) {
+					this.parameters.put(mParams.group(1), mParams.group(2));
+				}
 			}
+		} else {
+			// missing media type and subtype
+			this.type = "";
+			this.subType = "";
+			this.parameters = Collections.emptyMap(); 
 		}
 	}
 
@@ -180,17 +188,17 @@ public final class ContentType {
 	}
 
 	public final String toString(boolean withParameters) {
-	    StringBuffer retVal = new StringBuffer();
+		StringBuilder retVal = new StringBuilder(64);
 	    retVal.append(this.getType());
-	    retVal.append("/");
+	    retVal.append('/');
 	    retVal.append(this.getSubType());
 
 	    if (withParameters) {
-	        for (String key : parameters.keySet()) {
-	            retVal.append(";");
-	            retVal.append(key);
-	            retVal.append("=");
-	            retVal.append(parameters.get(key));
+	        for (Entry<String, String> me : parameters.entrySet()) {
+	            retVal.append(';');
+	            retVal.append(me.getKey());
+	            retVal.append('=');
+	            retVal.append(me.getValue());
 	        }
 	    }
 	    return retVal.toString();
@@ -253,10 +261,4 @@ public final class ContentType {
 	public String getParameter(String key) {
 		return parameters.get(key);
 	}
-	/**
-	 * @deprecated Use {@link #getParameter(String)} instead
-	 */
-    public String getParameters(String key) {
-        return getParameter(key);
-    }
 }

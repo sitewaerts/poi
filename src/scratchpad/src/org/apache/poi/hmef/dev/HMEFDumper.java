@@ -29,32 +29,40 @@ import org.apache.poi.hmef.attribute.TNEFDateAttribute;
 import org.apache.poi.hmef.attribute.TNEFProperty;
 import org.apache.poi.hmef.attribute.TNEFStringAttribute;
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 
 /**
  * Developer focused raw dumper
  */
 public final class HMEFDumper {
+
+   //arbitrarily selected; may need to increase
+   private static final int MAX_RECORD_LENGTH = 1_000_000;
+
    public static void main(String[] args) throws Exception {
       if(args.length < 1) {
          throw new IllegalArgumentException("Filename must be given");
       }
       
       boolean truncatePropData = true;
-      for(int i=0; i<args.length; i++) {
-         if(args[i].equalsIgnoreCase("--full")) {
+      for (String arg : args) {
+         if (arg.equalsIgnoreCase("--full")) {
             truncatePropData = false;
             continue;
          }
-         
-         HMEFDumper dumper = new HMEFDumper(
-               new FileInputStream(args[i])
-         );
-         dumper.setTruncatePropertyData(truncatePropData);
-         dumper.dump();
+
+         InputStream stream = new FileInputStream(arg);
+         try {
+            HMEFDumper dumper = new HMEFDumper(stream);
+            dumper.setTruncatePropertyData(truncatePropData);
+            dumper.dump();
+         } finally {
+            stream.close();
+         }
       }
    }
-   
+
    private InputStream inp;
    private boolean truncatePropertyData;
    
@@ -105,7 +113,7 @@ public final class HMEFDumper {
          // Print the attribute into
          System.out.println(
                "Level " + level + " : Type " + attr.getType() +
-               " : ID " + attr.getProperty().toString()
+               " : ID " + attr.getProperty()
          );
          
          // Print the contents
@@ -135,7 +143,7 @@ public final class HMEFDumper {
                   thisLen = len - offset;
                }
 
-               byte data[] = new byte[thisLen];
+               byte data[] = IOUtils.safelyAllocate(thisLen, MAX_RECORD_LENGTH);
                System.arraycopy(attr.getData(), offset, data, 0, thisLen);
                
                System.out.print(

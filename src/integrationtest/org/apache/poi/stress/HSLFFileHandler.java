@@ -19,49 +19,86 @@ package org.apache.poi.stress;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.*;
 
 import org.apache.poi.hslf.record.Record;
 import org.apache.poi.hslf.usermodel.HSLFSlideShow;
 import org.apache.poi.hslf.usermodel.HSLFSlideShowImpl;
+import org.apache.poi.util.POILogger;
+import org.apache.poi.util.SystemOutLogger;
 import org.junit.Test;
 
 public class HSLFFileHandler extends SlideShowHandler {
-	@Override
-	public void handleFile(InputStream stream) throws Exception {
-		HSLFSlideShowImpl slide = new HSLFSlideShowImpl(stream);
-		assertNotNull(slide.getCurrentUserAtom());
-		assertNotNull(slide.getEmbeddedObjects());
-		assertNotNull(slide.getUnderlyingBytes());
-		assertNotNull(slide.getPictureData());
-		Record[] records = slide.getRecords();
-		assertNotNull(records);
-		for(Record record : records) {
-			assertTrue(record.getRecordType() >= 0);
-		}
-		
-		handlePOIDocument(slide);
-		
-		HSLFSlideShow ss = new HSLFSlideShow(slide);
-		handleSlideShow(ss);
-	}
-	
-	// a test-case to test this locally without executing the full TestAllFiles
-	@Test
-	public void test() throws Exception {
-		InputStream stream = new FileInputStream("test-data/hpsf/Test_Humor-Generation.ppt");
-		try {
-			handleFile(stream);
-		} finally {
-			stream.close();
-		}
-	}
-
-    // a test-case to test this locally without executing the full TestAllFiles
+    @Override
+    public void handleFile(InputStream stream, String path) throws Exception {
+        HSLFSlideShowImpl slide = new HSLFSlideShowImpl(stream);
+        assertNotNull(slide.getCurrentUserAtom());
+        assertNotNull(slide.getEmbeddedObjects());
+        assertNotNull(slide.getUnderlyingBytes());
+        assertNotNull(slide.getPictureData());
+        Record[] records = slide.getRecords();
+        assertNotNull(records);
+        for(Record record : records) {
+            assertNotNull("Found a record which was null", record);
+            assertTrue(record.getRecordType() >= 0);
+        }
+        
+        handlePOIDocument(slide);
+        
+        HSLFSlideShow ss = new HSLFSlideShow(slide);
+        handleSlideShow(ss);
+    }
+    
     @Test
-    public void testExtractor() throws Exception {
-        handleExtracting(new File("test-data/slideshow/ae.ac.uaeu.faculty_nafaachbili_GeomLec1.pptx"));
-   }
+    public void testOne() throws Exception {
+        testOneFile(new File("test-data/slideshow/54880_chinese.ppt"));
+    }
+
+    // a test-case to test all .ppt files without executing the full TestAllFiles
+    @Override
+    @Test
+    public void test() throws Exception {
+        File[] files = new File("test-data/slideshow/").listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.endsWith(".ppt");
+            }
+        });
+        assertNotNull(files);
+
+        System.out.println("Testing " + files.length + " files");
+
+        POILogger logger = new SystemOutLogger();
+        for(File file : files) {
+            try {
+                testOneFile(file);
+            } catch (Throwable e) {
+                logger.log(POILogger.WARN, "Failed to handle file " + file, e);
+            }
+        }
+    }
+
+    private void testOneFile(File file) throws Exception {
+        System.out.println(file);
+
+        //System.setProperty("org.apache.poi.util.POILogger", "org.apache.poi.util.SystemOutLogger");
+        InputStream stream = new FileInputStream(file);
+        try {
+            handleFile(stream, file.getPath());
+        } finally {
+            stream.close();
+        }
+
+        handleExtracting(file);
+    }
+
+    public static void main(String[] args) throws Exception {
+        System.setProperty("org.apache.poi.util.POILogger", "org.apache.poi.util.SystemOutLogger");
+        InputStream stream = new FileInputStream(args[0]);
+        try {
+            new HSLFFileHandler().handleFile(stream, args[0]);
+        } finally {
+            stream.close();
+        }
+    }
 }

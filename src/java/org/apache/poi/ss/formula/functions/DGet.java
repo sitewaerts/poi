@@ -17,7 +17,10 @@
 
 package org.apache.poi.ss.formula.functions;
 
+import org.apache.poi.ss.formula.eval.BlankEval;
 import org.apache.poi.ss.formula.eval.ErrorEval;
+import org.apache.poi.ss.formula.eval.EvaluationException;
+import org.apache.poi.ss.formula.eval.OperandResolver;
 import org.apache.poi.ss.formula.eval.ValueEval;
 
 /**
@@ -33,10 +36,18 @@ public final class DGet implements IDStarAlgorithm {
         {
             result = eval;
         }
-        else // There was a previous match, since there is only exactly one allowed, bail out.
+        else // There was a previous match. Only one non-blank result is allowed. #NUM! on multiple values.
         {
-            result = ErrorEval.NUM_ERROR;
-            return false;
+            if(result instanceof BlankEval) {
+                result = eval;
+            }
+            else {
+                // We have a previous filled result.
+                if(!(eval instanceof BlankEval)) {
+                    result = ErrorEval.NUM_ERROR;
+                    return false;
+                }
+            }
         }
 
         return true;
@@ -46,8 +57,18 @@ public final class DGet implements IDStarAlgorithm {
     public ValueEval getResult() {
         if(result == null) {
             return ErrorEval.VALUE_INVALID;
-        } else {
-            return result;
-        }
+        } else if(result instanceof BlankEval) {
+            return ErrorEval.VALUE_INVALID;
+        } else
+            try {
+                if(OperandResolver.coerceValueToString(OperandResolver.getSingleValue(result, 0, 0)).isEmpty()) {
+                    return ErrorEval.VALUE_INVALID;
+                }
+                else {
+                    return result;
+                }
+            } catch (EvaluationException e) {
+                return e.getErrorEval();
+            }
     }
 }

@@ -23,22 +23,32 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 
-import org.apache.poi.POIDataSamples;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackagePart;
+import org.apache.poi.sl.usermodel.BaseTestSlideShow;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTNotesMasterIdListEntry;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTSlideIdListEntry;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTSlideMasterIdListEntry;
 
-public class TestXMLSlideShow {
-   private static final POIDataSamples slTests = POIDataSamples.getSlideShowInstance();
+public class TestXMLSlideShow extends BaseTestSlideShow {
    private OPCPackage pack;
+   
+   @Override
+   public XMLSlideShow createSlideShow() {
+       return new XMLSlideShow();
+   }
 
    @Before
    public void setUp() throws Exception {
       pack = OPCPackage.open(slTests.openResourceAsStream("sample.pptx"));
+   }
+   
+   @After
+   public void tearDown() throws IOException {
+       pack.revert();
    }
 
    @Test
@@ -95,7 +105,8 @@ public class TestXMLSlideShow {
       // Next up look for the slide master
       CTSlideMasterIdListEntry[] masters = xml.getCTPresentation().getSldMasterIdLst().getSldMasterIdArray();
 
-      assertEquals(2147483648l, masters[0].getId());
+      // see SlideAtom.USES_MASTER_SLIDE_ID
+      assertEquals(0x80000000L, masters[0].getId());
       assertEquals("rId1", masters[0].getId2());
       assertNotNull(xml.getSlideMasters().get(0));
 

@@ -58,13 +58,14 @@ public final class TestMergeCellsRecord extends TestCase {
 	}
    
 	private static final RecordVisitor dummyRecordVisitor = new RecordVisitor() {
-		public void visitRecord(Record r) {
+		@Override
+        public void visitRecord(Record r) {
 			// do nothing
 		}
 	};
 	public void testMCTable_bug46009() {
 		MergedCellsTable mct = new MergedCellsTable();
-		List<Record> recList = new ArrayList<Record>();
+		List<Record> recList = new ArrayList<>();
 		CellRangeAddress[] cras = new CellRangeAddress[] {
 				new CellRangeAddress(0, 0, 0, 3), 
 		};

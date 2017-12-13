@@ -21,15 +21,18 @@ import org.apache.poi.hssf.model.HSSFFormulaParser;
 import org.apache.poi.hssf.model.InternalWorkbook;
 import org.apache.poi.hssf.record.NameCommentRecord;
 import org.apache.poi.hssf.record.NameRecord;
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.FormulaType;
 import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.usermodel.Name;
+import org.apache.poi.ss.util.CellReference;
 
 /**
  * High Level Representation of a 'defined name' which could be a 'built-in' name,
  * 'named range' or name of a user defined function.
  */
 public final class HSSFName implements Name {
+    
     private HSSFWorkbook _book;
     private NameRecord _definedNameRec;
     private NameCommentRecord _commentRec;
@@ -134,7 +137,8 @@ public final class HSSFName implements Name {
         int sheetNumber = _definedNameRec.getSheetNumber();
 
         //Check to ensure no other names have the same case-insensitive name
-        for ( int i = wb.getNumNames()-1; i >=0; i-- )
+        final int lastNameIndex = wb.getNumNames()-1;
+        for ( int i = lastNameIndex; i >=0; i-- )
         {
             NameRecord rec = wb.getNameRecord(i);
             if (rec != _definedNameRec) {
@@ -153,31 +157,68 @@ public final class HSSFName implements Name {
         }
     }
 
-    private static void validateName(String name){
-        if(name.length() == 0)  throw new IllegalArgumentException("Name cannot be blank");
+    /**
+     * https://support.office.com/en-us/article/Define-and-use-names-in-formulas-4D0F13AC-53B7-422E-AFD2-ABD7FF379C64#bmsyntax_rules_for_names
+     * 
+     * Valid characters:
+     *   First character: { letter | underscore | backslash }
+     *   Remaining characters: { letter | number | period | underscore }
+     *   
+     * Cell shorthand: cannot be { "C" | "c" | "R" | "r" }
+     * 
+     * Cell references disallowed: cannot be a cell reference $A$1 or R1C1
+     * 
+     * Spaces are not valid (follows from valid characters above)
+     * 
+     * Name length: (XSSF-specific?) 255 characters maximum
+     * 
+     * Case sensitivity: all names are case-insensitive
+     * 
+     * Uniqueness: must be unique (for names with the same scope)
+     */
+    private static void validateName(String name) {
 
-        char c = name.charAt(0);
-        if(!(c == '_' || Character.isLetter(c)) || name.indexOf(' ') != -1) {
-            throw new IllegalArgumentException("Invalid name: '"+name+"'; Names must begin with a letter or underscore and not contain spaces");
+        if (name.length() == 0) {
+            throw new IllegalArgumentException("Name cannot be blank");
         }
-    }
-
-    /**
-     * Returns the formula that the name is defined to refer to.
-     *
-     * @deprecated (Nov 2008) Misleading name. Use {@link #getRefersToFormula()} instead.
-     */
-    public String getReference() {
-        return getRefersToFormula();
-    }
-
-    /**
-     * Sets the formula that the name is defined to refer to.
-     *
-     * @deprecated (Nov 2008) Misleading name. Use {@link #setRefersToFormula(String)} instead.
-     */
-    public void setReference(String ref){
-        setRefersToFormula(ref);
+        if (name.length() > 255) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': cannot exceed 255 characters in length");
+        }
+        if (name.equalsIgnoreCase("R") || name.equalsIgnoreCase("C")) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': cannot be special shorthand R or C");
+        }
+        
+        // is first character valid?
+        char c = name.charAt(0);
+        String allowedSymbols = "_\\";
+        boolean characterIsValid = (Character.isLetter(c) || allowedSymbols.indexOf(c) != -1);
+        if (!characterIsValid) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': first character must be underscore or a letter");
+        }
+        
+        // are all other characters valid?
+        allowedSymbols = "_.\\"; //backslashes needed for unicode escape
+        for (final char ch : name.toCharArray()) {
+            characterIsValid = (Character.isLetterOrDigit(ch) || allowedSymbols.indexOf(ch) != -1);
+            if (!characterIsValid) {
+                throw new IllegalArgumentException("Invalid name: '"+name+"': name must be letter, digit, period, or underscore");
+            }
+        }
+        
+        // Is the name a valid $A$1 cell reference
+        // Because $, :, and ! are disallowed characters, A1-style references become just a letter-number combination
+        if (name.matches("[A-Za-z]+\\d+")) {
+            String col = name.replaceAll("\\d", "");
+            String row = name.replaceAll("[A-Za-z]", "");
+            if (CellReference.cellReferenceIsWithinRange(col, row, SpreadsheetVersion.EXCEL97)) {
+                throw new IllegalArgumentException("Invalid name: '"+name+"': cannot be $A$1-style cell reference");
+            }
+        }
+        
+        // Is the name a valid R1C1 cell reference?
+        if (name.matches("[Rr]\\d+[Cc]\\d+")) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': cannot be R1C1-style cell reference");
+        }
     }
 
     public void setRefersToFormula(String formulaText) {
@@ -224,11 +265,9 @@ public final class HSSFName implements Name {
     }
 
     public String toString() {
-        StringBuffer sb = new StringBuffer(64);
-        sb.append(getClass().getName()).append(" [");
-        sb.append(_definedNameRec.getNameText());
-        sb.append("]");
-        return sb.toString();
+        return getClass().getName() + " [" +
+                _definedNameRec.getNameText() +
+                "]";
     }
 
     /**

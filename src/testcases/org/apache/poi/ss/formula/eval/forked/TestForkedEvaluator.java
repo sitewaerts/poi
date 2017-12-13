@@ -17,28 +17,38 @@
 
 package org.apache.poi.ss.formula.eval.forked;
 
-import junit.framework.AssertionFailedError;
-import junit.framework.TestCase;
+import static org.junit.Assert.assertEquals;
 
-import org.apache.poi.ss.formula.eval.NumberEval;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
+import java.io.IOException;
+
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.IStabilityClassifier;
+import org.apache.poi.ss.formula.eval.NumberEval;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
-/**
- * @author Josh Micich
- */
-public final class TestForkedEvaluator extends TestCase {
+public class TestForkedEvaluator {
+    
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none();
+    
+    protected Workbook newWorkbook() {
+        return new HSSFWorkbook();
+    }
+    
 	/**
 	 * set up a calculation workbook with input cells nicely segregated on a
 	 * sheet called "Inputs"
 	 */
-	private static HSSFWorkbook createWorkbook() {
-		HSSFWorkbook wb = new HSSFWorkbook();
-		HSSFSheet sheet1 = wb.createSheet("Inputs");
-		HSSFSheet sheet2 = wb.createSheet("Calculations");
-		HSSFRow row;
+	protected Workbook createWorkbook() {
+		Workbook wb = newWorkbook();
+		Sheet sheet1 = wb.createSheet("Inputs");
+		Sheet sheet2 = wb.createSheet("Calculations");
+		Row row;
 		row = sheet2.createRow(0);
 		row.createCell(0).setCellFormula("B1*Inputs!A1-Inputs!B1");
 		row.createCell(1).setCellValue(5.0); // Calculations!B1
@@ -53,12 +63,14 @@ public final class TestForkedEvaluator extends TestCase {
 	/**
 	 * Shows a basic use-case for {@link ForkedEvaluator}
 	 */
-	public void testBasic() {
-		HSSFWorkbook wb = createWorkbook();
+	@Test
+	public void testBasic() throws IOException {
+		Workbook wb = createWorkbook();
 
 		// The stability classifier is useful to reduce memory consumption of caching logic
 		IStabilityClassifier stabilityClassifier = new IStabilityClassifier() {
-			public boolean isCellFinal(int sheetIndex, int rowIndex, int columnIndex) {
+			@Override
+            public boolean isCellFinal(int sheetIndex, int rowIndex, int columnIndex) {
 				return sheetIndex == 1;
 			}
 		};
@@ -78,41 +90,29 @@ public final class TestForkedEvaluator extends TestCase {
 		assertEquals(4.0, ((NumberEval) fe2.evaluate("Calculations", 0, 0)).getNumberValue(), 0.0);
 		fe1.updateCell("Inputs", 0, 0, new NumberEval(3.0));
 		assertEquals(13.9, ((NumberEval) fe1.evaluate("Calculations", 0, 0)).getNumberValue(), 0.0);
+		
+		wb.close();
 	}
 
 	/**
 	 * As of Sep 2009, the Forked evaluator can update values from existing cells (this is because
 	 * the underlying 'master' cell is used as a key into the calculation cache.  Prior to the fix
 	 * for this bug, an attempt to update a missing cell would result in NPE.  This junit tests for
-	 * a more meaningful error message.<br/>
+	 * a more meaningful error message.<br>
 	 *
 	 * An alternate solution might involve allowing empty cells to be created as necessary.  That
 	 * was considered less desirable because so far, the underlying 'master' workbook is strictly
 	 * <i>read-only</i> with respect to the ForkedEvaluator.
 	 */
-	public void testMissingInputCell() {
-		HSSFWorkbook wb = createWorkbook();
+	@Test
+	public void testMissingInputCellH() throws IOException {
+	    expectedEx.expect(UnsupportedOperationException.class);
+	    expectedEx.expectMessage("Underlying cell 'A2' is missing in master sheet.");
 
-		ForkedEvaluator fe = ForkedEvaluator.create(wb, null, null);
-
-		// attempt update input at cell A2 (which is missing)
-		try {
+		try (Workbook wb = createWorkbook()) {
+			ForkedEvaluator fe = ForkedEvaluator.create(wb, null, null);
+			// attempt update input at cell A2 (which is missing)
 			fe.updateCell("Inputs", 1, 0, new NumberEval(4.0));
-			throw new AssertionFailedError(
-					"Expected exception to be thrown due to missing input cell");
-		} catch (NullPointerException e) {
-			StackTraceElement[] stes = e.getStackTrace();
-			if (stes[0].getMethodName().equals("getIdentityKey")) {
-				throw new AssertionFailedError("Identified bug with update of missing input cell");
-			}
-			throw e;
-		} catch (UnsupportedOperationException e) {
-			if (e.getMessage().equals(
-					"Underlying cell 'A2' is missing in master sheet.")) {
-				// expected during successful test
-			} else {
-				throw e;
-			}
 		}
 	}
 }

@@ -42,7 +42,7 @@ import org.junit.After;
  * Testing for {@link HSSFEventFactory}
  */
 public final class TestHSSFEventFactory extends TestCase {
-    private static final InputStream openSample(String sampleFileName) {
+    private static InputStream openSample(String sampleFileName) {
         return HSSFTestDataSamples.openSampleFileStream(sampleFileName);
     }
 
@@ -91,8 +91,8 @@ public final class TestHSSFEventFactory extends TestCase {
         assertTrue( recs.length > 100 );
 
         // And none of them are continue ones
-        for(int i=0; i<recs.length; i++) {
-            assertFalse( recs[i] instanceof ContinueRecord );
+        for (Record rec : recs) {
+            assertFalse( rec instanceof ContinueRecord );
         }
 
         // Check that the last few records are as we expect
@@ -121,7 +121,7 @@ public final class TestHSSFEventFactory extends TestCase {
     }
 
     private static class MockHSSFListener implements HSSFListener {
-        private final List<Record> records = new ArrayList<Record>();
+        private final List<Record> records = new ArrayList<>();
 
         public MockHSSFListener() {}
         public Record[] getRecords() {
@@ -130,6 +130,7 @@ public final class TestHSSFEventFactory extends TestCase {
             return result;
         }
 
+        @Override
         public void processRecord(Record record) {
             records.add(record);
         }

@@ -17,13 +17,21 @@
 
 package org.apache.poi.xssf.eventusermodel;
 
+import static org.apache.poi.POITestCase.assertContains;
+import static org.apache.poi.POITestCase.assertNotContained;
+import static org.junit.Assert.*;
+
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
-import junit.framework.TestCase;
-
+import org.apache.poi.POIDataSamples;
+import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.ss.usermodel.Name;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.apache.poi.xssf.model.CommentsTable;
@@ -31,20 +39,23 @@ import org.apache.poi.xssf.model.StylesTable;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.apache.poi.xssf.usermodel.XSSFShape;
 import org.apache.poi.xssf.usermodel.XSSFSimpleShape;
-import org.apache.poi.POIDataSamples;
+import org.junit.Ignore;
+import org.junit.Test;
 
 /**
  * Tests for {@link XSSFReader}
  */
-public final class TestXSSFReader extends TestCase {
+public final class TestXSSFReader {
+
     private static POIDataSamples _ssTests = POIDataSamples.getSpreadSheetInstance();
 
+    @Test
     public void testGetBits() throws Exception {
 		OPCPackage pkg = OPCPackage.open(_ssTests.openResourceAsStream("SampleSS.xlsx"));
 
 		XSSFReader r = new XSSFReader(pkg);
 
-		assertNotNull(r.getWorkbookData());
+        assertNotNull(r.getWorkbookData());
 		assertNotNull(r.getSharedStringsData());
 		assertNotNull(r.getStylesData());
 
@@ -52,6 +63,7 @@ public final class TestXSSFReader extends TestCase {
 		assertNotNull(r.getStylesTable());
 	}
 
+    @Test
 	public void testStyles() throws Exception {
 		OPCPackage pkg = OPCPackage.open(_ssTests.openResourceAsStream("SampleSS.xlsx"));
 
@@ -68,6 +80,7 @@ public final class TestXSSFReader extends TestCase {
       assertNotNull(r.getThemesData());
 	}
 
+    @Test
 	public void testStrings() throws Exception {
         OPCPackage pkg = OPCPackage.open(_ssTests.openResourceAsStream("SampleSS.xlsx"));
 
@@ -77,6 +90,7 @@ public final class TestXSSFReader extends TestCase {
 		assertEquals("Test spreadsheet", new XSSFRichTextString(r.getSharedStringsTable().getEntryAt(0)).toString());
 	}
 
+    @Test
 	public void testSheets() throws Exception {
         OPCPackage pkg = OPCPackage.open(_ssTests.openResourceAsStream("SampleSS.xlsx"));
 
@@ -109,6 +123,7 @@ public final class TestXSSFReader extends TestCase {
 	 * Check that the sheet iterator returns sheets in the logical order
 	 * (as they are defined in the workbook.xml)
 	 */
+    @Test
 	public void testOrderOfSheets() throws Exception {
         OPCPackage pkg = OPCPackage.open(_ssTests.openResourceAsStream("reordered_sheets.xlsx"));
 
@@ -128,7 +143,8 @@ public final class TestXSSFReader extends TestCase {
 		}
 		assertEquals(4, count);
 	}
-	
+
+    @Test
 	public void testComments() throws Exception {
       OPCPackage pkg =  XSSFTestDataSamples.openSamplePackage("comments.xlsx");
       XSSFReader r = new XSSFReader(pkg);
@@ -157,6 +173,7 @@ public final class TestXSSFReader extends TestCase {
     *  XSSFReader method
     * @throws Exception
     */
+   @Test
    public void test50119() throws Exception {
       OPCPackage pkg =  XSSFTestDataSamples.openSamplePackage("WithChartSheet.xlsx");
       XSSFReader r = new XSSFReader(pkg);
@@ -168,40 +185,69 @@ public final class TestXSSFReader extends TestCase {
           stream.close();
       }
    }
-   /**
-    * Test text extraction from text box using getShapes()
-    * @throws Exception
-    */
-   public void testShapes() throws Exception{
-       OPCPackage pkg =  XSSFTestDataSamples.openSamplePackage("WithTextBox.xlsx");
-       XSSFReader r = new XSSFReader(pkg);
-       XSSFReader.SheetIterator it = (XSSFReader.SheetIterator)r.getSheetsData();
-       
-       StringBuilder sb = new StringBuilder();
-       while(it.hasNext())
-       {    
-          it.next();
-          List<XSSFShape> shapes = it.getShapes();
-          if (shapes != null){
-              for (XSSFShape shape : shapes){
-                  if (shape instanceof XSSFSimpleShape){
-                      String t = ((XSSFSimpleShape)shape).getText();
-                      sb.append(t).append('\n');
-                  }
-              }
-          }
-       }
-       String text = sb.toString();
-       assertTrue(text.indexOf("Line 1") > -1);
-       assertTrue(text.indexOf("Line 2") > -1);
-       assertTrue(text.indexOf("Line 3") > -1);
 
-   }
-   
+    /**
+     * Test text extraction from text box using getShapes()
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testShapes() throws Exception {
+        OPCPackage pkg = XSSFTestDataSamples.openSamplePackage("WithTextBox.xlsx");
+        XSSFReader r = new XSSFReader(pkg);
+        XSSFReader.SheetIterator it = (XSSFReader.SheetIterator) r.getSheetsData();
+
+        String text = getShapesString(it);
+        assertContains(text, "Line 1");
+        assertContains(text, "Line 2");
+        assertContains(text, "Line 3");
+    }
+
+    private String getShapesString(XSSFReader.SheetIterator it) {
+        StringBuilder sb = new StringBuilder();
+        while (it.hasNext()) {
+            it.next();
+            List<XSSFShape> shapes = it.getShapes();
+            if (shapes != null) {
+                for (XSSFShape shape : shapes) {
+                    if (shape instanceof XSSFSimpleShape) {
+                        String t = ((XSSFSimpleShape) shape).getText();
+                        sb.append(t).append('\n');
+                    }
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    @Test
+    public void testBug57914() throws Exception {
+        OPCPackage pkg = XSSFTestDataSamples.openSamplePackage("57914.xlsx");
+        final XSSFReader r;
+
+        // for now expect this to fail, when we fix 57699, this one should fail so we know we should adjust
+        // this test as well
+        try {
+            r = new XSSFReader(pkg);
+            fail("This will fail until bug 57699 is fixed");
+        } catch (POIXMLException e) {
+            assertContains(e.getMessage(), "57699");
+            return;
+        }
+
+        XSSFReader.SheetIterator it = (XSSFReader.SheetIterator) r.getSheetsData();
+
+        String text = getShapesString(it);
+        assertContains(text, "Line 1");
+        assertContains(text, "Line 2");
+        assertContains(text, "Line 3");
+    }
+
    /**
-    * NPE from XSSFReader$SheetIterator.<init> on XLSX files generated by 
+    * NPE from XSSFReader$SheetIterator.<init> on XLSX files generated by
     *  the openpyxl library
     */
+   @Test
    public void test58747() throws Exception {
        OPCPackage pkg =  XSSFTestDataSamples.openSamplePackage("58747.xlsx");
        ReadOnlySharedStringsTable strings = new ReadOnlySharedStringsTable(pkg);
@@ -209,12 +255,71 @@ public final class TestXSSFReader extends TestCase {
        XSSFReader reader = new XSSFReader(pkg);
        StylesTable styles = reader.getStylesTable();
        assertNotNull(styles);
-       
+
        XSSFReader.SheetIterator iter = (XSSFReader.SheetIterator) reader.getSheetsData();
        assertEquals(true, iter.hasNext());
        iter.next();
-       
+
        assertEquals(false, iter.hasNext());
        assertEquals("Orders", iter.getSheetName());
+       
+       pkg.close();
    }
+
+    /**
+     * NPE when sheet has no relationship id in the workbook
+     * 60825
+     */
+    @Test
+    public void testSheetWithNoRelationshipId() throws Exception {
+        OPCPackage pkg =  XSSFTestDataSamples.openSamplePackage("60825.xlsx");
+        ReadOnlySharedStringsTable strings = new ReadOnlySharedStringsTable(pkg);
+        assertNotNull(strings);
+        XSSFReader reader = new XSSFReader(pkg);
+        StylesTable styles = reader.getStylesTable();
+        assertNotNull(styles);
+
+        XSSFReader.SheetIterator iter = (XSSFReader.SheetIterator) reader.getSheetsData();
+        assertNotNull(iter.next());
+        assertFalse(iter.hasNext());
+
+        pkg.close();
+    }
+
+    /**
+     * bug 61304: Call to XSSFReader.getSheetsData() returns duplicate sheets.
+     *
+     * The problem seems to be caused only by those xlsx files which have a specific
+     * order of the attributes inside the &lt;sheet&gt; tag of workbook.xml 
+     *
+     * Example (which causes the problems):
+     * &lt;sheet name="Sheet6" r:id="rId6" sheetId="4"/&gt;
+     *
+     * While this one works correctly:
+     * &lt;sheet name="Sheet6" sheetId="4" r:id="rId6"/&gt;
+     */
+    @Test
+    public void test61034() throws Exception {
+        OPCPackage pkg = XSSFTestDataSamples.openSamplePackage("61034.xlsx");
+        XSSFReader reader = new XSSFReader(pkg);
+        XSSFReader.SheetIterator iter = (XSSFReader.SheetIterator) reader.getSheetsData();
+        Set<String> seen = new HashSet<>();
+        while (iter.hasNext()) {
+            InputStream stream = iter.next();
+            String sheetName = iter.getSheetName();
+            assertNotContained(seen, sheetName);
+            seen.add(sheetName);
+            stream.close();
+        }
+        pkg.close();
+    }
+
+    @Test
+    @Ignore("until we fix issue https://bz.apache.org/bugzilla/show_bug.cgi?id=61701")
+    public void test61701() throws Exception {
+        try(Workbook workbook = XSSFTestDataSamples.openSampleWorkbook("simple-table-named-range.xlsx")) {
+            Name name = workbook.getName("total");
+            System.out.println("workbook.getName(\"total\").getSheetName() returned: " + name.getSheetName());
+        }
+    }
 }

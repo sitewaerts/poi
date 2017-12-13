@@ -92,17 +92,17 @@ public final class HSSFConditionalFormatting  implements ConditionalFormatting {
     }
 
     /**
-     * @deprecated (Aug-2008) use {@link HSSFConditionalFormatting#getFormattingRanges()}
-     */
-    public org.apache.poi.ss.util.Region[] getFormattingRegions() {
-        CellRangeAddress[] cellRanges = getFormattingRanges();
-        return org.apache.poi.ss.util.Region.convertCellRangesToRegions(cellRanges);
-    }
-    /**
      * @return array of <tt>CellRangeAddress</tt>s. never <code>null</code> 
      */
+    @Override
     public CellRangeAddress[] getFormattingRanges() {
         return cfAggregate.getHeader().getCellRanges();
+    }
+
+    @Override
+    public void setFormattingRanges(
+            final CellRangeAddress[] ranges) {
+        cfAggregate.getHeader().setCellRanges(ranges);
     }
 
     /**
@@ -118,6 +118,7 @@ public final class HSSFConditionalFormatting  implements ConditionalFormatting {
         cfAggregate.setRule(idx, cfRule.getCfRuleRecord());
     }
 
+    @Override
     public void setRule(int idx, ConditionalFormattingRule cfRule){
         setRule(idx, (HSSFConditionalFormattingRule)cfRule);
     }
@@ -131,6 +132,7 @@ public final class HSSFConditionalFormatting  implements ConditionalFormatting {
         cfAggregate.addRule(cfRule.getCfRuleRecord());
     }
 
+    @Override
     public void addRule(ConditionalFormattingRule cfRule){
         addRule((HSSFConditionalFormattingRule)cfRule);
     }
@@ -138,6 +140,7 @@ public final class HSSFConditionalFormatting  implements ConditionalFormatting {
     /**
      * @return the Conditional Formatting rule at position idx.
      */
+    @Override
     public HSSFConditionalFormattingRule getRule(int idx) {
         CFRuleBase ruleRecord = cfAggregate.getRule(idx);
         return new HSSFConditionalFormattingRule(sheet, ruleRecord);
@@ -146,10 +149,12 @@ public final class HSSFConditionalFormatting  implements ConditionalFormatting {
     /**
      * @return number of Conditional Formatting rules.
      */
+    @Override
     public int getNumberOfRules() {
         return cfAggregate.getNumberOfRules();
     }
 
+    @Override
     public String toString() {
         return cfAggregate.toString();
     }

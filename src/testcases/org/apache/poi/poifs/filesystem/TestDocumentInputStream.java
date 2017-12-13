@@ -42,7 +42,8 @@ public final class TestDocumentInputStream extends TestCase {
    // any block size
    private static final int _buffer_size   = 6;
 
-	protected void setUp() throws Exception {
+	@Override
+    protected void setUp() throws Exception {
         int blocks = (_workbook_size + 511) / 512;
 
         _workbook_data = new byte[ 512 * blocks ];
@@ -339,10 +340,9 @@ public final class TestDocumentInputStream extends TestCase {
           while (stream.available() >= buffer.length)
           {
              assertEquals(_buffer_size, stream.read(buffer));
-             for (int j = 0; j < buffer.length; j++)
-             {
+             for (byte data : buffer) {
                 assertEquals("in main loop, byte " + offset,
-                      _workbook_data[ offset ], buffer[ j ]);
+                      _workbook_data[ offset ], data);
                 offset++;
              }
              assertEquals("offset " + offset, _workbook_size - offset,

@@ -24,14 +24,14 @@ import java.math.BigInteger;
 import java.util.HashMap;
 
 /**
- * Implementation for Excel FACTDOUBLE() function.<p/>
- * <p/>
- * <b>Syntax</b>:<br/> <b>FACTDOUBLE  </b>(<b>number</b>)<br/>
- * <p/>
+ * Implementation for Excel FACTDOUBLE() function.<p>
+ * <p>
+ * <b>Syntax</b>:<br> <b>FACTDOUBLE  </b>(<b>number</b>)<br>
+ * <p>
  * Returns the double factorial of a number.
- * <p/>
+ * <p>
  * Number is the value for which to return the double factorial. If number is not an integer, it is truncated.
- * <p/>
+ * <p>
  * Remarks
  * <ul>
  * <li>If number is nonnumeric, FACTDOUBLE returns the #VALUE! error value.</li>
@@ -46,7 +46,7 @@ public class FactDouble extends Fixed1ArgFunction implements FreeRefFunction {
     public static final FreeRefFunction instance = new FactDouble();
 
     //Caching of previously calculated factorial for speed
-    static HashMap<Integer, BigInteger> cache = new HashMap<Integer, BigInteger>();
+    static HashMap<Integer, BigInteger> cache = new HashMap<>();
 
     public ValueEval evaluate(int srcRowIndex, int srcColumnIndex, ValueEval numberVE) {
         int number;

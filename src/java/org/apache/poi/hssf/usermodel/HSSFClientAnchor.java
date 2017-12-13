@@ -250,6 +250,7 @@ public final class HSSFClientAnchor extends HSSFAnchor implements ClientAnchor {
 
     /**
      * Gets the anchor type
+     * Changed from returning an int to an enum in POI 3.14 beta 1.
      * @return the anchor type
      */
     @Override
@@ -260,6 +261,7 @@ public final class HSSFClientAnchor extends HSSFAnchor implements ClientAnchor {
     /**
      * Sets the anchor type
      * @param anchorType the anchor type to set
+     * @since POI 3.14
      */
     @Override
     public void setAnchorType(AnchorType anchorType) {

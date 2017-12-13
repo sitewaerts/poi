@@ -22,17 +22,23 @@ import org.apache.poi.ss.formula.functions.FreeRefFunction;
 
 /**
  * Common interface for "Add-in" libraries and user defined function libraries.
- *
- * @author PUdalau
  */
 public interface UDFFinder {
-	public static final UDFFinder DEFAULT = new AggregatingUDFFinder(AnalysisToolPak.instance);
+    // FIXME: Findbugs error: IC_SUPERCLASS_USES_SUBCLASS_DURING_INITIALIZATION
+    /**
+     * Default UDFFinder implementation
+     * 
+     * @deprecated use AggregatingUDFFinder.DEFAULT instead, deprecated in POI 3.15,
+     *     scheduled for removable in POI 3.17 
+     */
+    @Deprecated
+    public static final UDFFinder DEFAULT = new AggregatingUDFFinder(AnalysisToolPak.instance);
 
-	/**
-	 * Returns executor by specified name. Returns <code>null</code> if the function name is unknown.
-	 *
-	 * @param name Name of function.
-	 * @return Function executor.
-	 */
-	FreeRefFunction findFunction(String name);
+    /**
+     * Returns executor by specified name. Returns <code>null</code> if the function name is unknown.
+     *
+     * @param name Name of function.
+     * @return Function executor.
+     */
+    FreeRefFunction findFunction(String name);
 }

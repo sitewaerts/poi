@@ -20,7 +20,7 @@ package org.apache.poi.hslf.record;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Hashtable;
+import java.util.Map;
 
 import org.apache.poi.poifs.crypt.CipherAlgorithm;
 import org.apache.poi.poifs.crypt.EncryptionInfo;
@@ -39,8 +39,8 @@ import org.apache.poi.util.LittleEndianInputStream;
  * @author Nick Burch
  */
 public final class DocumentEncryptionAtom extends PositionDependentRecordAtom {
-    private static long _type = 12052l;
-	private byte[] _header;
+    private static final long _type = 12052l;
+	private final byte[] _header;
 	private EncryptionInfo ei;
 
 	/**
@@ -53,7 +53,8 @@ public final class DocumentEncryptionAtom extends PositionDependentRecordAtom {
 
 		ByteArrayInputStream bis = new ByteArrayInputStream(source, start+8, len-8);
 		LittleEndianInputStream leis = new LittleEndianInputStream(bis);
-		ei = new EncryptionInfo(leis, true);
+		ei = new EncryptionInfo(leis, EncryptionMode.cryptoAPI);
+		leis.close();
 	}
 
 	public DocumentEncryptionAtom() {
@@ -121,9 +122,11 @@ public final class DocumentEncryptionAtom extends PositionDependentRecordAtom {
 		LittleEndian.putInt(_header, 4, bos.getWriteIndex());
         out.write(_header);
 		out.write(data, 0, bos.getWriteIndex());
+		bos.close();
 	}
 
-    public void updateOtherRecordReferences(Hashtable<Integer,Integer> oldToNewReferencesLookup) {
-        
+    @Override
+    public void updateOtherRecordReferences(Map<Integer,Integer> oldToNewReferencesLookup) {
+        // nothing to update
     }
 }

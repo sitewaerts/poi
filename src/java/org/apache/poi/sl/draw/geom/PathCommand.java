@@ -19,20 +19,17 @@
 
 package org.apache.poi.sl.draw.geom;
 
-import java.awt.geom.GeneralPath;
+import java.awt.geom.Path2D;
 
 /**
  * A path command in DrawingML. One of:
  *
- *  - arcTo
- *  - moveTo
- *  - lineTo
- *  - cubicBezTo
- *  - quadBezTo
- *  - close
- *
- *
- * @author Yegor Kozlov
+ * <li>arcTo
+ * <li>moveTo
+ * <li>lineTo
+ * <li>cubicBezTo
+ * <li>quadBezTo
+ * <li>close
  */
 public interface PathCommand {
     /**
@@ -41,5 +38,5 @@ public interface PathCommand {
      * @param path  the path to append the result to
      * @param ctx   the context to lookup variables
      */
-    void execute(GeneralPath path, Context ctx);
+    void execute(Path2D.Double path, Context ctx);
 }

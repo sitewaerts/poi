@@ -19,7 +19,6 @@ package org.apache.poi.hsmf;
 
 import java.io.IOException;
 
-import org.apache.poi.hsmf.MAPIMessage;
 import org.apache.poi.hsmf.exceptions.ChunkNotFoundException;
 import org.apache.poi.POIDataSamples;
 
@@ -30,7 +29,7 @@ import junit.framework.TestCase;
  * Tests to verify that the library can read blank msg files.
  */
 public final class TestBlankFileRead extends TestCase {
-    private MAPIMessage mapiMessage;
+    private final MAPIMessage mapiMessage;
 
     /**
      * Initialize this test, load up the blank.msg mapi message.

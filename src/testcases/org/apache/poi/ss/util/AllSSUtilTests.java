@@ -27,13 +27,12 @@ import org.junit.runners.Suite;
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
     TestAreaReference.class,
-    TestCellRangeAddress.class,
+    //TestCellRangeAddress.class, //converted to junit4
     //TestCellReference.class, //converted to junit4
     TestDateFormatConverter.class,
     TestExpandedDouble.class,
     TestNumberComparer.class,
     TestNumberToTextConverter.class,
-    TestRegion.class,
     TestSheetBuilder.class,
     TestSheetUtil.class,
     TestWorkbookUtil.class

@@ -59,7 +59,7 @@ public final class SharedValueManager {
 		public SharedFormulaGroup(SharedFormulaRecord sfr, CellReference firstCell) {
 			if (!sfr.isInRange(firstCell.getRow(), firstCell.getCol())) {
 				throw new IllegalArgumentException("First formula cell " + firstCell.formatAsString()
-						+ " is not shared formula range " + sfr.getRange().toString() + ".");
+						+ " is not shared formula range " + sfr.getRange() + ".");
 			}
 			_sfr = sfr;
 			_firstCell = firstCell;
@@ -94,7 +94,7 @@ public final class SharedValueManager {
 		public final String toString() {
 			StringBuffer sb = new StringBuffer(64);
 			sb.append(getClass().getName()).append(" [");
-			sb.append(_sfr.getRange().toString());
+			sb.append(_sfr.getRange());
 			sb.append("]");
 			return sb.toString();
 		}
@@ -122,7 +122,7 @@ public final class SharedValueManager {
 		}
 		_arrayRecords = toList(arrayRecords);
 		_tableRecords = tableRecords;
-		Map<SharedFormulaRecord, SharedFormulaGroup> m = new HashMap<SharedFormulaRecord, SharedFormulaGroup>(nShF * 3 / 2);
+		Map<SharedFormulaRecord, SharedFormulaGroup> m = new HashMap<>(nShF * 3 / 2);
 		for (int i = 0; i < nShF; i++) {
 			SharedFormulaRecord sfr = sharedFormulaRecords[i];
 			m.put(sfr, new SharedFormulaGroup(sfr, firstCells[i]));
@@ -134,7 +134,7 @@ public final class SharedValueManager {
 	 * @return a modifiable list, independent of the supplied array
 	 */
 	private static <Z> List<Z> toList(Z[] zz) {
-		List<Z> result = new ArrayList<Z>(zz.length);
+		List<Z> result = new ArrayList<>(zz.length);
 		for (int i = 0; i < zz.length; i++) {
 			result.add(zz[i]);
 		}
@@ -167,13 +167,12 @@ public final class SharedValueManager {
 
     private SharedFormulaGroup findFormulaGroupForCell(final CellReference cellRef) {
         if(null == _groupsCache) {
-            _groupsCache = new HashMap<Integer,SharedFormulaGroup>(_groupsBySharedFormulaRecord.size());
+            _groupsCache = new HashMap<>(_groupsBySharedFormulaRecord.size());
             for(SharedFormulaGroup group: _groupsBySharedFormulaRecord.values()) {
                 _groupsCache.put(getKeyForCache(group._firstCell),group);
             }
         }
-        SharedFormulaGroup sfg = _groupsCache.get(getKeyForCache(cellRef));
-        return sfg;
+        return _groupsCache.get(getKeyForCache(cellRef));
     }
 
     private Integer getKeyForCache(final CellReference cellRef) {

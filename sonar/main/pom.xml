@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.apache.poi</groupId>
         <artifactId>poi-parent</artifactId>
-        <version>3.14-beta1-SNAPSHOT</version>
+        <version>4.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>poi-main</artifactId>
     <packaging>jar</packaging>
@@ -18,11 +18,10 @@
 			<!-- copy sources, resources and tests in place as otherwise Sonar does not pick them up correctly! -->
 			<plugin>
 				<artifactId>maven-resources-plugin</artifactId>
-				<version>2.6</version>
+				<version>${maven.plugin.resources.version}</version>
 				<executions>
 					<execution>
 						<id>copy-sources</id>
-						<!-- here the phase you need -->
 						<phase>generate-sources</phase>
 						<goals>
 							<goal>copy-resources</goal>
@@ -38,7 +37,6 @@
 					</execution>
 					<execution>
 						<id>copy-resources</id>
-						<!-- here the phase you need -->
 						<phase>generate-resources</phase>
 						<goals>
 							<goal>copy-resources</goal>
@@ -70,10 +68,11 @@
 					</execution>
 				</executions>
 			</plugin>
+
 			<!-- clean copied sources afterwards -->
 			<plugin>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>2.5</version>
+                <version>${maven.plugin.clean.version}</version>
                 <configuration>
                     <filesets>
                         <fileset>
@@ -88,7 +87,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
-				<version>2.4</version>
+				<version>${maven.plugin.jar.version}</version>
 				<executions>
 					<execution>
 						<goals>
@@ -97,14 +96,34 @@
 					</execution>
 				</executions>
 			</plugin>
+
+            <!-- set jvm parameters for surefire plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.plugin.surefire.version}</version>
+                <configuration>
+                    <argLine>@{argLine} -Duser.language=en -Duser.country=US -Xmx1024m -Djava.io.tmpdir=target/tmp -XX:-OmitStackTraceInFastThrow</argLine>
+                </configuration>
+            </plugin>
 		</plugins>
     </build>
 
     <dependencies>
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.6.1</version>
+        </dependency>
+        <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.10</version>
+            <version>1.11</version>
         </dependency>
         <dependency>
             <groupId>commons-logging</groupId>

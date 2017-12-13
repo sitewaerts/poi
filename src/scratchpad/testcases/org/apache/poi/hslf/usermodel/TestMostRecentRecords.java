@@ -18,11 +18,10 @@
 package org.apache.poi.hslf.usermodel;
 
 
-import junit.framework.TestCase;
-
-import org.apache.poi.hslf.*;
-import org.apache.poi.hslf.record.*;
 import org.apache.poi.POIDataSamples;
+import org.apache.poi.hslf.record.Record;
+
+import junit.framework.TestCase;
 
 /**
  * Tests that SlideShow finds the right records as its most recent ones
@@ -31,9 +30,9 @@ import org.apache.poi.POIDataSamples;
  */
 public final class TestMostRecentRecords extends TestCase {
 	// HSLFSlideShow primed on the test data
-	private HSLFSlideShowImpl hss;
+	private final HSLFSlideShowImpl hss;
 	// SlideShow primed on the test data
-	private HSLFSlideShow ss;
+	private final HSLFSlideShow ss;
 
 	public TestMostRecentRecords() throws Exception {
         POIDataSamples slTests = POIDataSamples.getSlideShowInstance();

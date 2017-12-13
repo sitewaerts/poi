@@ -17,26 +17,29 @@
 
 package org.apache.poi.hwmf.record;
 
+import javax.imageio.ImageIO;
 import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 
-import javax.imageio.ImageIO;
-
-import org.apache.poi.hssf.record.RecordFormatException;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianConsts;
 import org.apache.poi.util.LittleEndianInputStream;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * The DeviceIndependentBitmap Object defines an image in device-independent bitmap (DIB) format.
  */
 public class HwmfBitmapDib {
+
+    private static final int MAX_RECORD_LENGTH = 10000000;
+
     public static enum BitCount {
         /**
          * The image SHOULD be in either JPEG or PNG format. <6> Neither of these formats includes
@@ -62,7 +65,7 @@ public class HwmfBitmapDib {
         BI_BITCOUNT_3(0x0008),
         /**
          * Each pixel in the bitmap is represented by a 16-bit value.
-         * <br/>
+         * <br>
          * If the Compression field of the BitmapInfoHeader Object is BI_RGB, the Colors field of DIB
          *  is NULL. Each WORD in the bitmap array represents a single pixel. The relative intensities of
          *  red, green, and blue are represented with 5 bits for each color component. The value for blue
@@ -70,11 +73,11 @@ public class HwmfBitmapDib {
          *  bit is not used. The color table is used for optimizing colors on palette-based devices, and
          *  contains the number of entries specified by the ColorUsed field of the BitmapInfoHeader
          *  Object.
-         * <br/>
+         * <br>
          * If the Compression field of the BitmapInfoHeader Object is BI_BITFIELDS, the Colors field
          *  contains three DWORD color masks that specify the red, green, and blue components,
          *  respectively, of each pixel. Each WORD in the bitmap array represents a single pixel.
-         * <br/>
+         * <br>
          * When the Compression field is set to BI_BITFIELDS, bits set in each DWORD mask MUST be
          *  contiguous and SHOULD NOT overlap the bits of another mask.
          */
@@ -89,18 +92,18 @@ public class HwmfBitmapDib {
         BI_BITCOUNT_5(0x0018),
         /**
          * The bitmap has a maximum of 2^24 colors.
-         * <br/>
+         * <br>
          * If the Compression field of the BitmapInfoHeader Object is set to BI_RGB, the Colors field
          *  of DIB is set to NULL. Each DWORD in the bitmap array represents the relative intensities of
          *  blue, green, and red, respectively, for a pixel. The high byte in each DWORD is not used. The
          *  Colors color table is used for optimizing colors used on palette-based devices, and MUST
          *  contain the number of entries specified by the ColorUsed field of the BitmapInfoHeader
          *  Object.
-         * <br/>
+         * <br>
          * If the Compression field of the BitmapInfoHeader Object is set to BI_BITFIELDS, the Colors
          *  field contains three DWORD color masks that specify the red, green, and blue components,
          *  respectively, of each pixel. Each DWORD in the bitmap array represents a single pixel.
-         * <br/>
+         * <br>
          * When the Compression field is set to BI_BITFIELDS, bits set in each DWORD mask must be
          *  contiguous and should not overlap the bits of another mask. All the bits in the pixel do not
          *  need to be used.
@@ -188,6 +191,7 @@ public class HwmfBitmapDib {
         }
     }
 
+    private final static POILogger logger = POILogFactory.getLogger(HwmfBitmapDib.class);
     private static final int BMP_HEADER_SIZE = 14;
     
     private int headerSize;
@@ -204,11 +208,9 @@ public class HwmfBitmapDib {
     private long headerColorUsed = -1;
     @SuppressWarnings("unused")
     private long headerColorImportant = -1;
-
-    @SuppressWarnings("unused")
     private Color colorTable[];
     @SuppressWarnings("unused")
-    private int colorMaskR=0,colorMaskG=0,colorMaskB=0;
+    private int colorMaskR,colorMaskG,colorMaskB;
 
     // size of header and color table, for start of image data calculation
     private int introSize;
@@ -225,9 +227,8 @@ public class HwmfBitmapDib {
 
         int fileSize = (headerImageSize < headerSize) ? recordSize : (int)Math.min(introSize+headerImageSize,recordSize);
         
-        imageData = new byte[fileSize];
         leis.reset();
-        leis.read(imageData, 0, fileSize);
+        imageData = IOUtils.toByteArray(leis, fileSize);
         
         assert( headerSize != 0x0C || ((((headerWidth * headerPlanes * headerBitCount.flag + 31) & ~31) / 8) * Math.abs(headerHeight)) == headerImageSize);
 
@@ -360,22 +361,24 @@ public class HwmfBitmapDib {
 
     protected int readRGBQuad(LittleEndianInputStream leis, int count) throws IOException {
         int size = 0;
-        List<Color> colorList = new ArrayList<Color>();
+        colorTable = new Color[count];
         for (int i=0; i<count; i++) {
             int blue = leis.readUByte();
             int green = leis.readUByte();
             int red = leis.readUByte();
             @SuppressWarnings("unused")
             int reserved = leis.readUByte();
-            Color c = new Color(red, green, blue);
-            colorList.add(c);
+            colorTable[i] = new Color(red, green, blue);
             size += 4 * LittleEndianConsts.BYTE_SIZE;
         }
-        colorTable = colorList.toArray(new Color[colorList.size()]);
         return size;
     }
 
     public InputStream getBMPStream() {
+        return new ByteArrayInputStream(getBMPData());
+    }
+
+    private byte[] getBMPData() {
         if (imageData == null) {
             throw new RecordFormatException("bitmap not initialized ... need to call init() before");
         }
@@ -384,7 +387,7 @@ public class HwmfBitmapDib {
         int imageSize = (int)Math.max(imageData.length, introSize+headerImageSize);
         
         // create the image data and leave the parsing to the ImageIO api
-        byte buf[] = new byte[BMP_HEADER_SIZE+imageSize];
+        byte buf[] = IOUtils.safelyAllocate(BMP_HEADER_SIZE+imageSize, MAX_RECORD_LENGTH);
 
         // https://en.wikipedia.org/wiki/BMP_file_format #  Bitmap file header
         buf[0] = (byte)'B';
@@ -398,14 +401,20 @@ public class HwmfBitmapDib {
         // fill the "known" image data
         System.arraycopy(imageData, 0, buf, BMP_HEADER_SIZE, imageData.length);
         
-        return new ByteArrayInputStream(buf);
+        return buf;
     }
     
     public BufferedImage getImage() {
         try {
             return ImageIO.read(getBMPStream());
         } catch (IOException e) {
-            throw new RecordFormatException("invalid bitmap data", e);
+            logger.log(POILogger.ERROR, "invalid bitmap data - returning black opaque image");
+            BufferedImage bi = new BufferedImage(headerWidth, headerHeight, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = bi.createGraphics();
+            g.setPaint(Color.black);
+            g.fillRect(0, 0, headerWidth, headerHeight);
+            g.dispose();
+            return bi;
         }
     }
 }

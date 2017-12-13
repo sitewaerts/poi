@@ -23,8 +23,6 @@ import org.apache.poi.util.LittleEndian;
 /**
  * Together the the EscherOptRecord this record defines some of the basic
  * properties of a shape.
- *
- * @author Glen Stampoultzis (glens at apache.org)
  */
 public class EscherSpRecord
     extends EscherRecord
@@ -48,6 +46,7 @@ public class EscherSpRecord
     private int field_1_shapeId;
     private int field_2_flags;
 
+    @Override
     public int fillFields(byte[] data, int offset, EscherRecordFactory recordFactory) {
         /*int bytesRemaining =*/ readHeader( data, offset );
         int pos            = offset + 8;
@@ -70,6 +69,7 @@ public class EscherSpRecord
      *
      * @see NullEscherSerializationListener
      */
+    @Override
     public int serialize( int offset, byte[] data, EscherSerializationListener listener )
     {
         listener.beforeRecordSerialize( offset, getRecordId(), this );
@@ -85,45 +85,20 @@ public class EscherSpRecord
         return 8 + 8;
     }
 
+    @Override
     public int getRecordSize()
     {
         return 8 + 8;
     }
 
+    @Override
     public short getRecordId() {
         return RECORD_ID;
     }
 
+    @Override
     public String getRecordName() {
         return "Sp";
-    }
-
-
-    /**
-     * @return  the string representing this shape.
-     */
-    public String toString()
-    {
-        String nl = System.getProperty("line.separator");
-
-        return getClass().getName() + ":" + nl +
-                "  RecordId: 0x" + HexDump.toHex(RECORD_ID) + nl +
-                "  Version: 0x" + HexDump.toHex(getVersion()) + nl +
-                "  ShapeType: 0x" + HexDump.toHex(getShapeType()) + nl +
-                "  ShapeId: " + field_1_shapeId + nl +
-                "  Flags: " + decodeFlags(field_2_flags) + " (0x" + HexDump.toHex(field_2_flags) + ")" + nl;
-
-    }
-
-    @Override
-    public String toXml(String tab) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())))
-                .append(tab).append("\t").append("<ShapeType>0x").append(HexDump.toHex(getShapeType())).append("</ShapeType>\n")
-                .append(tab).append("\t").append("<ShapeId>").append(field_1_shapeId).append("</ShapeId>\n")
-                .append(tab).append("\t").append("<Flags>").append(decodeFlags(field_2_flags) + " (0x" + HexDump.toHex(field_2_flags) + ")").append("</Flags>\n");
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
     }
 
     /**
@@ -162,6 +137,8 @@ public class EscherSpRecord
 
     /**
      * Sets a number that identifies this shape.
+     * 
+     * @param field_1_shapeId the shape id
      */
     public void setShapeId( int field_1_shapeId )
     {
@@ -170,6 +147,8 @@ public class EscherSpRecord
 
     /**
      * The flags that apply to this shape.
+     * 
+     * @return the flags
      *
      * @see #FLAG_GROUP
      * @see #FLAG_CHILD
@@ -191,6 +170,8 @@ public class EscherSpRecord
 
     /**
      * The flags that apply to this shape.
+     * 
+     * @param field_2_flags the flags
      *
      * @see #FLAG_GROUP
      * @see #FLAG_CHILD
@@ -231,5 +212,14 @@ public class EscherSpRecord
     public void setShapeType( short value )
     {
         setInstance( value );
+    }
+
+    @Override
+    protected Object[][] getAttributeMap() {
+        return new Object[][] {
+            { "ShapeType", getShapeType() },
+            { "ShapeId", field_1_shapeId },
+            { "Flags", decodeFlags(field_2_flags)+" (0x"+HexDump.toHex(field_2_flags)+")" }
+        };
     }
 }

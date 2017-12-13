@@ -19,36 +19,43 @@
 
 package org.apache.poi.ss.usermodel.charts;
 
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.CellValue;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.util.Beta;
+import org.apache.poi.util.Removal;
 
 /**
  * Class {@code DataSources} is a factory for {@link ChartDataSource} instances.
  *
- * @author Roman Kashitsyn
+ *@deprecated use XDDFDataSourcesFactory instead
  */
-@Beta
+@Deprecated
+@Removal(version="4.2")
 public class DataSources {
 
     private DataSources() {
     }
 
     public static <T> ChartDataSource<T> fromArray(T[] elements) {
-        return new ArrayDataSource<T>(elements);
+        return new ArrayDataSource<>(elements);
     }
 
     public static ChartDataSource<Number> fromNumericCellRange(Sheet sheet, CellRangeAddress cellRangeAddress) {
         return new AbstractCellRangeDataSource<Number>(sheet, cellRangeAddress) {
+            @Override
             public Number getPointAt(int index) {
                 CellValue cellValue = getCellValueAt(index);
-                if (cellValue != null && cellValue.getCellType() == Cell.CELL_TYPE_NUMERIC) {
+                if (cellValue != null && cellValue.getCellType() == CellType.NUMERIC) {
                     return Double.valueOf(cellValue.getNumberValue());
                 } else {
                     return null;
                 }
             }
 
+            @Override
             public boolean isNumeric() {
                 return true;
             }
@@ -57,15 +64,17 @@ public class DataSources {
 
     public static ChartDataSource<String> fromStringCellRange(Sheet sheet, CellRangeAddress cellRangeAddress) {
         return new AbstractCellRangeDataSource<String>(sheet, cellRangeAddress) {
+            @Override
             public String getPointAt(int index) {
                 CellValue cellValue = getCellValueAt(index);
-                if (cellValue != null && cellValue.getCellType() == Cell.CELL_TYPE_STRING) {
+                if (cellValue != null && cellValue.getCellType() == CellType.STRING) {
                     return cellValue.getStringValue();
                 } else {
                     return null;
                 }
             }
 
+            @Override
             public boolean isNumeric() {
                 return false;
             }
@@ -77,26 +86,31 @@ public class DataSources {
         private final T[] elements;
 
         public ArrayDataSource(T[] elements) {
-            this.elements = elements;
+            this.elements = elements.clone();
         }
 
+        @Override
         public int getPointCount() {
             return elements.length;
         }
 
+        @Override
         public T getPointAt(int index) {
             return elements[index];
         }
 
+        @Override
         public boolean isReference() {
             return false;
         }
 
+        @Override
         public boolean isNumeric() {
             Class<?> arrayComponentType = elements.getClass().getComponentType();
             return (Number.class.isAssignableFrom(arrayComponentType));
         }
 
+        @Override
         public String getFormulaString() {
             throw new UnsupportedOperationException("Literal data source can not be expressed by reference.");
         }
@@ -116,14 +130,17 @@ public class DataSources {
             this.evaluator = sheet.getWorkbook().getCreationHelper().createFormulaEvaluator();
         }
 
+        @Override
         public int getPointCount() {
             return numOfCells;
         }
 
+        @Override
         public boolean isReference() {
             return true;
         }
 
+        @Override
         public String getFormulaString() {
             return cellRangeAddress.formatAsString(sheet.getSheetName(), true);
         }

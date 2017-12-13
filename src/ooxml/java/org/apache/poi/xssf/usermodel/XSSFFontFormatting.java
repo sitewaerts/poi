@@ -22,6 +22,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTFont;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTUnderlineProperty;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STUnderlineValues;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTBooleanProperty;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColor;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTFontSize;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTVerticalAlignFontProperty;
@@ -32,10 +33,12 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STVerticalAlignRun;
  * @author Yegor Kozlov
  */
 public class XSSFFontFormatting implements FontFormatting {
-    CTFont _font;
+    private IndexedColorMap _colorMap;
+    private CTFont _font;
 
-    /*package*/ XSSFFontFormatting(CTFont font){
+    /*package*/ XSSFFontFormatting(CTFont font, IndexedColorMap colorMap) {
         _font = font;
+        _colorMap = colorMap;
     }
 
     /**
@@ -46,6 +49,7 @@ public class XSSFFontFormatting implements FontFormatting {
      * @see #SS_SUPER
      * @see #SS_SUB
      */
+    @Override
     public short getEscapementType(){
         if(_font.sizeOfVertAlignArray() == 0) return SS_NONE;
 
@@ -61,6 +65,7 @@ public class XSSFFontFormatting implements FontFormatting {
      * @see #SS_SUPER
      * @see #SS_SUB
      */
+    @Override
     public void setEscapementType(short escapementType){
         _font.setVertAlignArray(null);
         if(escapementType != SS_NONE){
@@ -69,8 +74,21 @@ public class XSSFFontFormatting implements FontFormatting {
     }
 
     /**
+     * XMLBeans and the XSD make this look like it can have multiple values, but it is maxOccurrs=1.
+     * Use get*Array(), it is much faster than get*List().
+     * 
+     * @see org.apache.poi.ss.usermodel.FontFormatting#isStruckout()
+     */
+    @Override
+    public boolean isStruckout() {
+        for (CTBooleanProperty bProp : _font.getStrikeArray()) return bProp.getVal();
+        return false; 
+    }
+
+    /**
      * @return font color index
      */
+    @Override
     public short getFontColorIndex(){
         if(_font.sizeOfColorArray() == 0) return -1;
 
@@ -83,6 +101,7 @@ public class XSSFFontFormatting implements FontFormatting {
     /**
      * @param color font color index
      */
+    @Override
     public void setFontColorIndex(short color){
         _font.setColorArray(null);
         if(color != -1){
@@ -90,26 +109,23 @@ public class XSSFFontFormatting implements FontFormatting {
         }
     }
 
+    @Override
     public XSSFColor getFontColor() {
         if(_font.sizeOfColorArray() == 0) return null;
 
-        return new XSSFColor(_font.getColorArray(0));
+        return XSSFColor.from(_font.getColorArray(0), _colorMap);
     }
 
+    @Override
     public void setFontColor(Color color) {
         XSSFColor xcolor = XSSFColor.toXSSFColor(color);
         if (xcolor == null) {
             _font.getColorList().clear();
+        } else if(_font.sizeOfColorArray() == 0) {
+            _font.addNewColor().setRgb(xcolor.getRGB());
         } else {
             _font.setColorArray(0, xcolor.getCTColor());
         }
-    }
-
-    /**
-     * @deprecated use {@link #getFontColor()}
-     */
-    public XSSFColor getXSSFColor(){
-        return getFontColor();
     }
 
     /**
@@ -117,6 +133,7 @@ public class XSSFFontFormatting implements FontFormatting {
      *
      * @return fontheight (in points/20); or -1 if not modified
      */
+    @Override
     public int getFontHeight(){
         if(_font.sizeOfSzArray() == 0) return -1;
 
@@ -129,6 +146,7 @@ public class XSSFFontFormatting implements FontFormatting {
      *
      * @param height the height in twips (in points/20)
      */
+    @Override
     public void setFontHeight(int height){
         _font.setSzArray(null);
         if(height != -1){
@@ -147,6 +165,7 @@ public class XSSFFontFormatting implements FontFormatting {
      * @see #U_SINGLE_ACCOUNTING
      * @see #U_DOUBLE_ACCOUNTING
      */
+    @Override
     public short getUnderlineType(){
         if(_font.sizeOfUArray() == 0) return U_NONE;
         CTUnderlineProperty u = _font.getUArray(0);
@@ -170,6 +189,7 @@ public class XSSFFontFormatting implements FontFormatting {
      * @see #U_SINGLE_ACCOUNTING
      * @see #U_DOUBLE_ACCOUNTING
      */
+    @Override
     public void setUnderlineType(short underlineType){
         _font.setUArray(null);
         if(underlineType != U_NONE){
@@ -184,6 +204,7 @@ public class XSSFFontFormatting implements FontFormatting {
      *
      * @return bold - whether the font is bold or not
      */
+    @Override
     public boolean isBold(){
         return _font.sizeOfBArray() == 1 && _font.getBArray(0).getVal();
     }
@@ -191,6 +212,7 @@ public class XSSFFontFormatting implements FontFormatting {
     /**
      * @return true if font style was set to <i>italic</i>
      */
+    @Override
     public boolean isItalic(){
         return _font.sizeOfIArray() == 1 && _font.getIArray(0).getVal();
     }
@@ -201,6 +223,7 @@ public class XSSFFontFormatting implements FontFormatting {
      * @param italic - if true, set posture style to italic, otherwise to normal
      * @param bold if true, set font weight to bold, otherwise to normal
      */
+    @Override
     public void setFontStyle(boolean italic, boolean bold){
         _font.setIArray(null);
         _font.setBArray(null);
@@ -211,6 +234,7 @@ public class XSSFFontFormatting implements FontFormatting {
     /**
      * set font style options to default values (non-italic, non-bold)
      */
+    @Override
     public void resetFontStyle(){
         _font.set(CTFont.Factory.newInstance());
     }

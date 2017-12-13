@@ -33,7 +33,7 @@ public enum BreakClear {
      * line in the WordprocessingML document, regardless of its position left to
      * right or the presence of any floating objects which intersect with the
      * line,
-     * <p/>
+     * <p>
      * This is the setting for a typical line break in a document.
      */
 
@@ -83,7 +83,7 @@ public enum BreakClear {
      */
     ALL(4);
 
-    private static Map<Integer, BreakClear> imap = new HashMap<Integer, BreakClear>();
+    private static Map<Integer, BreakClear> imap = new HashMap<>();
 
     static {
         for (BreakClear p : values()) {

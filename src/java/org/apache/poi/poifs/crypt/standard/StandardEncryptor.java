@@ -49,15 +49,17 @@ import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndianByteArrayOutputStream;
 import org.apache.poi.util.LittleEndianConsts;
 import org.apache.poi.util.LittleEndianOutputStream;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
 import org.apache.poi.util.TempFile;
 
-public class StandardEncryptor extends Encryptor {
-    private final StandardEncryptionInfoBuilder builder;
-    
-    protected StandardEncryptor(StandardEncryptionInfoBuilder builder) {
-        this.builder = builder;
+public class StandardEncryptor extends Encryptor implements Cloneable {
+    private static final POILogger logger = POILogFactory.getLogger(StandardEncryptor.class);
+
+    protected StandardEncryptor() {
     }    
 
+    @Override
     public void confirmPassword(String password) {
         // see [MS-OFFCRYPTO] - 2.3.3 EncryptionVerifier
         Random r = new SecureRandom();
@@ -75,8 +77,9 @@ public class StandardEncryptor extends Encryptor {
      * 
      * see [MS-OFFCRYPTO] - 2.3.4.7 ECMA-376 Document Encryption Key Generation
      */
+    @Override
     public void confirmPassword(String password, byte keySpec[], byte keySalt[], byte verifier[], byte verifierSalt[], byte integritySalt[]) {
-        StandardEncryptionVerifier ver = builder.getVerifier();
+        StandardEncryptionVerifier ver = (StandardEncryptionVerifier)getEncryptionInfo().getVerifier();
 
         ver.setSalt(verifierSalt);
         SecretKey secretKey = generateSecretKey(password, ver, getKeySizeInBytes());
@@ -107,30 +110,25 @@ public class StandardEncryptor extends Encryptor {
     }
 
     private Cipher getCipher(SecretKey key, String padding) {
-        EncryptionVerifier ver = builder.getVerifier();
+        EncryptionVerifier ver = getEncryptionInfo().getVerifier();
         return CryptoFunctions.getCipher(key, ver.getCipherAlgorithm(), ver.getChainingMode(), null, Cipher.ENCRYPT_MODE, padding);
     }
     
+    @Override
     public OutputStream getDataStream(final DirectoryNode dir)
     throws IOException, GeneralSecurityException {
         createEncryptionInfoEntry(dir);
         DataSpaceMapUtils.addDefaultDataSpace(dir);
-        OutputStream countStream = new StandardCipherOutputStream(dir);
-        return countStream;
+        return new StandardCipherOutputStream(dir);
     }
     
     protected class StandardCipherOutputStream extends FilterOutputStream implements POIFSWriterListener {
         protected long countBytes;
         protected final File fileOut;
         protected final DirectoryNode dir;
-        
-        protected StandardCipherOutputStream(DirectoryNode dir) throws IOException {
-            super(null);
 
-            this.dir = dir;
-            fileOut = TempFile.createTempFile("encrypted_package", "crypt");
-            FileOutputStream rawStream = new FileOutputStream(fileOut);
-
+        @SuppressWarnings("resource")
+        private StandardCipherOutputStream(DirectoryNode dir, File fileOut) throws IOException {
             // although not documented, we need the same padding as with agile encryption
             // and instead of calculating the missing bytes for the block size ourselves
             // we leave it up to the CipherOutputStream, which generates/saves them on close()
@@ -141,9 +139,15 @@ public class StandardEncryptor extends Encryptor {
             // KeyData.blockSize value. Any padding bytes can be used. Note that the StreamSize
             // field of the EncryptedPackage field specifies the number of bytes of 
             // unencrypted data as specified in section 2.3.4.4.
-            CipherOutputStream cryptStream = new CipherOutputStream(rawStream, getCipher(getSecretKey(), "PKCS5Padding"));
-            
-            this.out = cryptStream;
+            super(
+                new CipherOutputStream(new FileOutputStream(fileOut), getCipher(getSecretKey(), "PKCS5Padding"))   
+            );
+            this.fileOut = fileOut;
+            this.dir = dir;
+        }
+        
+        protected StandardCipherOutputStream(DirectoryNode dir) throws IOException {
+            this(dir, TempFile.createTempFile("encrypted_package", "crypt"));
         }
         
         @Override
@@ -158,6 +162,7 @@ public class StandardEncryptor extends Encryptor {
             countBytes++;
         }
     
+        @Override
         public void close() throws IOException {
             // the CipherOutputStream adds the padding bytes on close()
             super.close(); 
@@ -170,6 +175,7 @@ public class StandardEncryptor extends Encryptor {
             // TODO: any properties???
         }
     
+        @Override
         public void processPOIFSWriterEvent(POIFSWriterEvent event) {
             try {
                 LittleEndianOutputStream leos = new LittleEndianOutputStream(event.getStream());
@@ -181,9 +187,14 @@ public class StandardEncryptor extends Encryptor {
                 leos.writeLong(countBytes);
 
                 FileInputStream fis = new FileInputStream(fileOut);
-                IOUtils.copy(fis, leos);
-                fis.close();
-                fileOut.delete();
+                try {
+                    IOUtils.copy(fis, leos);
+                } finally {
+                    fis.close();
+                }
+                if (!fileOut.delete()) {
+                    logger.log(POILogger.ERROR, "Can't delete temporary encryption file: "+fileOut);
+                }
 
                 leos.close();
             } catch (IOException e) {
@@ -193,15 +204,16 @@ public class StandardEncryptor extends Encryptor {
     }
     
     protected int getKeySizeInBytes() {
-        return builder.getHeader().getKeySize()/8;
+        return getEncryptionInfo().getHeader().getKeySize()/8;
     }
     
     protected void createEncryptionInfoEntry(DirectoryNode dir) throws IOException {
-        final EncryptionInfo info = builder.getEncryptionInfo();
-        final StandardEncryptionHeader header = builder.getHeader();
-        final StandardEncryptionVerifier verifier = builder.getVerifier();
+        final EncryptionInfo info = getEncryptionInfo();
+        final StandardEncryptionHeader header = (StandardEncryptionHeader)info.getHeader();
+        final StandardEncryptionVerifier verifier = (StandardEncryptionVerifier)info.getVerifier();
         
         EncryptionRecord er = new EncryptionRecord(){
+            @Override
             public void write(LittleEndianByteArrayOutputStream bos) {
                 bos.writeShort(info.getVersionMajor());
                 bos.writeShort(info.getVersionMinor());
@@ -214,5 +226,10 @@ public class StandardEncryptor extends Encryptor {
         createEncryptionEntry(dir, "EncryptionInfo", er);
         
         // TODO: any properties???
+    }
+
+    @Override
+    public StandardEncryptor clone() throws CloneNotSupportedException {
+        return (StandardEncryptor)super.clone();
     }
 }

@@ -44,9 +44,9 @@ public class ExcelAntTest extends Task{
 	
 	private double globalPrecision;
 	
-	private boolean showSuccessDetails = false;
+	private boolean showSuccessDetails;
 	
-	private boolean showFailureDetail = false;
+	private boolean showFailureDetail;
 	LinkedList<String> failureMessages;
 	
 
@@ -56,9 +56,9 @@ public class ExcelAntTest extends Task{
 
 	
 	public ExcelAntTest() {
-		evaluators = new LinkedList<ExcelAntEvaluateCell>();
-		failureMessages = new LinkedList<String>();
-		testTasks = new LinkedList<Task>();
+		evaluators = new LinkedList<>();
+		failureMessages = new LinkedList<>();
+		testTasks = new LinkedList<>();
 	}
 	
 	public void setPrecision( double precision ) {
@@ -124,7 +124,8 @@ public class ExcelAntTest extends Task{
 		return evaluators;
 	}
 	
-	public void execute() throws BuildException {
+	@Override
+    public void execute() throws BuildException {
 	    
 	    Iterator<Task> taskIt = testTasks.iterator();
 
@@ -162,9 +163,9 @@ public class ExcelAntTest extends Task{
 	            try {
 	                eval.execute();
 	                ExcelAntEvaluationResult result = eval.getResult();
-	                if( result.didTestPass() && 
-	                        result.evaluationCompleteWithError() == false ) {
-	                    if( showSuccessDetails == true ) {
+	                if( result.didTestPass() &&
+							!result.evaluationCompleteWithError()) {
+	                    if(showSuccessDetails) {
 	                        log("Succeeded when evaluating " + 
 	                         result.getCellName() + ".  It evaluated to " + 
                              result.getReturnValue() + " when the value of " + 
@@ -172,7 +173,7 @@ public class ExcelAntTest extends Task{
                              eval.getPrecision(), Project.MSG_INFO );
 	                    }
 	                } else {
-	                    if( showFailureDetail == true ) {
+	                    if(showFailureDetail) {
 	                        failureMessages.add( "\tFailed to evaluate cell " + 
 	                         result.getCellName() + ".  It evaluated to " + 
 	                         result.getReturnValue() + " when the value of " + 
@@ -183,7 +184,7 @@ public class ExcelAntTest extends Task{
 	                    passed = false;
 	                    failureCount++;
 	                    
-	                    if( eval.requiredToPass() == true ) {
+	                    if(eval.requiredToPass()) {
 	                        throw new BuildException( "\tFailed to evaluate cell " + 
 	                                result.getCellName() + ".  It evaluated to " + 
 	                                result.getReturnValue() + " when the value of " + 
@@ -200,15 +201,14 @@ public class ExcelAntTest extends Task{
 	        }
 	    }
  
-		if( passed == false ) {
+		if(!passed) {
 			log( "Test named " + name + " failed because " + failureCount + 
 					 " of " + testCount + " evaluations failed to " + 
 					 "evaluate correctly.", 
 					 Project.MSG_ERR );
-			if( showFailureDetail == true && failureMessages.size() > 0 ) {
-				Iterator<String> failures = failureMessages.iterator();
-				while( failures.hasNext() ) {
-					log( failures.next(), Project.MSG_ERR );
+			if(showFailureDetail && failureMessages.size() > 0 ) {
+				for (String failureMessage : failureMessages) {
+					log(failureMessage, Project.MSG_ERR);
 				}
 			}
 		}

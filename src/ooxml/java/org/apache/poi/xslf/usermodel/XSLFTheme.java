@@ -27,7 +27,6 @@ import javax.xml.namespace.QName;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.util.Beta;
 import org.apache.poi.util.Internal;
 import org.apache.xmlbeans.XmlException;
@@ -66,14 +65,6 @@ public class XSLFTheme extends POIXMLDocumentPart {
         _theme = doc.getTheme();
         initialize();
     }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XSLFTheme(PackagePart part, PackageRelationship rel) throws IOException, XmlException {
-        this(part);
-    }
     
     public void importTheme(XSLFTheme theme) {
         _theme = theme.getXmlObject();
@@ -84,7 +75,7 @@ public class XSLFTheme extends POIXMLDocumentPart {
     	CTBaseStyles elems = _theme.getThemeElements();
     	CTColorScheme scheme = elems.getClrScheme();
     	// The color scheme is responsible for defining a list of twelve colors. 
-    	_schemeColors = new HashMap<String, CTColor>(12);
+    	_schemeColors = new HashMap<>(12);
     	for(XmlObject o : scheme.selectPath("*")){
     		CTColor c = (CTColor)o;
     		String name = c.getDomNode().getLocalName();
@@ -178,5 +169,4 @@ public class XSLFTheme extends POIXMLDocumentPart {
         }
         return null;
     }
-
 }

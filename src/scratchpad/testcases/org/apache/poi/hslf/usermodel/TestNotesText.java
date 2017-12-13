@@ -18,11 +18,9 @@
 package org.apache.poi.hslf.usermodel;
 
 
-import junit.framework.TestCase;
-
-import org.apache.poi.hslf.*;
-import org.apache.poi.hslf.model.*;
 import org.apache.poi.POIDataSamples;
+
+import junit.framework.TestCase;
 
 /**
  * Tests that SlideShow returns MetaSheets which have the right text in them
@@ -31,7 +29,7 @@ import org.apache.poi.POIDataSamples;
  */
 public final class TestNotesText extends TestCase {
 	// SlideShow primed on the test data
-	private HSLFSlideShow ss;
+	private final HSLFSlideShow ss;
 
 	public TestNotesText() throws Exception {
         POIDataSamples slTests = POIDataSamples.getSlideShowInstance();

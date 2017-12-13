@@ -17,24 +17,31 @@
 
 package org.apache.poi.xwpf.usermodel;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.poi.POIDataSamples;
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLProperties;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackagePartName;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.openxml4j.opc.PackagingURIHelper;
-import org.apache.poi.openxml4j.opc.TargetMode;
 import org.apache.poi.xwpf.XWPFTestDataSamples;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.xmlbeans.XmlCursor;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
 
@@ -144,7 +151,7 @@ public final class TestXWPFDocument {
     public void testAddPicture() throws IOException, InvalidFormatException {
         XWPFDocument doc = XWPFTestDataSamples.openSampleDocument("sample.docx");
         byte[] jpeg = XWPFTestDataSamples.getImage("nature1.jpg");
-        String relationId = doc.addPictureData(jpeg, XWPFDocument.PICTURE_TYPE_JPEG);
+        String relationId = doc.addPictureData(jpeg, Document.PICTURE_TYPE_JPEG);
 
         byte[] newJpeg = ((XWPFPictureData) doc.getRelationById(relationId)).getData();
         assertEquals(newJpeg.length, jpeg.length);
@@ -158,17 +165,17 @@ public final class TestXWPFDocument {
     public void testAllPictureFormats() throws IOException, InvalidFormatException {
         XWPFDocument doc = new XWPFDocument();
 
-        doc.addPictureData(new byte[10], XWPFDocument.PICTURE_TYPE_EMF);
-        doc.addPictureData(new byte[11], XWPFDocument.PICTURE_TYPE_WMF);
-        doc.addPictureData(new byte[12], XWPFDocument.PICTURE_TYPE_PICT);
-        doc.addPictureData(new byte[13], XWPFDocument.PICTURE_TYPE_JPEG);
-        doc.addPictureData(new byte[14], XWPFDocument.PICTURE_TYPE_PNG);
-        doc.addPictureData(new byte[15], XWPFDocument.PICTURE_TYPE_DIB);
-        doc.addPictureData(new byte[16], XWPFDocument.PICTURE_TYPE_GIF);
-        doc.addPictureData(new byte[17], XWPFDocument.PICTURE_TYPE_TIFF);
-        doc.addPictureData(new byte[18], XWPFDocument.PICTURE_TYPE_EPS);
-        doc.addPictureData(new byte[19], XWPFDocument.PICTURE_TYPE_BMP);
-        doc.addPictureData(new byte[20], XWPFDocument.PICTURE_TYPE_WPG);
+        doc.addPictureData(new byte[10], Document.PICTURE_TYPE_EMF);
+        doc.addPictureData(new byte[11], Document.PICTURE_TYPE_WMF);
+        doc.addPictureData(new byte[12], Document.PICTURE_TYPE_PICT);
+        doc.addPictureData(new byte[13], Document.PICTURE_TYPE_JPEG);
+        doc.addPictureData(new byte[14], Document.PICTURE_TYPE_PNG);
+        doc.addPictureData(new byte[15], Document.PICTURE_TYPE_DIB);
+        doc.addPictureData(new byte[16], Document.PICTURE_TYPE_GIF);
+        doc.addPictureData(new byte[17], Document.PICTURE_TYPE_TIFF);
+        doc.addPictureData(new byte[18], Document.PICTURE_TYPE_EPS);
+        doc.addPictureData(new byte[19], Document.PICTURE_TYPE_BMP);
+        doc.addPictureData(new byte[20], Document.PICTURE_TYPE_WPG);
 
         assertEquals(11, doc.getAllPictures().size());
 
@@ -255,8 +262,7 @@ public final class TestXWPFDocument {
         os.write(nature1);
         os.close();
         XWPFHeader xwpfHeader = doc.getHeaderArray(0);
-        PackageRelationship relationship = xwpfHeader.getPackagePart().addRelationship(partName, TargetMode.INTERNAL, jpgRelation.getRelation());
-        XWPFPictureData newPicData = new XWPFPictureData(newImagePart, relationship);
+        XWPFPictureData newPicData = new XWPFPictureData(newImagePart);
         /* new part is now ready to rumble */
 
         assertFalse(xwpfHeader.getAllPictures().contains(newPicData));
@@ -422,5 +428,24 @@ public final class TestXWPFDocument {
 		XWPFDocument docx = XWPFTestDataSamples.openSampleDocument("EnforcedWith.docx");
 		assertTrue(docx.isEnforcedProtection());
 		docx.close();
+	}
+	
+	@Test
+	@Ignore("XWPF should be able to write to a new Stream when opened Read-Only")
+	public void testWriteFromReadOnlyOPC() throws Exception {
+	    OPCPackage opc = OPCPackage.open(
+	            POIDataSamples.getDocumentInstance().getFile("SampleDoc.docx"),
+	            PackageAccess.READ
+	    );
+	    XWPFDocument doc = new XWPFDocument(opc);
+	    XWPFWordExtractor ext = new XWPFWordExtractor(doc);
+	    String origText = ext.getText();
+	    
+	    doc = XWPFTestDataSamples.writeOutAndReadBack(doc);
+	    ext.close();
+	    ext = new XWPFWordExtractor(doc);
+	    
+	    assertEquals(origText, ext.getText());
+	    ext.close();
 	}
 }

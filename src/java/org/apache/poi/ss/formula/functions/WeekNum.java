@@ -29,13 +29,13 @@ import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.util.LocaleUtil;
 
 /**
- * Implementation for Excel WeekNum() function.<p/>
- * <p/>
- * <b>Syntax</b>:<br/> <b>WeekNum  </b>(<b>Serial_num</b>,<b>Return_type</b>)<br/>
- * <p/>
+ * Implementation for Excel WeekNum() function.<p>
+ * <p>
+ * <b>Syntax</b>:<br> <b>WeekNum  </b>(<b>Serial_num</b>,<b>Return_type</b>)<br>
+ * <p>
  * Returns a number that indicates where the week falls numerically within a year.
- * <p/>
- * <p/>
+ * <p>
+ * <p>
  * Serial_num     is a date within the week. Dates should be entered by using the DATE function,
  * or as results of other formulas or functions. For example, use DATE(2008,5,23)
  * for the 23rd day of May, 2008. Problems can occur if dates are entered as text.
@@ -47,7 +47,7 @@ public class WeekNum extends Fixed2ArgFunction implements FreeRefFunction {
     public static final FreeRefFunction instance = new WeekNum();
 
     public ValueEval evaluate(int srcRowIndex, int srcColumnIndex, ValueEval serialNumVE, ValueEval returnTypeVE) {
-        double serialNum = 0.0;
+        double serialNum;
         try {
             serialNum = NumericFunction.singleOperandEvaluate(serialNumVE, srcRowIndex, srcColumnIndex);
         } catch (EvaluationException e) {
@@ -56,7 +56,7 @@ public class WeekNum extends Fixed2ArgFunction implements FreeRefFunction {
         Calendar serialNumCalendar = LocaleUtil.getLocaleCalendar();
         serialNumCalendar.setTime(DateUtil.getJavaDate(serialNum, false));
 
-        int returnType = 0;
+        int returnType;
         try {
             ValueEval ve = OperandResolver.getSingleValue(returnTypeVE, srcRowIndex, srcColumnIndex);
             returnType = OperandResolver.coerceValueToInt(ve);

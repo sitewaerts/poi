@@ -17,28 +17,55 @@
 
 package org.apache.poi.xssf.usermodel.charts;
 
-import junit.framework.TestCase;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.usermodel.charts.ChartLegend;
-import org.apache.poi.ss.usermodel.charts.ManualLayout;
-import org.apache.poi.ss.usermodel.charts.LayoutMode;
-import org.apache.poi.ss.usermodel.charts.LayoutTarget;
-import org.apache.poi.xssf.usermodel.*;
+import java.io.IOException;
 
-public final class TestXSSFManualLayout extends TestCase {
-	
+import org.apache.poi.xddf.usermodel.chart.LayoutMode;
+import org.apache.poi.xddf.usermodel.chart.LayoutTarget;
+import org.apache.poi.xddf.usermodel.chart.XDDFChartLegend;
+import org.apache.poi.xddf.usermodel.chart.XDDFManualLayout;
+import org.apache.poi.xssf.usermodel.XSSFChart;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+public final class TestXSSFManualLayout {
+
+    private XSSFWorkbook wb;
+    private XDDFManualLayout layout;
+
+    @Before
+    public void createEmptyLayout() {
+        wb = new XSSFWorkbook();
+        XSSFSheet sheet = wb.createSheet();
+        XSSFDrawing drawing = sheet.createDrawingPatriarch();
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 1, 1, 10, 30);
+        XSSFChart chart = drawing.createChart(anchor);
+        XDDFChartLegend legend = chart.getOrAddLegend();
+        layout = legend.getOrAddManualLayout();
+    }
+
+    @After
+    public void closeWB() throws IOException {
+        wb.close();
+    }
+
 	/*
 	 * Accessor methods are not trivial. They use lazy underlying bean
 	 * initialization so there can be some errors (NPE, for example).
 	 */
-	public void testAccessorMethods() throws Exception {
+    @Test
+    public void testAccessorMethods() {
 		final double newRatio = 1.1;
 		final double newCoordinate = 0.3;
 		final LayoutMode nonDefaultMode = LayoutMode.FACTOR;
 		final LayoutTarget nonDefaultTarget = LayoutTarget.OUTER;
-
-		ManualLayout layout = getEmptyLayout();
 
 		layout.setWidthRatio(newRatio);
 		assertTrue(layout.getWidthRatio() == newRatio);
@@ -73,9 +100,8 @@ public final class TestXSSFManualLayout extends TestCase {
 	 * Layout must have reasonable default values and must not throw
 	 * any exceptions.
 	 */
-	public void testDefaultValues() throws Exception {
-		ManualLayout layout = getEmptyLayout();
-		
+    @Test
+    public void testDefaultValues() {
 		assertNotNull(layout.getTarget());
 		assertNotNull(layout.getXMode());
 		assertNotNull(layout.getYMode());
@@ -89,15 +115,5 @@ public final class TestXSSFManualLayout extends TestCase {
 		assertTrue(layout.getY() == 0.0);
 		assertTrue(layout.getWidthRatio() == 0.0);
 		assertTrue(layout.getHeightRatio() == 0.0);
-	}
-
-	private ManualLayout getEmptyLayout() {
-		Workbook wb = new XSSFWorkbook();
-		Sheet sheet = wb.createSheet();
-		Drawing drawing = sheet.createDrawingPatriarch();
-		ClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 1, 1, 10, 30);
-		Chart chart = drawing.createChart(anchor);
-		ChartLegend legend = chart.getOrCreateLegend();
-		return legend.getManualLayout();
 	}
 }

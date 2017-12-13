@@ -90,13 +90,13 @@ public final class TestHex2Dec extends TestCase {
         HSSFEvaluationWorkbook workbook = HSSFEvaluationWorkbook.create(wb);
         WorkbookEvaluator workbookEvaluator = new WorkbookEvaluator(workbook, new IStabilityClassifier() {
             
+            @Override
             public boolean isCellFinal(int sheetIndex, int rowIndex, int columnIndex) {
                 return true;
             }
         }, null);
-        OperationEvaluationContext ctx = new OperationEvaluationContext(workbookEvaluator, 
+        return new OperationEvaluationContext(workbookEvaluator,
                 workbook, 0, 0, 0, null);
-        return ctx;
     }
 
     public void testRefs() {

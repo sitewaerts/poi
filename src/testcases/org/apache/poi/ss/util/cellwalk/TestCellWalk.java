@@ -35,7 +35,7 @@ public class TestCellWalk extends TestCase {
 	{null,       null, "str"}
     };
 
-    private CountCellHandler countCellHandler = new CountCellHandler();
+    private final CountCellHandler countCellHandler = new CountCellHandler();
 
     public void testNotTraverseEmptyCells() {
 	Workbook wb = new HSSFWorkbook();
@@ -54,10 +54,11 @@ public class TestCellWalk extends TestCase {
 
     private static class CountCellHandler implements CellHandler {
 
-	private int cellsVisited = 0;
-	private long ordinalNumberSum = 0L;
+	private int cellsVisited;
+	private long ordinalNumberSum;
 
-	public void onCell(Cell cell, CellWalkContext ctx) {
+	@Override
+    public void onCell(Cell cell, CellWalkContext ctx) {
 	    ++cellsVisited;
 	    ordinalNumberSum += ctx.getOrdinalNumber();
 	}

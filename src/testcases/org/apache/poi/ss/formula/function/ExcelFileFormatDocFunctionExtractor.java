@@ -159,10 +159,10 @@ public final class ExcelFileFormatDocFunctionExtractor {
 
 		public FunctionDataCollector(PrintStream ps) {
 			_ps = ps;
-			_allFunctionsByIndex = new HashMap<Integer, FunctionData>();
-			_allFunctionsByName = new HashMap<String, FunctionData>();
-			_groupFunctionIndexes = new HashSet<Integer>();
-			_groupFunctionNames = new HashSet<String>();
+			_allFunctionsByIndex = new HashMap<>();
+			_allFunctionsByName = new HashMap<>();
+			_groupFunctionIndexes = new HashSet<>();
+			_groupFunctionNames = new HashSet<>();
 		}
 
 		public void addFuntion(int funcIx, boolean hasFootnote, String funcName, int minParams, int maxParams,
@@ -219,8 +219,8 @@ public final class ExcelFileFormatDocFunctionExtractor {
 			Arrays.sort(keys);
 
 			_ps.println("# " + headingText);
-			for (int i = 0; i < keys.length; i++) {
-				FunctionData fd = _allFunctionsByIndex.get(keys[i]);
+			for (Integer key : keys) {
+				FunctionData fd = _allFunctionsByIndex.get(key);
 				_ps.println(fd.formatAsDataLine());
 			}
 		}
@@ -265,11 +265,11 @@ public final class ExcelFileFormatDocFunctionExtractor {
 
 		public EFFDocHandler(FunctionDataCollector fdc) {
 			_fdc = fdc;
-			_elemNameStack = new Stack<String>();
+			_elemNameStack = new Stack<>();
 			_isInsideTable = false;
-			_rowData = new ArrayList<String>();
+			_rowData = new ArrayList<>();
 			_textNodeBuffer = new StringBuffer();
-			_rowNoteFlags = new ArrayList<Boolean>();
+			_rowNoteFlags = new ArrayList<>();
 		}
 
 		private boolean matchesTargetPath() {
@@ -554,9 +554,9 @@ public final class ExcelFileFormatDocFunctionExtractor {
 			"See the License for the specific language governing permissions and",
 			"limitations under the License.",
 		};
-		for (int i = 0; i < lines.length; i++) {
+		for (String line : lines) {
 			ps.print("# ");
-			ps.println(lines[i]);
+			ps.println(line);
 		}
 		ps.println();
 	}

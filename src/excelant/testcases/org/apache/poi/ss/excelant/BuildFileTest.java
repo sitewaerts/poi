@@ -18,6 +18,9 @@
 
 package org.apache.poi.ss.excelant;
 
+import static org.apache.poi.POITestCase.assertContains;
+import static org.apache.poi.POITestCase.assertNotContained;
+
 import java.io.File;
 import java.io.PrintStream;
 import java.net.URL;
@@ -34,7 +37,7 @@ import org.apache.tools.ant.ProjectHelper;
 /**
  * A BuildFileTest is a TestCase which executes targets from an Ant buildfile
  * for testing.
- * <p/>
+ * <p>
  * This class provides a number of utility methods for particular build file
  * tests which extend this class.
  *
@@ -70,7 +73,7 @@ public abstract class BuildFileTest extends TestCase {
     /**
      * Automatically calls the target called "tearDown"
      * from the build file tested if it exits.
-     * <p/>
+     * <p>
      * This allows to use Ant tasks directly in the build file
      * to clean up after each test. Note that no "setUp" target
      * is automatically called, since it's trivial to have a
@@ -119,20 +122,14 @@ public abstract class BuildFileTest extends TestCase {
      * Assert that the given substring is in the log messages.
      */
     public void assertLogContaining(String substring) {
-        String realLog = getLog();
-        assertTrue("expecting log to contain \"" + substring + "\" log was \""
-                + realLog + "\"",
-                realLog.indexOf(substring) >= 0);
+        assertContains(getLog(), substring);
     }
 
     /**
      * Assert that the given substring is not in the log messages.
      */
     public void assertLogNotContaining(String substring) {
-        String realLog = getLog();
-        assertFalse("didn't expect log to contain \"" + substring + "\" log was \""
-                + realLog + "\"",
-                realLog.indexOf(substring) >= 0);
+        assertNotContained(getLog(), substring);
     }
 
     /**
@@ -152,11 +149,7 @@ public abstract class BuildFileTest extends TestCase {
      * @since Ant1.7
      */
     public void assertOutputContaining(String message, String substring) {
-        String realOutput = getOutput();
-        String realMessage = (message != null)
-                ? message
-                : "expecting output to contain \"" + substring + "\" output was \"" + realOutput + "\"";
-        assertTrue(realMessage, realOutput.indexOf(substring) >= 0);
+        assertContains("output: " + message, getOutput(), substring);
     }
 
     /**
@@ -167,11 +160,7 @@ public abstract class BuildFileTest extends TestCase {
      * @since Ant1.7
      */
     public void assertOutputNotContaining(String message, String substring) {
-        String realOutput = getOutput();
-        String realMessage = (message != null)
-                ? message
-                : "expecting output to not contain \"" + substring + "\" output was \"" + realOutput + "\"";
-        assertFalse(realMessage, realOutput.indexOf(substring) >= 0);
+        assertNotContained(getOutput(), substring);
     }
 
     /**
@@ -218,15 +207,15 @@ public abstract class BuildFileTest extends TestCase {
      */
     public void assertDebuglogContaining(String substring) {
         String realLog = getFullLog();
-        assertTrue("expecting debug log to contain \"" + substring
+        assertContains("expecting debug log to contain \"" + substring
                 + "\" log was \""
                 + realLog + "\"",
-                realLog.indexOf(substring) >= 0);
+                realLog, substring);
     }
 
     /**
      * Gets the log the BuildFileTest object.
-     * <p/>
+     * <p>
      * Only valid if configureProject() has been called.
      *
      * @return The log value
@@ -397,7 +386,7 @@ public abstract class BuildFileTest extends TestCase {
             executeTarget(target);
         } catch (org.apache.tools.ant.BuildException ex) {
             buildException = ex;
-            if ((null != contains) && (ex.getMessage().indexOf(contains) == -1)) {
+            if ((null != contains) && (!ex.getMessage().contains(contains))) {
                 fail("Should throw BuildException because '" + cause + "' with message containing '" + contains + "' (actual message '" + ex.getMessage() + "' instead)");
             }
             return;
@@ -500,6 +489,7 @@ public abstract class BuildFileTest extends TestCase {
             this.buffer = buffer;
         }
 
+        @Override
         public void write(int b) {
             buffer.append((char) b);
         }
@@ -522,6 +512,7 @@ public abstract class BuildFileTest extends TestCase {
         /**
          * Fired before any targets are started.
          */
+        @Override
         public void buildStarted(BuildEvent event) {
         }
 
@@ -531,6 +522,7 @@ public abstract class BuildFileTest extends TestCase {
          *
          * @see BuildEvent#getException()
          */
+        @Override
         public void buildFinished(BuildEvent event) {
         }
 
@@ -539,6 +531,7 @@ public abstract class BuildFileTest extends TestCase {
          *
          * @see BuildEvent#getTarget()
          */
+        @Override
         public void targetStarted(BuildEvent event) {
             //System.out.println("targetStarted " + event.getTarget().getName());
         }
@@ -549,6 +542,7 @@ public abstract class BuildFileTest extends TestCase {
          *
          * @see BuildEvent#getException()
          */
+        @Override
         public void targetFinished(BuildEvent event) {
             //System.out.println("targetFinished " + event.getTarget().getName());
         }
@@ -558,6 +552,7 @@ public abstract class BuildFileTest extends TestCase {
          *
          * @see BuildEvent#getTask()
          */
+        @Override
         public void taskStarted(BuildEvent event) {
             //System.out.println("taskStarted " + event.getTask().getTaskName());
         }
@@ -568,6 +563,7 @@ public abstract class BuildFileTest extends TestCase {
          *
          * @see BuildEvent#getException()
          */
+        @Override
         public void taskFinished(BuildEvent event) {
             //System.out.println("taskFinished " + event.getTask().getTaskName());
         }
@@ -578,6 +574,7 @@ public abstract class BuildFileTest extends TestCase {
          * @see BuildEvent#getMessage()
          * @see BuildEvent#getPriority()
          */
+        @Override
         public void messageLogged(BuildEvent event) {
             if (event.getPriority() > logLevel) {
                 // ignore event

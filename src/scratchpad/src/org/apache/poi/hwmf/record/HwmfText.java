@@ -19,19 +19,22 @@ package org.apache.poi.hwmf.record;
 
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
-import java.text.AttributedString;
+import java.nio.charset.Charset;
 
 import org.apache.poi.hwmf.draw.HwmfDrawProperties;
 import org.apache.poi.hwmf.draw.HwmfGraphics;
 import org.apache.poi.hwmf.record.HwmfMisc.WmfSetMapMode;
 import org.apache.poi.util.BitField;
 import org.apache.poi.util.BitFieldFactory;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndianConsts;
 import org.apache.poi.util.LittleEndianInputStream;
-import org.apache.poi.util.LocaleUtil;
-import org.apache.poi.util.RecordFormatException;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
 
 public class HwmfText {
+    private static final POILogger logger = POILogFactory.getLogger(HwmfText.class);
+    private static final int MAX_RECORD_LENGTH = 1_000_000;
 
     /**
      * The META_SETTEXTCHAREXTRA record defines inter-character spacing for text justification in the 
@@ -143,7 +146,7 @@ public class HwmfText {
          * length of the string.
          * The string is written at the location specified by the XStart and YStart fields.
          */
-        private String text;
+        private byte[] rawTextBytes;
         /**
          * A 16-bit signed integer that defines the vertical (y-axis) coordinate, in logical
          * units, of the point where drawing is to start.
@@ -163,18 +166,33 @@ public class HwmfText {
         @Override
         public int init(LittleEndianInputStream leis, long recordSize, int recordFunction) throws IOException {
             stringLength = leis.readShort();
-            byte buf[] = new byte[stringLength+(stringLength&1)];
-            leis.readFully(buf);
-            text = new String(buf, 0, stringLength, LocaleUtil.CHARSET_1252).trim();
+            rawTextBytes = IOUtils.safelyAllocate(stringLength+(stringLength&1), MAX_RECORD_LENGTH);
+            leis.readFully(rawTextBytes);
             yStart = leis.readShort();
             xStart = leis.readShort();
-            return 3*LittleEndianConsts.SHORT_SIZE+buf.length;
+            return 3*LittleEndianConsts.SHORT_SIZE+rawTextBytes.length;
         }
 
         @Override
         public void draw(HwmfGraphics ctx) {
             Rectangle2D bounds = new Rectangle2D.Double(xStart, yStart, 0, 0);
-            ctx.drawString(text, bounds);
+            ctx.drawString(getTextBytes(), bounds);
+        }
+
+        public String getText(Charset charset) {
+            return new String(getTextBytes(), charset);
+        }
+
+        /**
+         *
+         * @return a copy of a trimmed byte array of rawTextBytes bytes.
+         * This includes only the bytes from 0..stringLength.
+         * This does not include the extra optional padding on the byte array.
+         */
+        private byte[] getTextBytes() {
+            byte[] ret = IOUtils.safelyAllocate(stringLength, MAX_RECORD_LENGTH);
+            System.arraycopy(rawTextBytes, 0, ret, 0, stringLength);
+            return ret;
         }
     }
     
@@ -184,6 +202,48 @@ public class HwmfText {
      * opaquing, or both.
      */
     public static class WmfExtTextOut implements HwmfRecord {
+
+        /**
+         * Indicates that the background color that is defined in the playback device context 
+         * SHOULD be used to fill the rectangle.
+         */ 
+        private static final BitField ETO_OPAQUE = BitFieldFactory.getInstance(0x0002);
+        
+        /**
+         * Indicates that the text SHOULD be clipped to the rectangle.
+         */
+        private static final BitField ETO_CLIPPED = BitFieldFactory.getInstance(0x0004);
+
+        /**
+         * Indicates that the string to be output SHOULD NOT require further processing 
+         * with respect to the placement of the characters, and an array of character 
+         * placement values SHOULD be provided. This character placement process is 
+         * useful for fonts in which diacritical characters affect character spacing.
+         */
+        private static final BitField ETO_GLYPH_INDEX = BitFieldFactory.getInstance(0x0010);
+
+        /**
+         * Indicates that the text MUST be laid out in right-to-left reading order, instead of 
+         * the default left-to-right order. This SHOULD be applied only when the font that is 
+         * defined in the playback device context is either Hebrew or Arabic.
+         */
+        private static final BitField ETO_RTLREADING = BitFieldFactory.getInstance(0x0080);
+
+        /**
+         * Indicates that to display numbers, digits appropriate to the locale SHOULD be used.
+         */
+        private static final BitField ETO_NUMERICSLOCAL = BitFieldFactory.getInstance(0x0400);
+
+        /**
+         * Indicates that to display numbers, European digits SHOULD be used.
+         */
+        private static final BitField ETO_NUMERICSLATIN = BitFieldFactory.getInstance(0x0800);
+
+        /**
+         * Indicates that both horizontal and vertical character displacement values 
+         * SHOULD be provided.
+         */
+        private static final BitField ETO_PDY = BitFieldFactory.getInstance(0x2000);
 
         /**
          * A 16-bit signed integer that defines the y-coordinate, in logical units, where the 
@@ -199,40 +259,12 @@ public class HwmfText {
          * A 16-bit signed integer that defines the length of the string.
          */
         private int stringLength;
-        /**
-         * A 16-bit unsigned integer that defines the use of the application-defined 
-         * rectangle. This member can be a combination of one or more values in the 
-         * ExtTextOutOptions Flags:
-         * 
-         * ETO_OPAQUE (0x0002):
-         * Indicates that the background color that is defined in the playback device context 
-         * SHOULD be used to fill the rectangle.
-         * 
-         * ETO_CLIPPED (0x0004):
-         * Indicates that the text SHOULD be clipped to the rectangle.
-         * 
-         * ETO_GLYPH_INDEX (0x0010):
-         * Indicates that the string to be output SHOULD NOT require further processing 
-         * with respect to the placement of the characters, and an array of character 
-         * placement values SHOULD be provided. This character placement process is 
-         * useful for fonts in which diacritical characters affect character spacing.
-         * 
-         * ETO_RTLREADING (0x0080):
-         * Indicates that the text MUST be laid out in right-to-left reading order, instead of 
-         * the default left-to-right order. This SHOULD be applied only when the font that is 
-         * defined in the playback device context is either Hebrew or Arabic. <37>
-         * 
-         * ETO_NUMERICSLOCAL (0x0400):
-         * Indicates that to display numbers, digits appropriate to the locale SHOULD be 
-         * used.
-         * 
-         * ETO_NUMERICSLATIN (0x0800):
-         * Indicates that to display numbers, European digits SHOULD be used. <39>
-         * 
-         * ETO_PDY (0x2000):
-         * Indicates that both horizontal and vertical character displacement values 
-         * SHOULD be provided.
-         */
+
+         /**
+          * A 16-bit unsigned integer that defines the use of the application-defined 
+          * rectangle. This member can be a combination of one or more values in the 
+          * ExtTextOutOptions Flags (ETO_*)
+          */
         private int fwOpts;
         /**
          * An optional 8-byte Rect Object (section 2.2.2.18) that defines the 
@@ -249,7 +281,7 @@ public class HwmfText {
          * the length is odd, an extra byte is placed after it so that the following member (optional Dx) is 
          * aligned on a 16-bit boundary.
          */
-        private String text;
+        private byte[] rawTextBytes;
         /**
          * An optional array of 16-bit signed integers that indicate the distance between 
          * origins of adjacent character cells. For example, Dx[i] logical units separate the origins of 
@@ -275,7 +307,8 @@ public class HwmfText {
             
             int size = 4*LittleEndianConsts.SHORT_SIZE;
             
-            if (fwOpts != 0 && size+8<=remainingRecordSize) {
+            // Check if we have a rectangle
+            if ((ETO_OPAQUE.isSet(fwOpts) || ETO_CLIPPED.isSet(fwOpts)) && size+8<=remainingRecordSize) {
                 // the bounding rectangle is optional and only read when fwOpts are given
                 left = leis.readShort();
                 top = leis.readShort();
@@ -284,21 +317,24 @@ public class HwmfText {
                 size += 4*LittleEndianConsts.SHORT_SIZE;
             }
             
-            byte buf[] = new byte[stringLength+(stringLength&1)];
-            leis.readFully(buf);
-            text = new String(buf, 0, stringLength, LocaleUtil.CHARSET_1252);
-            size += buf.length;
+            rawTextBytes = IOUtils.safelyAllocate(stringLength+(stringLength&1), MAX_RECORD_LENGTH);
+            leis.readFully(rawTextBytes);
+            size += rawTextBytes.length;
             
-            if (size < remainingRecordSize) {
-                if (size + stringLength*LittleEndianConsts.SHORT_SIZE < remainingRecordSize) {
-                    throw new RecordFormatException("can't read Dx array - given recordSize doesn't contain enough values for string length "+stringLength);
-                }
-                
-                dx = new int[stringLength];
-                for (int i=0; i<dx.length; i++) {
-                    dx[i] = leis.readShort();
-                }
-                size += dx.length*LittleEndianConsts.SHORT_SIZE;
+            if (size >= remainingRecordSize) {
+                logger.log(POILogger.INFO, "META_EXTTEXTOUT doesn't contain character tracking info");
+                return size;
+            }
+            
+            int dxLen = Math.min(stringLength, (remainingRecordSize-size)/LittleEndianConsts.SHORT_SIZE);
+            if (dxLen < stringLength) {
+                logger.log(POILogger.WARN, "META_EXTTEXTOUT tracking info doesn't cover all characters");
+            }
+
+            dx = new int[stringLength]; 
+            for (int i=0; i<dxLen; i++) {
+                dx[i] = leis.readShort();
+                size += LittleEndianConsts.SHORT_SIZE;
             }
             
             return size;
@@ -306,20 +342,37 @@ public class HwmfText {
 
         @Override
         public void draw(HwmfGraphics ctx) {
+            Rectangle2D bounds = new Rectangle2D.Double(x, y, 0, 0);
+            ctx.drawString(getTextBytes(), bounds, dx);
+        }
 
+        public String getText(Charset charset) {
+            return new String(getTextBytes(), charset);
+        }
+
+        /**
+         *
+         * @return a copy of a trimmed byte array of rawTextBytes bytes.
+         * This includes only the bytes from 0..stringLength.
+         * This does not include the extra optional padding on the byte array.
+         */
+        private byte[] getTextBytes() {
+            byte[] ret = IOUtils.safelyAllocate(stringLength, MAX_RECORD_LENGTH);
+            System.arraycopy(rawTextBytes, 0, ret, 0, stringLength);
+            return ret;
         }
     }
     
     public enum HwmfTextAlignment {
         LEFT,
         RIGHT,
-        CENTER;
+        CENTER
     }
     
     public enum HwmfTextVerticalAlignment {
         TOP,
         BOTTOM,
-        BASELINE;
+        BASELINE
     }
     
     /**
@@ -501,6 +554,10 @@ public class HwmfText {
         @Override
         public void applyObject(HwmfGraphics ctx) {
             ctx.getProperties().setFont(font);
+        }
+
+        public HwmfFont getFont() {
+            return font;
         }
     }
 }

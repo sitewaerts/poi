@@ -23,6 +23,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
+import static org.apache.poi.xslf.usermodel.TestXSLFSimpleShape.getSpPr;
 
 import java.awt.Color;
 import java.io.File;
@@ -37,6 +39,7 @@ import org.apache.poi.sl.usermodel.SlideShowFactory;
 import org.apache.poi.sl.usermodel.TextParagraph.TextAlign;
 import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.apache.poi.xslf.XSLFTestDataSamples;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTTextBodyProperties;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTTextCharacterProperties;
@@ -46,6 +49,16 @@ import org.openxmlformats.schemas.presentationml.x2006.main.CTPlaceholder;
 import org.openxmlformats.schemas.presentationml.x2006.main.STPlaceholderType;
 
 public class TestXSLFTextShape {
+    private static boolean xslfOnly;
+
+    @BeforeClass
+    public static void checkHslf() {
+        try {
+            Class.forName("org.apache.poi.hslf.usermodel.HSLFSlideShow");
+        } catch (Exception e) {
+            xslfOnly = true;
+        }
+    }
 
     @Test
     public void testLayouts() throws IOException {
@@ -73,10 +86,10 @@ public class TestXSLFTextShape {
         CTPlaceholder ph1 = shape1.getCTPlaceholder();
         assertEquals(STPlaceholderType.CTR_TITLE, ph1.getType());
         // anchor is not defined in the shape
-        assertNull(shape1.getSpPr().getXfrm());
+        assertNull(getSpPr(shape1).getXfrm());
 
         XSLFTextShape masterShape1 = (XSLFTextShape)layout.getPlaceholder(ph1);
-        assertNotNull(masterShape1.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape1).getXfrm());
         assertEquals(masterShape1.getAnchor(), shape1.getAnchor());
 
         CTTextBodyProperties bodyPr1 = shape1.getTextBodyPr();
@@ -103,10 +116,10 @@ public class TestXSLFTextShape {
         CTPlaceholder ph2 = shape2.getCTPlaceholder();
         assertEquals(STPlaceholderType.SUB_TITLE, ph2.getType());
         // anchor is not defined in the shape
-        assertNull(shape2.getSpPr().getXfrm());
+        assertNull(getSpPr(shape2).getXfrm());
 
         XSLFTextShape masterShape2 = (XSLFTextShape)layout.getPlaceholder(ph2);
-        assertNotNull(masterShape2.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape2).getXfrm());
         assertEquals(masterShape2.getAnchor(), shape2.getAnchor());
 
         CTTextBodyProperties bodyPr2 = shape2.getTextBodyPr();
@@ -139,13 +152,13 @@ public class TestXSLFTextShape {
         CTPlaceholder ph1 = shape1.getCTPlaceholder();
         assertEquals(STPlaceholderType.TITLE, ph1.getType());
         // anchor is not defined in the shape
-        assertNull(shape1.getSpPr().getXfrm());
+        assertNull(getSpPr(shape1).getXfrm());
 
         XSLFTextShape masterShape1 = (XSLFTextShape)layout.getPlaceholder(ph1);
         // layout does not have anchor info either, it is in the slide master
-        assertNull(masterShape1.getSpPr().getXfrm());
+        assertNull(getSpPr(masterShape1).getXfrm());
         masterShape1 = (XSLFTextShape)layout.getSlideMaster().getPlaceholder(ph1);
-        assertNotNull(masterShape1.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape1).getXfrm());
         assertEquals(masterShape1.getAnchor(), shape1.getAnchor());
 
         CTTextBodyProperties bodyPr1 = shape1.getTextBodyPr();
@@ -174,13 +187,13 @@ public class TestXSLFTextShape {
         assertTrue(ph2.isSetIdx());
         assertEquals(1, ph2.getIdx());
         // anchor is not defined in the shape
-        assertNull(shape2.getSpPr().getXfrm());
+        assertNull(getSpPr(shape2).getXfrm());
 
         XSLFTextShape masterShape2 = (XSLFTextShape)layout.getPlaceholder(ph2);
         // anchor of the body text is missing in the slide layout, llokup in the slide master
-        assertNull(masterShape2.getSpPr().getXfrm());
+        assertNull(getSpPr(masterShape2).getXfrm());
         masterShape2 = (XSLFTextShape)layout.getSlideMaster().getPlaceholder(ph2);
-        assertNotNull(masterShape2.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape2).getXfrm());
         assertEquals(masterShape2.getAnchor(), shape2.getAnchor());
 
         CTTextBodyProperties bodyPr2 = shape2.getTextBodyPr();
@@ -252,10 +265,10 @@ public class TestXSLFTextShape {
         CTPlaceholder ph1 = shape1.getCTPlaceholder();
         assertEquals(STPlaceholderType.TITLE, ph1.getType());
         // anchor is not defined in the shape
-        assertNull(shape1.getSpPr().getXfrm());
+        assertNull(getSpPr(shape1).getXfrm());
 
         XSLFTextShape masterShape1 = (XSLFTextShape)layout.getPlaceholder(ph1);
-        assertNotNull(masterShape1.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape1).getXfrm());
         assertEquals(masterShape1.getAnchor(), shape1.getAnchor());
 
         CTTextBodyProperties bodyPr1 = shape1.getTextBodyPr();
@@ -286,10 +299,10 @@ public class TestXSLFTextShape {
         CTPlaceholder ph2 = shape2.getCTPlaceholder();
         assertEquals(STPlaceholderType.BODY, ph2.getType());
         // anchor is not defined in the shape
-        assertNull(shape2.getSpPr().getXfrm());
+        assertNull(getSpPr(shape2).getXfrm());
 
         XSLFTextShape masterShape2 = (XSLFTextShape)layout.getPlaceholder(ph2);
-        assertNotNull(masterShape2.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape2).getXfrm());
         assertEquals(masterShape2.getAnchor(), shape2.getAnchor());
 
         CTTextBodyProperties bodyPr2 = shape2.getTextBodyPr();
@@ -323,13 +336,13 @@ public class TestXSLFTextShape {
         CTPlaceholder ph1 = shape1.getCTPlaceholder();
         assertEquals(STPlaceholderType.TITLE, ph1.getType());
         // anchor is not defined in the shape
-        assertNull(shape1.getSpPr().getXfrm());
+        assertNull(getSpPr(shape1).getXfrm());
 
         XSLFTextShape masterShape1 = (XSLFTextShape)layout.getPlaceholder(ph1);
         // layout does not have anchor info either, it is in the slide master
-        assertNull(masterShape1.getSpPr().getXfrm());
+        assertNull(getSpPr(masterShape1).getXfrm());
         masterShape1 = (XSLFTextShape)layout.getSlideMaster().getPlaceholder(ph1);
-        assertNotNull(masterShape1.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape1).getXfrm());
         assertEquals(masterShape1.getAnchor(), shape1.getAnchor());
 
         CTTextBodyProperties bodyPr1 = shape1.getTextBodyPr();
@@ -359,10 +372,10 @@ public class TestXSLFTextShape {
         assertTrue(ph2.isSetIdx());
         assertEquals(1, ph2.getIdx());  //<p:ph sz="half" idx="1"/>
         // anchor is not defined in the shape
-        assertNull(shape2.getSpPr().getXfrm());
+        assertNull(getSpPr(shape2).getXfrm());
 
         XSLFTextShape masterShape2 = (XSLFTextShape)layout.getPlaceholder(ph2);
-        assertNotNull(masterShape2.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape2).getXfrm());
         assertEquals(masterShape2.getAnchor(), shape2.getAnchor());
 
         CTTextBodyProperties bodyPr2 = shape2.getTextBodyPr();
@@ -438,7 +451,7 @@ public class TestXSLFTextShape {
         CTPlaceholder ph1 = shape1.getCTPlaceholder();
         assertEquals(STPlaceholderType.TITLE, ph1.getType());
         // anchor is not defined in the shape
-        assertNull(shape1.getSpPr().getXfrm());
+        assertNull(getSpPr(shape1).getXfrm());
 
         CTTextBodyProperties bodyPr1 = shape1.getTextBodyPr();
         // none of the following properties are set in the shapes and fetched from the master shape
@@ -506,11 +519,11 @@ public class TestXSLFTextShape {
         CTPlaceholder ph1 = shape1.getCTPlaceholder();
         assertEquals(STPlaceholderType.TITLE, ph1.getType());
         // anchor is not defined in the shape
-        assertNull(shape1.getSpPr().getXfrm());
+        assertNull(getSpPr(shape1).getXfrm());
 
         XSLFTextShape masterShape1 = (XSLFTextShape)layout.getPlaceholder(ph1);
         // layout does not have anchor info either, it is in the slide master
-        assertNotNull(masterShape1.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape1).getXfrm());
         assertEquals(masterShape1.getAnchor(), shape1.getAnchor());
 
         CTTextBodyProperties bodyPr1 = shape1.getTextBodyPr();
@@ -541,10 +554,10 @@ public class TestXSLFTextShape {
         assertTrue(ph2.isSetIdx());
         assertEquals(1, ph2.getIdx());
         // anchor is not defined in the shape
-        assertNull(shape2.getSpPr().getXfrm());
+        assertNull(getSpPr(shape2).getXfrm());
 
         XSLFTextShape masterShape2 = (XSLFTextShape)layout.getPlaceholder(ph2);
-        assertNotNull(masterShape2.getSpPr().getXfrm());
+        assertNotNull(getSpPr(masterShape2).getXfrm());
         assertEquals(masterShape2.getAnchor(), shape2.getAnchor());
 
         CTTextBodyProperties bodyPr2 = shape2.getTextBodyPr();
@@ -619,8 +632,8 @@ public class TestXSLFTextShape {
         assertEquals(TextAlign.CENTER, r1.getParentParagraph().getTextAlign());
         assertEquals("Calibri", r1.getFontFamily());
         assertEquals(12.0, r1.getFontSize(), 0);
-        // TODO calculation of tint is incorrect
-        assertTrue(sameColor(new Color(64,64,64), r1.getFontColor()));
+        // TODO calculation of tint might be incorrect
+        assertTrue(sameColor(new Color(191,191,191), r1.getFontColor()));
 
         XSLFTextShape dt = (XSLFTextShape)slide.getPlaceholderByType(STPlaceholderType.INT_DT);
         assertEquals("Friday, October 21, 2011", dt.getText());
@@ -701,7 +714,7 @@ public class TestXSLFTextShape {
 
         // level 5: text properties are defined in the text run
         CTTextParagraphProperties lv5PPr = paragraph.getXmlObject().addNewPPr();
-        CTTextCharacterProperties lv5CPr = textRun.getXmlObject().getRPr();
+        CTTextCharacterProperties lv5CPr = textRun.getRPr(false);
         lv5CPr.setSz(3600);
         assertEquals(36.0, textRun.getFontSize(), 0);
         lv5CPr.addNewLatin().setTypeface("Calibri");
@@ -886,11 +899,11 @@ public class TestXSLFTextShape {
 
         // level 5: text properties are defined in the text run
         lv1PPr = p1.getXmlObject().isSetPPr() ? p1.getXmlObject().getPPr() : p1.getXmlObject().addNewPPr();
-        lv1CPr = r1.getXmlObject().getRPr();
+        lv1CPr = r1.getRPr(false);
         lv2PPr = p2.getXmlObject().isSetPPr() ? p2.getXmlObject().getPPr() : p2.getXmlObject().addNewPPr();
-        lv2CPr = r2.getXmlObject().getRPr();
+        lv2CPr = r2.getRPr(false);
         lv3PPr = p3.getXmlObject().isSetPPr() ? p3.getXmlObject().getPPr() : p3.getXmlObject().addNewPPr();
-        lv3CPr = r3.getXmlObject().getRPr();
+        lv3CPr = r3.getRPr(false);
 
         lv1CPr.setSz(3600);
         assertEquals(36.0, r1.getFontSize(), 0);
@@ -918,6 +931,7 @@ public class TestXSLFTextShape {
     
     @Test
     public void metroBlob() throws IOException {
+        assumeFalse(xslfOnly);
         File f = POIDataSamples.getSlideShowInstance().getFile("bug52297.ppt");
         SlideShow<?,?> ppt = SlideShowFactory.create(f);
         HSLFTextShape sh = (HSLFTextShape)ppt.getSlides().get(1).getShapes().get(3);

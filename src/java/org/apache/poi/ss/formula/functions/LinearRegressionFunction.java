@@ -30,12 +30,12 @@ import org.apache.poi.ss.formula.functions.LookupUtils.ValueVector;
 /**
  * Base class for linear regression functions.
  *
- * Calculates the linear regression line that is used to predict y values from x values<br/>
+ * Calculates the linear regression line that is used to predict y values from x values<br>
  * (http://introcs.cs.princeton.edu/java/97data/LinearRegression.java.html)
- * <b>Syntax</b>:<br/>
- * <b>INTERCEPT</b>(<b>arrayX</b>, <b>arrayY</b>)<p/>
+ * <b>Syntax</b>:<br>
+ * <b>INTERCEPT</b>(<b>arrayX</b>, <b>arrayY</b>)<p>
  * or
- * <b>SLOPE</b>(<b>arrayX</b>, <b>arrayY</b>)<p/>
+ * <b>SLOPE</b>(<b>arrayX</b>, <b>arrayY</b>)<p>
  *
  *
  * @author Johan Karlsteen
@@ -106,7 +106,7 @@ public final class LinearRegressionFunction extends Fixed2ArgFunction {
 		}
 	}
 
-	public enum FUNCTION {INTERCEPT, SLOPE};
+	public enum FUNCTION {INTERCEPT, SLOPE}
 	public FUNCTION function;
 	
 	public LinearRegressionFunction(FUNCTION function) {

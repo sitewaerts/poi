@@ -17,6 +17,8 @@
 
 package org.apache.poi.hssf.extractor;
 
+import static org.apache.poi.POITestCase.assertContains;
+import static org.apache.poi.POITestCase.assertStartsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -55,96 +57,78 @@ public final class TestExcelExtractor {
 
 	@Test
 	public void testSimple() throws IOException {
-		ExcelExtractor extractor = createExtractor("Simple.xls");
+		try (ExcelExtractor extractor = createExtractor("Simple.xls")) {
+			assertEquals("Sheet1\nreplaceMe\nSheet2\nSheet3\n", extractor.getText());
 
-		try {
-    		assertEquals("Sheet1\nreplaceMe\nSheet2\nSheet3\n", extractor.getText());
-    
-    		// Now turn off sheet names
-    		extractor.setIncludeSheetNames(false);
-    		assertEquals("replaceMe\n", extractor.getText());
-		} finally {
-		    extractor.close();
+			// Now turn off sheet names
+			extractor.setIncludeSheetNames(false);
+			assertEquals("replaceMe\n", extractor.getText());
 		}
 	}
 
 	@Test
 	public void testNumericFormula() throws IOException {
+		try (ExcelExtractor extractor = createExtractor("sumifformula.xls")) {
+			assertEquals(
+					"Sheet1\n" +
+							"1000\t1\t5\n" +
+							"2000\t2\n" +
+							"3000\t3\n" +
+							"4000\t4\n" +
+							"5000\t5\n" +
+							"Sheet2\nSheet3\n",
+					extractor.getText()
+			);
 
-		ExcelExtractor extractor = createExtractor("sumifformula.xls");
+			extractor.setFormulasNotResults(true);
 
-		assertEquals(
-				"Sheet1\n" +
-				"1000\t1\t5\n" +
-				"2000\t2\n" +
-				"3000\t3\n" +
-				"4000\t4\n" +
-				"5000\t5\n" +
-				"Sheet2\nSheet3\n",
-				extractor.getText()
-		);
-
-		extractor.setFormulasNotResults(true);
-
-		assertEquals(
-				"Sheet1\n" +
-				"1000\t1\tSUMIF(A1:A5,\">4000\",B1:B5)\n" +
-				"2000\t2\n" +
-				"3000\t3\n" +
-				"4000\t4\n" +
-				"5000\t5\n" +
-				"Sheet2\nSheet3\n",
-				extractor.getText()
-		);
-		
-		extractor.close();
+			assertEquals(
+					"Sheet1\n" +
+							"1000\t1\tSUMIF(A1:A5,\">4000\",B1:B5)\n" +
+							"2000\t2\n" +
+							"3000\t3\n" +
+							"4000\t4\n" +
+							"5000\t5\n" +
+							"Sheet2\nSheet3\n",
+					extractor.getText()
+			);
+		}
 	}
 
 	@Test
-	public void testwithContinueRecords() throws IOException {
-
-		ExcelExtractor extractor = createExtractor("StringContinueRecords.xls");
-
-		extractor.getText();
-
-		// Has masses of text
-		// Until we fixed bug #41064, this would've
-		//   failed by now
-		assertTrue(extractor.getText().length() > 40960);
-		
-		extractor.close();
+	public void testWithContinueRecords() throws IOException {
+		try (ExcelExtractor extractor = createExtractor("StringContinueRecords.xls")) {
+			// Has masses of text
+			// Until we fixed bug #41064, this would've
+			//   failed by now
+			assertTrue(extractor.getText().length() > 40960);
+		}
 	}
 
 	@Test
     public void testStringConcat() throws IOException {
+		try (ExcelExtractor extractor = createExtractor("SimpleWithFormula.xls")) {
+			// Comes out as NaN if treated as a number
+			// And as XYZ if treated as a string
+			assertEquals("Sheet1\nreplaceme\nreplaceme\nreplacemereplaceme\nSheet2\nSheet3\n", extractor.getText());
 
-		ExcelExtractor extractor = createExtractor("SimpleWithFormula.xls");
+			extractor.setFormulasNotResults(true);
 
-		// Comes out as NaN if treated as a number
-		// And as XYZ if treated as a string
-		assertEquals("Sheet1\nreplaceme\nreplaceme\nreplacemereplaceme\nSheet2\nSheet3\n", extractor.getText());
-
-		extractor.setFormulasNotResults(true);
-
-		assertEquals("Sheet1\nreplaceme\nreplaceme\nCONCATENATE(A1,A2)\nSheet2\nSheet3\n", extractor.getText());
-		
-		extractor.close();
+			assertEquals("Sheet1\nreplaceme\nreplaceme\nCONCATENATE(A1,A2)\nSheet2\nSheet3\n", extractor.getText());
+		}
 	}
 
 	@Test
     public void testStringFormula() throws IOException {
+		try (ExcelExtractor extractor = createExtractor("StringFormulas.xls")) {
+			// Comes out as NaN if treated as a number
+			// And as XYZ if treated as a string
+			assertEquals("Sheet1\nXYZ\nSheet2\nSheet3\n", extractor.getText());
 
-		ExcelExtractor extractor = createExtractor("StringFormulas.xls");
+			extractor.setFormulasNotResults(true);
 
-		// Comes out as NaN if treated as a number
-		// And as XYZ if treated as a string
-		assertEquals("Sheet1\nXYZ\nSheet2\nSheet3\n", extractor.getText());
-
-		extractor.setFormulasNotResults(true);
-
-		assertEquals("Sheet1\nUPPER(\"xyz\")\nSheet2\nSheet3\n", extractor.getText());
-		
-		extractor.close();
+			assertEquals("Sheet1\nUPPER(\"xyz\")\nSheet2\nSheet3\n", extractor.getText());
+		}
 	}
 
 
@@ -201,59 +185,56 @@ public final class TestExcelExtractor {
 
 	@Test
     public void testWithComments() throws IOException {
-		ExcelExtractor extractor = createExtractor("SimpleWithComments.xls");
-		extractor.setIncludeSheetNames(false);
+		try (ExcelExtractor extractor = createExtractor("SimpleWithComments.xls")) {
+			extractor.setIncludeSheetNames(false);
 
-		// Check without comments
-		assertEquals(
-				"1\tone\n" +
-				"2\ttwo\n" +
-				"3\tthree\n",
-				extractor.getText()
-		);
+			// Check without comments
+			assertEquals(
+					"1\tone\n" +
+							"2\ttwo\n" +
+							"3\tthree\n",
+					extractor.getText()
+			);
 
-		// Now with
-		extractor.setIncludeCellComments(true);
-		assertEquals(
-				"1\tone Comment by Yegor Kozlov: Yegor Kozlov: first cell\n" +
-				"2\ttwo Comment by Yegor Kozlov: Yegor Kozlov: second cell\n" +
-				"3\tthree Comment by Yegor Kozlov: Yegor Kozlov: third cell\n",
-				extractor.getText()
-		);
-		
-		extractor.close();
+			// Now with
+			extractor.setIncludeCellComments(true);
+			assertEquals(
+					"1\tone Comment by Yegor Kozlov: Yegor Kozlov: first cell\n" +
+							"2\ttwo Comment by Yegor Kozlov: Yegor Kozlov: second cell\n" +
+							"3\tthree Comment by Yegor Kozlov: Yegor Kozlov: third cell\n",
+					extractor.getText()
+			);
+		}
 	}
 
 	@Test
     public void testWithBlank() throws IOException {
-		ExcelExtractor extractor = createExtractor("MissingBits.xls");
-		String def = extractor.getText();
-		extractor.setIncludeBlankCells(true);
-		String padded = extractor.getText();
+		try (ExcelExtractor extractor = createExtractor("MissingBits.xls")) {
+			String def = extractor.getText();
+			extractor.setIncludeBlankCells(true);
+			String padded = extractor.getText();
 
-		assertTrue(def.startsWith(
-				"Sheet1\n" +
-				"&[TAB]\t\n" +
-				"Hello\n" +
-				"11\t23\n"
-		));
+			assertStartsWith(def,
+					"Sheet1\n" +
+							"&[TAB]\t\n" +
+							"Hello\n" +
+							"11\t23\n"
+			);
 
-		assertTrue(padded.startsWith(
-				"Sheet1\n" +
-				"&[TAB]\t\n" +
-				"Hello\n" +
-				"11\t\t\t23\n"
-		));
-		
-		extractor.close();
+			assertStartsWith(padded,
+					"Sheet1\n" +
+							"&[TAB]\t\n" +
+							"Hello\n" +
+							"11\t\t\t23\n"
+			);
+		}
 	}
 
 	@Test
     public void testFormatting() throws Exception {
 	    Locale userLocale = LocaleUtil.getUserLocale();
 	    LocaleUtil.setUserLocale(Locale.ROOT);
-	    try {
-            ExcelExtractor extractor = createExtractor("Formatting.xls");
+	    try (ExcelExtractor extractor = createExtractor("Formatting.xls")) {
             extractor.setIncludeBlankCells(false);
             extractor.setIncludeSheetNames(false);
             String text = extractor.getText();
@@ -262,41 +243,14 @@ public final class TestExcelExtractor {
             //  actually quite match what they claim to
             //  be, as some are auto-local builtins...
             
-            assertTrue(text.startsWith(
-                  "Dates, all 24th November 2006\n"
-            ));
-            assertTrue(
-                  text.indexOf(
-                     "yyyy/mm/dd\t2006/11/24\n"
-                  ) > -1
-            );
-            assertTrue(
-                  text.indexOf(
-                     "yyyy-mm-dd\t2006-11-24\n"
-                  ) > -1
-            );
-            assertTrue(
-                  text.indexOf(
-                     "dd-mm-yy\t24-11-06\n"
-                  ) > -1
-            );
+            assertStartsWith(text, "Dates, all 24th November 2006\n");
+            assertContains(text, "yyyy/mm/dd\t2006/11/24\n");
+            assertContains(text, "yyyy-mm-dd\t2006-11-24\n");
+            assertContains(text, "dd-mm-yy\t24-11-06\n");
             
-            assertTrue("Had: " + text + ", but should contain 'nn.nn\\t10.52\\n'",
-                  text.indexOf(
-                     "nn.nn\t10.52\n"
-                  ) > -1
-            );
-            assertTrue(
-                  text.indexOf(
-                     "nn.nnn\t10.520\n"
-                  ) > -1
-            );
-            assertTrue(
-                  text.indexOf(
-                     "\u00a3nn.nn\t\u00a310.52\n"
-                  ) > -1
-            );
-            extractor.close();
+            assertContains(text, "nn.nn\t10.52\n");
+            assertContains(text, "nn.nnn\t10.520\n");
+            assertContains(text, "\u00a3nn.nn\t\u00a310.52\n");
 	    } finally {
 	        LocaleUtil.setUserLocale(userLocale);
 	    }
@@ -387,31 +341,40 @@ public final class TestExcelExtractor {
 			"45538_classic_Footer.xls", "45538_form_Footer.xls",
 			"45538_classic_Header.xls", "45538_form_Header.xls"
 		};
-		for(int i=0; i<files.length; i++) {
-			ExcelExtractor extractor = createExtractor(files[i]);
-			String text = extractor.getText();
-			assertTrue("Unable to find expected word in text\n" + text, text.indexOf("testdoc") >=0);
-			assertTrue("Unable to find expected word in text\n" + text, text.indexOf("test phrase") >= 0);
-			extractor.close();
+		for (String file : files) {
+			try (ExcelExtractor extractor = createExtractor(file)) {
+				String text = extractor.getText();
+				assertContains(file, text, "testdoc");
+				assertContains(file, text, "test phrase");
+			}
 		}
 	}
 
 	@Test
     public void testPassword() throws IOException {
 		Biff8EncryptionKey.setCurrentUserPassword("password");
-		ExcelExtractor extractor = createExtractor("password.xls");
-		String text = extractor.getText();
-		Biff8EncryptionKey.setCurrentUserPassword(null);
+		try (ExcelExtractor extractor = createExtractor("password.xls")) {
+			String text = extractor.getText();
+			Biff8EncryptionKey.setCurrentUserPassword(null);
 
-		assertTrue(text.contains("ZIP"));
-		extractor.close();
+			assertContains(text, "ZIP");
+		}
 	}
 
 	@Test
     public void testNullPointerException() throws IOException {
-		ExcelExtractor extractor = createExtractor("ar.org.apsme.www_Form%20Inscripcion%20Curso%20NO%20Socios.xls");
-		assertNotNull(extractor);
-		assertNotNull(extractor.getText());
-		extractor.close();
+		try (ExcelExtractor extractor = createExtractor("ar.org.apsme.www_Form%20Inscripcion%20Curso%20NO%20Socios.xls")) {
+			assertNotNull(extractor);
+			assertNotNull(extractor.getText());
+		}
+	}
+
+	@Test
+	public void test61045() throws IOException {
+		//bug 61045. File is govdocs1 626534
+		try (ExcelExtractor extractor = createExtractor("61045_govdocs1_626534.xls")) {
+			String txt = extractor.getText();
+			assertContains(txt, "NONBUSINESS");
+		}
 	}
 }

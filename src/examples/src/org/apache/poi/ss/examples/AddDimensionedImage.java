@@ -19,14 +19,13 @@
 package org.apache.poi.ss.examples;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Locale;
 
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.ClientAnchor;
 import org.apache.poi.ss.usermodel.ClientAnchor.AnchorType;
 import org.apache.poi.ss.usermodel.Drawing;
@@ -270,7 +269,7 @@ public class AddDimensionedImage {
      *                                            to the resizeBehaviour
      *                                            parameter.
      */
-    public void addImageToSheet(String cellNumber, Sheet sheet, Drawing drawing,
+    public void addImageToSheet(String cellNumber, Sheet sheet, Drawing<?> drawing,
             URL imageFile, double reqImageWidthMM, double reqImageHeightMM,
             int resizeBehaviour) throws IOException, IllegalArgumentException {
         // Convert the String into column and row indices then chain the
@@ -330,14 +329,14 @@ public class AddDimensionedImage {
      *                                            it is of a type that cannot
      *                                            currently be added to the worksheet.
      */
-    public void addImageToSheet(int colNumber, int rowNumber, Sheet sheet, Drawing drawing,
+    public void addImageToSheet(int colNumber, int rowNumber, Sheet sheet, Drawing<?> drawing,
             URL imageFile, double reqImageWidthMM, double reqImageHeightMM,
             int resizeBehaviour) throws IOException,
                                                      IllegalArgumentException {
-        ClientAnchor anchor = null;
-        ClientAnchorDetail rowClientAnchorDetail = null;
-        ClientAnchorDetail colClientAnchorDetail = null;
-        int imageType = 0;
+        ClientAnchor anchor;
+        ClientAnchorDetail rowClientAnchorDetail;
+        ClientAnchorDetail colClientAnchorDetail;
+        int imageType;
 
         // Validate the resizeBehaviour parameter.
         if((resizeBehaviour != AddDimensionedImage.EXPAND_COLUMN) &&
@@ -388,7 +387,7 @@ public class AddDimensionedImage {
 	if( sURL.endsWith(".png") ) {
             imageType = Workbook.PICTURE_TYPE_PNG;
 	}
-	else if( sURL.endsWith("jpg") || sURL.endsWith(".jpeg") ) {
+	else if( sURL.endsWith(".jpg") || sURL.endsWith(".jpeg") ) {
             imageType = Workbook.PICTURE_TYPE_JPEG;
 	}
 	else  {
@@ -428,9 +427,9 @@ public class AddDimensionedImage {
     private ClientAnchorDetail fitImageToColumns(Sheet sheet, int colNumber,
             double reqImageWidthMM, int resizeBehaviour) {
 
-        double colWidthMM = 0.0D;
-        double colCoordinatesPerMM = 0.0D;
-        int pictureWidthCoordinates = 0;
+        double colWidthMM;
+        double colCoordinatesPerMM;
+        int pictureWidthCoordinates;
         ClientAnchorDetail colClientAnchorDetail = null;
 
         // Get the colum's width in millimetres
@@ -523,10 +522,10 @@ public class AddDimensionedImage {
      */
     private ClientAnchorDetail fitImageToRows(Sheet sheet, int rowNumber,
             double reqImageHeightMM, int resizeBehaviour) {
-        Row row = null;
-        double rowHeightMM = 0.0D;
-        double rowCoordinatesPerMM = 0.0D;
-        int pictureHeightCoordinates = 0;
+        Row row;
+        double rowHeightMM;
+        double rowCoordinatesPerMM;
+        int pictureHeightCoordinates;
         ClientAnchorDetail rowClientAnchorDetail = null;
 
         // Get the row and it's height
@@ -613,13 +612,13 @@ public class AddDimensionedImage {
     private ClientAnchorDetail calculateColumnLocation(Sheet sheet,
                                                        int startingColumn,
                                                        double reqImageWidthMM) {
-        ClientAnchorDetail anchorDetail = null;
+        ClientAnchorDetail anchorDetail;
         double totalWidthMM = 0.0D;
         double colWidthMM = 0.0D;
-        double overlapMM = 0.0D;
-        double coordinatePositionsPerMM = 0.0D;
+        double overlapMM;
+        double coordinatePositionsPerMM;
         int toColumn = startingColumn;
-        int inset = 0;
+        int inset;
 
         // Calculate how many columns the image will have to
         // span in order to be presented at the required size.
@@ -723,14 +722,14 @@ public class AddDimensionedImage {
      */
     private ClientAnchorDetail calculateRowLocation(Sheet sheet,
             int startingRow, double reqImageHeightMM) {
-        ClientAnchorDetail clientAnchorDetail = null;
-        Row row = null;
+        ClientAnchorDetail clientAnchorDetail;
+        Row row;
         double rowHeightMM = 0.0D;
         double totalRowHeightMM = 0.0D;
-        double overlapMM = 0.0D;
-        double rowCoordinatesPerMM = 0.0D;
+        double overlapMM;
+        double rowCoordinatesPerMM;
         int toRow = startingRow;
-        int inset = 0;
+        int inset;
 
         // Step through the rows in the sheet and accumulate a total of their
         // heights.
@@ -813,50 +812,28 @@ public class AddDimensionedImage {
      *
      * @param args the command line arguments
      */
-    public static void main(String[] args) {
-    	String imageFile = null;
-    	String outputFile = null;
-        FileOutputStream fos = null;
-        Workbook workbook = null;
-        Sheet sheet = null;
-        try {
-        	if(args.length < 2){
-        		System.err.println("Usage: AddDimensionedImage imageFile outputFile");
-        		return;
-        	}
-        	workbook = new HSSFWorkbook();   // OR XSSFWorkbook
-        	sheet = workbook.createSheet("Picture Test");
-               	imageFile = args[0];
-        	outputFile = args[1];
-        	new AddDimensionedImage().addImageToSheet("B5", sheet, sheet.createDrawingPatriarch(),
-        		new File(imageFile).toURI().toURL(), 100, 40,
-        		AddDimensionedImage.EXPAND_ROW_AND_COLUMN);
-      		fos = new FileOutputStream(outputFile);
-            workbook.write(fos);
-        }
-        catch(FileNotFoundException fnfEx) {
-            System.out.println("Caught an: " + fnfEx.getClass().getName());
-            System.out.println("Message: " + fnfEx.getMessage());
-            System.out.println("Stacktrace follows...........");
-            fnfEx.printStackTrace(System.out);
-        }
-        catch(IOException ioEx) {
-            System.out.println("Caught an: " + ioEx.getClass().getName());
-            System.out.println("Message: " + ioEx.getMessage());
-            System.out.println("Stacktrace follows...........");
-            ioEx.printStackTrace(System.out);
-        }
-        finally {
-            if(fos != null) {
-                try {
-                    fos.close();
-                    fos = null;
-                }
-                catch(IOException ioEx) {
-                    // I G N O R E
-                }
-            }
-        }
+    public static void main(String[] args) throws IOException {
+    	String imageFile;
+    	String outputFile;
+        FileOutputStream fos;
+        Workbook workbook;
+        Sheet sheet;
+
+        if(args.length < 2){
+    		System.err.println("Usage: AddDimensionedImage imageFile outputFile");
+    		return;
+    	}
+    	workbook = new HSSFWorkbook();   // OR XSSFWorkbook
+    	sheet = workbook.createSheet("Picture Test");
+       	imageFile = args[0];
+    	outputFile = args[1];
+    	new AddDimensionedImage().addImageToSheet("B5", sheet, sheet.createDrawingPatriarch(),
+    		new File(imageFile).toURI().toURL(), 100, 40,
+    		AddDimensionedImage.EXPAND_ROW_AND_COLUMN);
+  		fos = new FileOutputStream(outputFile);
+        workbook.write(fos);
+        fos.close();
+        workbook.close();
     }
 
     /**
@@ -887,9 +864,9 @@ public class AddDimensionedImage {
      */
     public class ClientAnchorDetail {
 
-        public int fromIndex = 0;
-        public int toIndex = 0;
-        public int inset = 0;
+        public int fromIndex;
+        public int toIndex;
+        public int inset;
 
         /**
          * Create a new instance of the ClientAnchorDetail class using the
@@ -985,8 +962,6 @@ public class AddDimensionedImage {
 
         /**
         * pixel units to excel width units(units of 1/256th of a character width)
-        * @param pxs
-        * @return
         */
         public static short pixel2WidthUnits(int pxs) {
             short widthUnits = (short) (EXCEL_COLUMN_WIDTH_FACTOR *
@@ -998,9 +973,6 @@ public class AddDimensionedImage {
         /**
          * excel width units(units of 1/256th of a character width) to pixel
          * units.
-         *
-         * @param widthUnits
-         * @return
          */
         public static int widthUnits2Pixel(short widthUnits) {
             int pixels = (widthUnits / EXCEL_COLUMN_WIDTH_FACTOR)

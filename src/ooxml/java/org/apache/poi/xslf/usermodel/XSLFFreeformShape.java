@@ -20,7 +20,7 @@
 package org.apache.poi.xslf.usermodel;
 
 import java.awt.geom.AffineTransform;
-import java.awt.geom.GeneralPath;
+import java.awt.geom.Path2D;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Rectangle2D;
 
@@ -45,8 +45,6 @@ import org.openxmlformats.schemas.presentationml.x2006.main.CTShapeNonVisual;
 /**
  * Represents a custom geometric shape.
  * This shape will consist of a series of lines and curves described within a creation path.
- *
- * @author Yegor Kozlov
  */
 @Beta
 public class XSLFFreeformShape extends XSLFAutoShape
@@ -57,7 +55,7 @@ public class XSLFFreeformShape extends XSLFAutoShape
     }
 
     @Override
-    public int setPath(GeneralPath path) {
+    public int setPath(Path2D.Double path) {
         CTPath2D ctPath = CTPath2D.Factory.newInstance();
 
         Rectangle2D bounds = path.getBounds2D();
@@ -110,20 +108,33 @@ public class XSLFFreeformShape extends XSLFAutoShape
                     numPoints++;
                     ctPath.addNewClose();
                     break;
+                default:
+                    throw new IllegalStateException("Unrecognized path segment type: " + type);
             }
             it.next();
         }
-        getSpPr().getCustGeom().getPathLst().setPathArray(new CTPath2D[]{ctPath});
+        
+        XmlObject xo = getShapeProperties();
+        if (!(xo instanceof CTShapeProperties)) {
+            return -1;
+        }
+
+        ((CTShapeProperties)xo).getCustGeom().getPathLst().setPathArray(new CTPath2D[]{ctPath});
         setAnchor(bounds);
         return numPoints;
     }
 
     @Override
-    public GeneralPath getPath() {
-        GeneralPath path = new GeneralPath();
+    public Path2D.Double getPath() {
+        Path2D.Double path = new Path2D.Double();
         Rectangle2D bounds = getAnchor();
 
-        CTCustomGeometry2D geom = getSpPr().getCustGeom();
+        XmlObject xo = getShapeProperties();
+        if (!(xo instanceof CTShapeProperties)) {
+            return null;
+        }
+        
+        CTCustomGeometry2D geom = ((CTShapeProperties)xo).getCustGeom();
         for(CTPath2D spPath : geom.getPathLst().getPathArray()){
             double scaleW = bounds.getWidth() / Units.toPoints(spPath.getW());
             double scaleH = bounds.getHeight() / Units.toPoints(spPath.getH());
@@ -168,7 +179,7 @@ public class XSLFFreeformShape extends XSLFAutoShape
         // The returned path should fit in the bounding rectangle
         AffineTransform at = new AffineTransform();
         at.translate(bounds.getX(), bounds.getY());
-        return new GeneralPath(at.createTransformedShape(path));
+        return new Path2D.Double(at.createTransformedShape(path));
     }
     /**
      * @param shapeId 1-based shapeId

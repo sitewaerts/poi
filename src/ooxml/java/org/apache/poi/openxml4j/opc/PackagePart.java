@@ -63,6 +63,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	 */
 	private PackageRelationshipCollection _relationships;
 
+
 	/**
 	 * Constructor.
 	 *
@@ -124,6 +125,16 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 			String contentType) throws InvalidFormatException {
 		this(pack, partName, new ContentType(contentType));
 	}
+
+	/**
+	 * Check if the new part was already added before via PackagePart.addRelationship()
+	 *
+	 * @param packagePart to find the relationship for
+	 * @return The existing relationship, or null if there isn't yet one
+	 */
+	public PackageRelationship findExistingRelation(PackagePart packagePart) {
+		return _relationships.findExistingInternalRelation(packagePart);
+    }
 
 	/**
 	 * Adds an external relationship to a part (except relationships part).
@@ -228,9 +239,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	 * @throws InvalidOperationException
 	 *             If a writing operation is done on a read only package or 
 	 *             invalid nested relations are created.
-	 * @throws InvalidFormatException
-	 *             If the URI point to a relationship part URI.
-	 * @throws IllegalArgumentException if targetPartName, targetMode 
+	 * @throws IllegalArgumentException if targetPartName, targetMode
 	 *             or relationshipType are passed as null
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#addRelationship(org.apache.poi.openxml4j.opc.PackagePartName,
 	 *      org.apache.poi.openxml4j.opc.TargetMode, java.lang.String, java.lang.String)
@@ -300,7 +309,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	 *            Relationship unique id.
 	 * @return The newly created and added relationship
 	 *
-	 * @throws InvalidFormatException
+	 * @throws InvalidOperationException
 	 *             If the URI point to a relationship part URI.
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#addRelationship(org.apache.poi.openxml4j.opc.PackagePartName,
 	 *      org.apache.poi.openxml4j.opc.TargetMode, java.lang.String, java.lang.String)
@@ -361,7 +370,8 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	 * Retrieve all the relationships attached to this part.
 	 *
 	 * @return This part's relationships.
-	 * @throws OpenXML4JException
+	 * @throws InvalidOperationException
+	 *             Throws if the package is open en write only mode.
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#getRelationships()
 	 */
 	public PackageRelationshipCollection getRelationships()
@@ -447,15 +457,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#isRelationshipExists(org.apache.poi.openxml4j.opc.PackageRelationship)
 	 */
 	public boolean isRelationshipExists(PackageRelationship rel) {
-        try {
-            for (PackageRelationship r : this.getRelationships()) {
-                if (r == rel)
-                    return true;
-            }
-        } catch (InvalidFormatException e){
-            ;
-        }
-        return false;
+		return _relationships.getRelationshipByID(rel.getId()) != null;
 	}
 
    /**
@@ -464,37 +466,38 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
     * @param rel A relationship from this part to another one 
     * @return The target part of the relationship
     */
-   public PackagePart getRelatedPart(PackageRelationship rel) throws InvalidFormatException {
-       // Ensure this is one of ours
-       if(! isRelationshipExists(rel)) {
-          throw new IllegalArgumentException("Relationship " + rel + " doesn't start with this part " + _partName);
-       }
-       
-       // Get the target URI, excluding any relative fragments
-       URI target = rel.getTargetURI();
-       if(target.getFragment() != null) {
-          String t = target.toString();
-          try {
-             target = new URI( t.substring(0, t.indexOf('#')) );
-          } catch(URISyntaxException e) {
-             throw new InvalidFormatException("Invalid target URI: " + target);
-          }
-       }
-   
-       // Turn that into a name, and fetch
-       PackagePartName relName = PackagingURIHelper.createPartName(target);
-       PackagePart part = _container.getPart(relName);
-       if (part == null) {
-           throw new IllegalArgumentException("No part found for relationship " + rel);
-       }
-       return part;
-   }
-   
+	public PackagePart getRelatedPart(PackageRelationship rel) throws InvalidFormatException {
+		// Ensure this is one of ours
+		if(! isRelationshipExists(rel)) {
+			throw new IllegalArgumentException("Relationship " + rel + " doesn't start with this part " + _partName);
+		}
+		// Get the target URI, excluding any relative fragments
+		URI target = rel.getTargetURI();
+		if(target.getFragment() != null) {
+			String t = target.toString();
+			try {
+				target = new URI( t.substring(0, t.indexOf('#')) );
+			} catch(URISyntaxException e) {
+				throw new InvalidFormatException("Invalid target URI: " + target);
+			}
+		}
+
+		// Turn that into a name, and fetch
+		PackagePartName relName = PackagingURIHelper.createPartName(target);
+		PackagePart part = _container.getPart(relName);
+		if (part == null) {
+			throw new IllegalArgumentException("No part found for relationship " + rel);
+		}
+		return part;
+	}
+
 	/**
 	 * Get the input stream of this part to read its content.
 	 *
 	 * @return The input stream of the content of this part, else
 	 *         <code>null</code>.
+	 *
+	 * @throws IOException If creating the input-stream fails.
 	 */
 	public InputStream getInputStream() throws IOException {
 		InputStream inStream = this.getInputStreamImpl();
@@ -507,7 +510,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 
 	/**
 	 * Get the output stream of this part. If the part is originally embedded in
-	 * Zip package, it'll be transform intot a <i>MemoryPackagePart</i> in
+	 * Zip package, it'll be transform into a <i>MemoryPackagePart</i> in
 	 * order to write inside (the standard Java API doesn't allow to write in
 	 * the file)
 	 *
@@ -647,7 +650,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	@Override
 	public String toString() {
 		return "Name: " + this._partName + " - Content Type: "
-				+ this._contentType.toString();
+				+ this._contentType;
 	}
 
 	/**
@@ -666,7 +669,7 @@ public abstract class PackagePart implements RelationshipSource, Comparable<Pack
 	/*-------------- Abstract methods ------------- */
 
 	/**
-	 * Abtract method that get the input stream of this part.
+	 * Abstract method that get the input stream of this part.
 	 *
 	 * @exception IOException
 	 *                Throws if an IO Exception occur in the implementation

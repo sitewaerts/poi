@@ -49,13 +49,10 @@ import org.apache.poi.poifs.filesystem.POIFSDocumentPath;
  * but it could be any other string.</p>
  *
  * <p>The value of a tree node is a {@link DocumentDescriptor}. Unlike
- * a {@link org.apache.poi.poifs.filesystem.POIFSDocument} which may be as heavy
+ * a {@link org.apache.poi.poifs.filesystem.OPOIFSDocument} which may be as heavy
  * as many megabytes, an instance of {@link DocumentDescriptor} is a
  * light-weight object and contains only some meta-information about a
  * document.</p>
- *
- * @author Rainer Klute <a
- * href="mailto:klute@rainer-klute.de">&lt;klute@rainer-klute.de&gt;</a>
  */
 public class TreeReaderListener implements POIFSReaderListener
 {
@@ -99,7 +96,7 @@ public class TreeReaderListener implements POIFSReaderListener
     {
         this.filename = filename;
         this.rootNode = rootNode;
-        pathToNode = new HashMap<Object,MutableTreeNode>(15); // Should be a reasonable guess.
+        pathToNode = new HashMap<>(15); // Should be a reasonable guess.
     }
 
 
@@ -124,13 +121,15 @@ public class TreeReaderListener implements POIFSReaderListener
      * reading. This method retrieves properties of the document and
      * adds them to a tree model.</p>
      */
+    @Override
     public void processPOIFSReaderEvent(final POIFSReaderEvent event)
     {
         DocumentDescriptor d;
         final DocumentInputStream is = event.getStream();
-        if (!is.markSupported())
+        if (!is.markSupported()) {
             throw new UnsupportedOperationException(is.getClass().getName() +
                 " does not support mark().");
+        }
 
         /* Try do handle this document as a property set. We receive
          * an exception if is no property set and handle it as a
@@ -148,11 +147,7 @@ public class TreeReaderListener implements POIFSReaderListener
         }
         catch (Exception t)
         {
-            System.err.println
-                ("Unexpected exception while processing " +
-                event.getName() + " in " + event.getPath().toString());
-            t.printStackTrace(System.err);
-            throw new RuntimeException(t.getMessage());
+            throw new RuntimeException("Unexpected exception while processing " + event.getName() + " in " + event.getPath(), t);
         }
 
         is.close();
@@ -183,9 +178,10 @@ public class TreeReaderListener implements POIFSReaderListener
                                     final MutableTreeNode root)
     {
         MutableTreeNode n = pathToNode.get(path);
-        if (n != null)
+        if (n != null) {
             /* Node found in map, just return it. */
             return n;
+        }
         if (path.length() == 0)
         {
             /* This is the root path of the POI filesystem. Its tree

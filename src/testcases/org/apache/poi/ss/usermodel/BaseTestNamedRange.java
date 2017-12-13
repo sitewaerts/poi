@@ -24,9 +24,14 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
 import org.apache.poi.ss.ITestDataProvider;
 import org.apache.poi.ss.util.AreaReference;
 import org.apache.poi.ss.util.CellReference;
+import org.apache.poi.util.IOUtils;
 import org.junit.Test;
 
 /**
@@ -197,11 +202,7 @@ public abstract class BaseTestNamedRange {
             assertEquals("The sheet already contains this name: aaa", e.getMessage());
         }
 
-        int cnt = 0;
-        for (int i = 0; i < wb.getNumberOfNames(); i++) {
-            if("aaa".equals(wb.getNameAt(i).getNameName())) cnt++;
-        }
-        assertEquals(3, cnt);
+        assertEquals(3, wb.getNames("aaa").size());
         
         wb.close();
     }
@@ -246,11 +247,11 @@ public abstract class BaseTestNamedRange {
          // Write the workbook to a file
          // Read the Excel file and verify its content
          Workbook wb2 = _testDataProvider.writeOutAndReadBack(wb1);
-         Name nm1 = wb2.getNameAt(wb2.getNameIndex("RangeTest1"));
+         Name nm1 = wb2.getName("RangeTest1");
          assertTrue("Name is "+nm1.getNameName(),"RangeTest1".equals(nm1.getNameName()));
          assertTrue("Reference is "+nm1.getRefersToFormula(),(wb2.getSheetName(0)+"!$A$1:$L$41").equals(nm1.getRefersToFormula()));
 
-         Name nm2 = wb2.getNameAt(wb2.getNameIndex("RangeTest2"));
+         Name nm2 = wb2.getName("RangeTest2");
          assertTrue("Name is "+nm2.getNameName(),"RangeTest2".equals(nm2.getNameName()));
          assertTrue("Reference is "+nm2.getRefersToFormula(),(wb2.getSheetName(1)+"!$A$1:$O$21").equals(nm2.getRefersToFormula()));
          
@@ -462,11 +463,11 @@ public abstract class BaseTestNamedRange {
         wb1.getNameAt(0);
 
         Workbook wb2 = _testDataProvider.writeOutAndReadBack(wb1);
-        Name nm =wb2.getNameAt(wb2.getNameIndex("RangeTest"));
+        Name nm =wb2.getName("RangeTest");
         assertTrue("Name is "+nm.getNameName(),"RangeTest".equals(nm.getNameName()));
         assertTrue("Reference is "+nm.getRefersToFormula(),(wb2.getSheetName(0)+"!$D$4:$E$8").equals(nm.getRefersToFormula()));
 
-        nm = wb2.getNameAt(wb2.getNameIndex("AnotherTest"));
+        nm = wb2.getName("AnotherTest");
         assertTrue("Name is "+nm.getNameName(),"AnotherTest".equals(nm.getNameName()));
         assertTrue("Reference is "+nm.getRefersToFormula(),newNamedRange2.getRefersToFormula().equals(nm.getRefersToFormula()));
         
@@ -495,13 +496,11 @@ public abstract class BaseTestNamedRange {
         namedCell.setRefersToFormula(reference);
 
         // retrieve the newly created named range
-        int namedCellIdx = wb.getNameIndex(cellName);
-        Name aNamedCell = wb.getNameAt(namedCellIdx);
+        Name aNamedCell = wb.getName(cellName);
         assertNotNull(aNamedCell);
 
         // retrieve the cell at the named range and test its contents
-        @SuppressWarnings("deprecation")
-        AreaReference aref = new AreaReference(aNamedCell.getRefersToFormula());
+        AreaReference aref = wb.getCreationHelper().createAreaReference(aNamedCell.getRefersToFormula());
         assertTrue("Should be exactly 1 cell in the named cell :'" +cellName+"'", aref.isSingleCell());
 
         CellReference cref = aref.getFirstCell();
@@ -512,7 +511,6 @@ public abstract class BaseTestNamedRange {
         Cell c = r.getCell(cref.getCol());
         String contents = c.getRichStringCellValue().getString();
         assertEquals("Contents of cell retrieved by its named reference", contents, cellValue);
-        
         wb.close();
     }
 
@@ -536,8 +534,7 @@ public abstract class BaseTestNamedRange {
         namedCell.setRefersToFormula(reference);
 
         // retrieve the newly created named range
-        int namedCellIdx = wb.getNameIndex(cname);
-        Name aNamedCell = wb.getNameAt(namedCellIdx);
+        Name aNamedCell = wb.getName(cname);
         assertNotNull(aNamedCell);
 
         // retrieve the cell at the named range and test its contents
@@ -565,7 +562,7 @@ public abstract class BaseTestNamedRange {
      * It is easy enough to re-create the the same data (by not setting the formula). Excel
      * seems to gracefully remove this uninitialized name record.  It would be nice if POI
      * could do the same, but that would involve adjusting subsequent name indexes across
-     * all formulas. <p/>
+     * all formulas. <p>
      *
      * For the moment, POI has been made to behave more sensibly with uninitialized name
      * records.
@@ -642,5 +639,115 @@ public abstract class BaseTestNamedRange {
         }
         
         wb.close();
+    }
+
+    @Test
+    public void testBug56930() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+
+        // x1 on sheet1 defines "x=1"
+        wb.createSheet("sheet1");
+        Name x1 = wb.createName();
+
+        x1.setNameName("x");
+        x1.setRefersToFormula("1");
+        x1.setSheetIndex(wb.getSheetIndex("sheet1"));
+
+        // x2 on sheet2 defines "x=2"
+        wb.createSheet("sheet2");
+        Name x2 = wb.createName();
+        x2.setNameName("x");
+        x2.setRefersToFormula("2");
+        x2.setSheetIndex(wb.getSheetIndex("sheet2"));
+
+        List<? extends Name> names = wb.getNames("x");
+        assertEquals("Had: " + names, 2, names.size());
+        assertEquals("1", names.get(0).getRefersToFormula());
+        assertEquals("2", names.get(1).getRefersToFormula());
+
+        assertEquals("1", wb.getName("x").getRefersToFormula());
+        wb.removeName("x");
+        assertEquals("2", wb.getName("x").getRefersToFormula());
+        
+        wb.close();
+    }
+    
+    // bug 56781: name validation only checks for first character's validity and presence of spaces
+    // bug 60246: validate name does not allow DOT in named ranges
+    @Test
+    public void testValid() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        
+        Name name = wb.createName();
+        for (String valid : Arrays.asList(
+                "Hello",
+                "number1",
+                "_underscore",
+                "underscore_",
+                "p.e.r.o.i.d.s",
+                "\\Backslash",
+                "Backslash\\"
+                )) {
+            name.setNameName(valid);
+        }
+        
+        wb.close();
+    }
+    
+    @Test
+    public void testInvalid() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        
+        Name name = wb.createName();
+        try {
+            name.setNameName("");
+            fail("expected exception: (blank)");
+        } catch (final IllegalArgumentException e) {
+            assertEquals("Name cannot be blank", e.getMessage());
+        }
+        
+        for (String invalid : Arrays.asList(
+                "1number",
+                "Sheet1!A1",
+                "Exclamation!",
+                "Has Space",
+                "Colon:",
+                "A-Minus",
+                "A+Plus",
+                "Dollar$",
+                ".periodAtBeginning",
+                "R", //special shorthand
+                "C", //special shorthand
+                "A1", // A1-style cell reference
+                "R1C1", // R1C1-style cell reference
+                "NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters..."+
+                "NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters..."+
+                "NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters..."+
+                "NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters..."+
+                "NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters.NameThatIsLongerThan255Characters"
+                )) {
+            try {
+                name.setNameName(invalid);
+                fail("expected exception: " + invalid);
+            } catch (final IllegalArgumentException e) {
+                assertTrue(invalid,
+                        e.getMessage().startsWith("Invalid name: '"+invalid+"'"));
+            }
+        }
+        
+    }
+    
+    // bug 60260: renaming a sheet with a named range referring to a unicode (non-ASCII) sheet name
+    @Test
+    public void renameSheetWithNamedRangeReferringToUnicodeSheetName() {
+        Workbook wb = _testDataProvider.createWorkbook();
+        wb.createSheet("Sheet\u30FB1");
+        
+        Name name = wb.createName();
+        name.setNameName("test_named_range");
+        name.setRefersToFormula("'Sheet\u30FB201'!A1:A6");
+        
+        wb.setSheetName(0, "Sheet 1");
+        IOUtils.closeQuietly(wb);
     }
 }

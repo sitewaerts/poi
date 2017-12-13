@@ -34,31 +34,31 @@ import org.apache.poi.util.LocaleUtil;
  * {@code DAYS360(start_date,end_date,[method])}
  * 
  * <ul>
- * <li>Start_date, end_date (required):<br/>
- * The two dates between which you want to know the number of days.<br/>
+ * <li>Start_date, end_date (required):<br>
+ * The two dates between which you want to know the number of days.<br>
  * If start_date occurs after end_date, the DAYS360 function returns a negative number.</li>
  * 
- * <li>Method (optional):<br/>
+ * <li>Method (optional):<br>
  * A logical value that specifies whether to use the U.S. or European method in the calculation</li>
  * 
- * <li>Method set to false or omitted:<br/>
+ * <li>Method set to false or omitted:<br>
  * the DAYS360 function uses the U.S. (NASD) method. If the starting date is the 31st of a month,
  * it becomes equal to the 30th of the same month. If the ending date is the 31st of a month and
  * the starting date is earlier than the 30th of a month, the ending date becomes equal to the
  * 1st of the next month, otherwise the ending date becomes equal to the 30th of the same month.
- * The month February and leap years are handled in the following way:<br/>
+ * The month February and leap years are handled in the following way:<br>
  * On a non-leap year the function {@code =DAYS360("2/28/93", "3/1/93", FALSE)} returns 1 day
- * because the DAYS360 function ignores the extra days added to February.<br/>
+ * because the DAYS360 function ignores the extra days added to February.<br>
  * On a leap year the function {@code =DAYS360("2/29/96","3/1/96", FALSE)} returns 1 day for
  * the same reason.</li>
  * 
- * <li>Method Set to true:<br/>
+ * <li>Method Set to true:<br>
  * When you set the method parameter to TRUE, the DAYS360 function uses the European method.
  * Starting dates or ending dates that occur on the 31st of a month become equal to the 30th of
- * the same month. The month February and leap years are handled in the following way:<br/>
+ * the same month. The month February and leap years are handled in the following way:<br>
  * On a non-leap year the function {@code =DAYS360("2/28/93", "3/1/93", TRUE)} returns
  * 3 days because the DAYS360 function is counting the extra days added to February to give
- * February 30 days.<br/>
+ * February 30 days.<br>
  * On a leap year the function {@code =DAYS360("2/29/96", "3/1/96", TRUE)} returns
  * 2 days for the same reason.</li>
  * </ul>
@@ -67,38 +67,33 @@ import org.apache.poi.util.LocaleUtil;
  */
 public class Days360 extends Var2or3ArgFunction {
     public ValueEval evaluate(int srcRowIndex, int srcColumnIndex, ValueEval arg0, ValueEval arg1) {
-        double result;
         try {
             double d0 = NumericFunction.singleOperandEvaluate(arg0, srcRowIndex, srcColumnIndex);
             double d1 = NumericFunction.singleOperandEvaluate(arg1, srcRowIndex, srcColumnIndex);
-            result = evaluate(d0, d1, false);
+            return new NumberEval(evaluate(d0, d1, false));
         } catch (EvaluationException e) {
             return e.getErrorEval();
         }
-        return new NumberEval(result);
     }
 
     public ValueEval evaluate(int srcRowIndex, int srcColumnIndex, ValueEval arg0, ValueEval arg1,
             ValueEval arg2) {
-        double result;
         try {
             double d0 = NumericFunction.singleOperandEvaluate(arg0, srcRowIndex, srcColumnIndex);
             double d1 = NumericFunction.singleOperandEvaluate(arg1, srcRowIndex, srcColumnIndex);
             ValueEval ve = OperandResolver.getSingleValue(arg2, srcRowIndex, srcColumnIndex);
             Boolean method = OperandResolver.coerceValueToBoolean(ve, false);
-            result = evaluate(d0, d1, method == null ? false : method.booleanValue());
+            return new NumberEval(evaluate(d0, d1, method != null && method.booleanValue()));
         } catch (EvaluationException e) {
             return e.getErrorEval();
         }
-        return new NumberEval(result);
     }
 
     private static double evaluate(double d0, double d1, boolean method) {
         Calendar realStart = getDate(d0);
         Calendar realEnd = getDate(d1);
         int startingDate[] = getStartingDate(realStart, method);
-        int endingDate[] = getEndingDate(realEnd, realStart, method);
-        
+        int endingDate[] = getEndingDate(realEnd, startingDate, method);
         return
             (endingDate[0]*360+endingDate[1]*30+endingDate[2])-
             (startingDate[0]*360+startingDate[1]*30+startingDate[2]);
@@ -111,34 +106,32 @@ public class Days360 extends Var2or3ArgFunction {
     }
 
     private static int[] getStartingDate(Calendar realStart, boolean method) {
-        Calendar d = realStart;
-        int yyyy = d.get(Calendar.YEAR);
-        int mm = d.get(Calendar.MONTH);
-        int dd = Math.min(30, d.get(Calendar.DAY_OF_MONTH));
+        int yyyy = realStart.get(Calendar.YEAR);
+        int mm = realStart.get(Calendar.MONTH);
+        int dd = Math.min(30, realStart.get(Calendar.DAY_OF_MONTH));
         
-        if (method == false && isLastDayOfMonth(d)) dd = 30;
+        if (!method && isLastDayOfMonth(realStart)) dd = 30;
         
         return new int[]{yyyy,mm,dd};
     }
 
-    private static int[] getEndingDate(Calendar realEnd, Calendar realStart, boolean method) {
-        Calendar d = realEnd;
-        int yyyy = d.get(Calendar.YEAR);
-        int mm = d.get(Calendar.MONTH);
-        int dd = Math.min(30, d.get(Calendar.DAY_OF_MONTH));
+    private static int[] getEndingDate(Calendar realEnd, int startingDate[], boolean method) {
+        int yyyy = realEnd.get(Calendar.YEAR);
+        int mm = realEnd.get(Calendar.MONTH);
+        int dd = Math.min(30, realEnd.get(Calendar.DAY_OF_MONTH));
 
-        if (method == false && realEnd.get(Calendar.DAY_OF_MONTH) == 31) {
-            if (realStart.get(Calendar.DAY_OF_MONTH) < 30) {
-                d.set(Calendar.DAY_OF_MONTH, 1);
-                d.add(Calendar.MONTH, 1);
-                yyyy = d.get(Calendar.YEAR);
-                mm = d.get(Calendar.MONTH);
+        if (!method && realEnd.get(Calendar.DAY_OF_MONTH) == 31) {
+            if (startingDate[2] < 30) {
+                realEnd.set(Calendar.DAY_OF_MONTH, 1);
+                realEnd.add(Calendar.MONTH, 1);
+                yyyy = realEnd.get(Calendar.YEAR);
+                mm = realEnd.get(Calendar.MONTH);
                 dd = 1;
             } else {
                 dd = 30;
             }
         }
-        
+
         return new int[]{yyyy,mm,dd};
     }
     

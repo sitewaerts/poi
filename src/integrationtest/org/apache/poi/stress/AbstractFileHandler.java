@@ -19,32 +19,29 @@ package org.apache.poi.stress;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assume.assumeFalse;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.POIOLE2TextExtractor;
 import org.apache.poi.POITextExtractor;
 import org.apache.poi.extractor.ExtractorFactory;
 import org.apache.poi.hpsf.extractor.HPSFPropertiesExtractor;
-import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
+import org.apache.poi.util.IOUtils;
 import org.apache.xmlbeans.XmlException;
 
 public abstract class AbstractFileHandler implements FileHandler {
-    public static final Set<String> EXPECTED_EXTRACTOR_FAILURES = new HashSet<String>();
+    public static final Set<String> EXPECTED_EXTRACTOR_FAILURES = new HashSet<>();
     static {
-        // password protected files
-        EXPECTED_EXTRACTOR_FAILURES.add("document/bug53475-password-is-pass.docx");
-        EXPECTED_EXTRACTOR_FAILURES.add("poifs/extenxls_pwd123.xlsx");
-        EXPECTED_EXTRACTOR_FAILURES.add("poifs/protect.xlsx");
-        EXPECTED_EXTRACTOR_FAILURES.add("poifs/protected_agile.docx");
-        EXPECTED_EXTRACTOR_FAILURES.add("poifs/protected_sha512.xlsx");
+        // password protected files without password
+    	// ... currently none ...
         
         // unsupported file-types, no supported OLE2 parts
         EXPECTED_EXTRACTOR_FAILURES.add("hmef/quick-winmail.dat");
@@ -52,11 +49,10 @@ public abstract class AbstractFileHandler implements FileHandler {
         EXPECTED_EXTRACTOR_FAILURES.add("hmef/bug52400-winmail-simple.dat");
         EXPECTED_EXTRACTOR_FAILURES.add("hmef/bug52400-winmail-with-attachments.dat");
         EXPECTED_EXTRACTOR_FAILURES.add("hpsf/Test0313rur.adm");
-        EXPECTED_EXTRACTOR_FAILURES.add("hsmf/attachment_msg_pdf.msg");
         EXPECTED_EXTRACTOR_FAILURES.add("poifs/Notes.ole2");
-        EXPECTED_EXTRACTOR_FAILURES.add("slideshow/testPPT.thmx");
     }
 
+    @Override
     public void handleExtracting(File file) throws Exception {
         boolean before = ExtractorFactory.getThreadPrefersEventExtractors();
         try {
@@ -82,18 +78,20 @@ public abstract class AbstractFileHandler implements FileHandler {
         long length = file.length();
         long modified = file.lastModified();
         
-        POITextExtractor extractor = ExtractorFactory.createExtractor(file);
+        POITextExtractor extractor = null;
         try  {
-            assertNotNull(extractor);
+            extractor = ExtractorFactory.createExtractor(file);
+            assertNotNull("Should get a POITextExtractor but had none for file " + file, extractor);
 
-            assertNotNull(extractor.getText());
+            assertNotNull("Should get some text but had none for file " + file, extractor.getText());
             
             // also try metadata
+            @SuppressWarnings("resource")
             POITextExtractor metadataExtractor = extractor.getMetadataTextExtractor();
             assertNotNull(metadataExtractor.getText());
 
             assertFalse("Expected Extraction to fail for file " + file + " and handler " + this + ", but did not fail!", 
-                    EXPECTED_EXTRACTOR_FAILURES.contains(file));
+                    EXPECTED_EXTRACTOR_FAILURES.contains(file.getParentFile().getName() + "/" + file.getName()));
             
             assertEquals("File should not be modified by extractor", length, file.length());
             assertEquals("File should not be modified by extractor", modified, file.lastModified());
@@ -113,17 +111,19 @@ public abstract class AbstractFileHandler implements FileHandler {
             	}
             }
         } catch (IllegalArgumentException e) {
-            if(!EXPECTED_EXTRACTOR_FAILURES.contains(file)) {
+            if(!EXPECTED_EXTRACTOR_FAILURES.contains(file.getParentFile().getName() + "/" + file.getName())) {
                 throw e;
             }
+        } catch (EncryptedDocumentException e) {
+            String msg = "org.apache.poi.EncryptedDocumentException: Export Restrictions in place - please install JCE Unlimited Strength Jurisdiction Policy files";
+            assumeFalse(msg.equals(e.getMessage()));
+            throw e;
         } finally {
-            extractor.close();
+            IOUtils.closeQuietly(extractor);
         }
     }
 
-    private void handleExtractingAsStream(File file) throws FileNotFoundException,
-            IOException, InvalidFormatException, OpenXML4JException,
-            XmlException {
+    private void handleExtractingAsStream(File file) throws IOException, OpenXML4JException, XmlException {
         InputStream stream = new FileInputStream(file);
         try {
             POITextExtractor streamExtractor = ExtractorFactory.createExtractor(stream);
@@ -137,5 +137,10 @@ public abstract class AbstractFileHandler implements FileHandler {
         } finally {
             stream.close();
         }
+    }
+
+    @Override
+    public void handleAdditional(File file) throws Exception {
+        // by default we do nothing here
     }
 }

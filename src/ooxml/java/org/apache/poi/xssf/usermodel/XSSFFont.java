@@ -47,11 +47,11 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STVerticalAlignRun;
 public class XSSFFont implements Font {
 
     /**
-     * By default, Microsoft Office Excel 2007 uses the Calibry font in font size 11
+     * By default, Microsoft Office Excel 2007 uses the Calibri font in font size 11
      */
     public static final String DEFAULT_FONT_NAME = "Calibri";
     /**
-     * By default, Microsoft Office Excel 2007 uses the Calibry font in font size 11
+     * By default, Microsoft Office Excel 2007 uses the Calibri font in font size 11
      */
     public static final short DEFAULT_FONT_SIZE = 11;
     /**
@@ -60,6 +60,7 @@ public class XSSFFont implements Font {
      */
     public static final short DEFAULT_FONT_COLOR = IndexedColors.BLACK.getIndex();
 
+    private IndexedColorMap _indexedColorMap;
     private ThemesTable _themes;
     private CTFont _ctFont;
     private short _index;
@@ -74,9 +75,16 @@ public class XSSFFont implements Font {
         _index = 0;
     }
 
-    public XSSFFont(CTFont font, int index) {
+    /**
+     * Called from parsing styles.xml
+     * @param font CTFont
+     * @param index font index
+     * @param colorMap for default or custom indexed colors
+     */
+    public XSSFFont(CTFont font, int index, IndexedColorMap colorMap) {
         _ctFont = font;
         _index = (short)index;
+        _indexedColorMap = colorMap;
     }
 
     /**
@@ -110,12 +118,11 @@ public class XSSFFont implements Font {
      * get character-set to use.
      *
      * @return int - character-set (0-255)
-     * @see org.apache.poi.ss.usermodel.FontCharset
+     * @see FontCharset
      */
     public int getCharSet() {
         CTIntProperty charset = _ctFont.sizeOfCharsetArray() == 0 ? null : _ctFont.getCharsetArray(0);
-        int val = charset == null ? FontCharset.ANSI.getValue() : FontCharset.valueOf(charset.getVal()).getValue();
-        return val;
+        return charset == null ? FontCharset.ANSI.getValue() : FontCharset.valueOf(charset.getVal()).getValue();
     }
 
 
@@ -150,7 +157,7 @@ public class XSSFFont implements Font {
     public XSSFColor getXSSFColor() {
         CTColor ctColor = _ctFont.sizeOfColorArray() == 0 ? null : _ctFont.getColorArray(0);
         if(ctColor != null) {
-           XSSFColor color = new XSSFColor(ctColor);
+           XSSFColor color = XSSFColor.from(ctColor, _indexedColorMap);
            if(_themes != null) {
               _themes.inheritFromThemeAsRequired(color);
            }
@@ -206,8 +213,7 @@ public class XSSFFont implements Font {
     private double getFontHeightRaw() {
         CTFontSize size = _ctFont.sizeOfSzArray() == 0 ? null : _ctFont.getSzArray(0);
         if (size != null) {
-            double fontHeight = size.getVal();
-            return fontHeight;
+            return size.getVal();
         }
         return DEFAULT_FONT_SIZE;
     }
@@ -291,27 +297,10 @@ public class XSSFFont implements Font {
     public void setBold(boolean bold) {
         if(bold){
             CTBooleanProperty ctBold = _ctFont.sizeOfBArray() == 0 ? _ctFont.addNewB() : _ctFont.getBArray(0);
-            ctBold.setVal(bold);
+            ctBold.setVal(true);
         } else {
             _ctFont.setBArray(null);
         }
-    }
-
-    public void setBoldweight(short boldweight)
-    {
-        setBold(boldweight == BOLDWEIGHT_BOLD);
-    }
-
-    /**
-     * get the boldness to use
-     * @return boldweight
-     * @see #BOLDWEIGHT_NORMAL
-     * @see #BOLDWEIGHT_BOLD
-     */
-
-    public short getBoldweight()
-    {
-        return getBold() ? BOLDWEIGHT_BOLD : BOLDWEIGHT_NORMAL;
     }
 
     /**
@@ -417,7 +406,7 @@ public class XSSFFont implements Font {
     /**
      * set the font height in points.
      *
-     * @link #setFontHeight
+     * @see #setFontHeight
      */
     public void setFontHeightInPoints(short height) {
         setFontHeight((double)height);
@@ -459,7 +448,7 @@ public class XSSFFont implements Font {
     public void setItalic(boolean italic) {
         if(italic){
             CTBooleanProperty bool = _ctFont.sizeOfIArray() == 0 ? _ctFont.addNewI() : _ctFont.getIArray(0);
-            bool.setVal(italic);
+            bool.setVal(true);
         } else {
             _ctFont.setIArray(null);
         }
@@ -473,10 +462,11 @@ public class XSSFFont implements Font {
      * @param strikeout - value for strikeout or not
      */
     public void setStrikeout(boolean strikeout) {
-        if(!strikeout) _ctFont.setStrikeArray(null);
-        else {
+        if(strikeout) {
             CTBooleanProperty strike = _ctFont.sizeOfStrikeArray() == 0 ? _ctFont.addNewStrike() : _ctFont.getStrikeArray(0);
-            strike.setVal(strikeout);
+            strike.setVal(true);
+        } else {
+            _ctFont.setStrikeArray(null);
         }
     }
 
@@ -505,6 +495,8 @@ public class XSSFFont implements Font {
                 case Font.SS_SUPER:
                     offsetProperty.setVal(STVerticalAlignRun.SUPERSCRIPT);
                     break;
+                default:
+                    throw new IllegalStateException("Invalid type offset: " + offset);
             }
         }
     }
@@ -593,7 +585,7 @@ public class XSSFFont implements Font {
      * @see org.apache.poi.ss.usermodel.FontFamily
      */
     public int getFamily() {
-        CTIntProperty family = _ctFont.sizeOfFamilyArray() == 0 ? _ctFont.addNewFamily() : _ctFont.getFamilyArray(0);
+        CTIntProperty family = _ctFont.sizeOfFamilyArray() == 0 ? null : _ctFont.getFamilyArray(0);
         return family == null ? FontFamily.NOT_APPLICABLE.getValue() : FontFamily.valueOf(family.getVal()).getValue();
     }
 
@@ -615,7 +607,7 @@ public class XSSFFont implements Font {
      * A font family is a set of fonts having common stroke width and serif characteristics.
      *
      * @param family font family
-     * @link #setFamily(int value)
+     * @see #setFamily(int value)
      */
     public void setFamily(FontFamily family) {
         setFamily(family.getValue());

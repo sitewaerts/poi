@@ -17,13 +17,16 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import junit.framework.TestCase;
-
-import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.xssf.XSSFTestDataSamples;
+import org.junit.Test;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTChartsheet;
 
-public final class TestXSSFChartSheet extends TestCase {
+import static org.junit.Assert.*;
 
+public final class TestXSSFChartSheet {
+
+    @Test
     public void testXSSFFactory() {
         XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("chart_sheet.xlsx");
         assertEquals(4, wb.getNumberOfSheets());
@@ -33,29 +36,36 @@ public final class TestXSSFChartSheet extends TestCase {
         assertTrue(wb.getSheetAt(2) instanceof XSSFChartSheet);
         assertEquals("Chart1", wb.getSheetAt(2).getSheetName());
 
+        final CTChartsheet ctChartsheet = ((XSSFChartSheet) wb.getSheetAt(2)).getCTChartsheet();
+        assertNotNull(ctChartsheet);
     }
 
+    @Test
     public void testGetAccessors() {
         XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("chart_sheet.xlsx");
         XSSFChartSheet sheet = (XSSFChartSheet)wb.getSheetAt(2);
 
-        for(Row row : sheet) {
-            fail("Row iterator for charts sheets should return zero rows");
-        }
+        assertFalse("Row iterator for charts sheets should return zero rows",
+                sheet.iterator().hasNext());
+
         //access to a arbitrary row
-        assertEquals(null, sheet.getRow(1));
+        assertNull(sheet.getRow(1));
 
         //some basic get* accessors
         assertEquals(0, sheet.getNumberOfComments());
         assertEquals(0, sheet.getNumHyperlinks());
         assertEquals(0, sheet.getNumMergedRegions());
-        assertEquals(null, sheet.getActiveCell());
-        assertEquals(true, sheet.getAutobreaks());
-        assertEquals(null, sheet.getCellComment(0, 0));
+        assertNull(sheet.getActiveCell());
+        assertTrue(sheet.getAutobreaks());
+        assertNull(sheet.getCellComment(new CellAddress(0, 0)));
         assertEquals(0, sheet.getColumnBreaks().length);
-        assertEquals(true, sheet.getRowSumsBelow());
+        assertTrue(sheet.getRowSumsBelow());
+        assertNotNull(sheet.createDrawingPatriarch());
+        assertNotNull(sheet.getDrawingPatriarch());
+        assertNotNull(sheet.getCTChartsheet());
     }
     
+    @Test
     public void testGetCharts() throws Exception {
        XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("chart_sheet.xlsx");
        
@@ -66,6 +76,6 @@ public final class TestXSSFChartSheet extends TestCase {
        assertEquals(1, cs.createDrawingPatriarch().getCharts().size());
        
        XSSFChart chart = cs.createDrawingPatriarch().getCharts().get(0);
-       assertEquals(null, chart.getTitle());
+       assertNull(chart.getTitleText());
     }
 }

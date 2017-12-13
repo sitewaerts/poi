@@ -24,10 +24,8 @@ import org.apache.poi.hssf.model.RecordStream;
 import org.apache.poi.hssf.record.*;
 
 /**
- * Manages the all the records associated with a 'Custom View Settings' sub-stream.<br/>
+ * Manages the all the records associated with a 'Custom View Settings' sub-stream.<p>
  * Includes the initial USERSVIEWBEGIN(0x01AA) and final USERSVIEWEND(0x01AB).
- * 
- * @author Josh Micich
  */
 public final class CustomViewSettingsRecordAggregate extends RecordAggregate {
 
@@ -44,7 +42,7 @@ public final class CustomViewSettingsRecordAggregate extends RecordAggregate {
 		if (_begin.getSid() != UserSViewBegin.sid) {
 			throw new IllegalStateException("Bad begin record");
 		}
-		List<RecordBase> temp = new ArrayList<RecordBase>();
+		List<RecordBase> temp = new ArrayList<>();
 		while (rs.peekNextSid() != UserSViewEnd.sid) {
 			if (PageSettingsBlock.isComponentRecord(rs.peekNextSid())) {
                 if (_psBlock != null) {

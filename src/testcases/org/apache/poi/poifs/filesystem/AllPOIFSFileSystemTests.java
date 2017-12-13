@@ -21,7 +21,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 
 /**
- * Tests for org.apache.poi.poifs.filesystem<br/>
+ * Tests for org.apache.poi.poifs.filesystem<br>
  */
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
@@ -32,7 +32,8 @@ import org.junit.runners.Suite;
     , TestDocumentNode.class
     , TestDocumentOutputStream.class
     , TestEmptyDocument.class
-    , TestOffice2007XMLException.class
+    , TestNotOLE2Exception.class
+    , TestOfficeXMLException.class
     , TestPOIFSDocumentPath.class
     , TestPOIFSFileSystem.class
     , TestNPOIFSFileSystem.class

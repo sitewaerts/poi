@@ -17,8 +17,13 @@
 
 package org.apache.poi.hslf.dev;
 
-import org.apache.poi.hslf.*;
-import org.apache.poi.hslf.record.*;
+import java.io.IOException;
+
+import org.apache.poi.hslf.record.EscherTextboxWrapper;
+import org.apache.poi.hslf.record.PPDrawing;
+import org.apache.poi.hslf.record.Record;
+import org.apache.poi.hslf.record.TextBytesAtom;
+import org.apache.poi.hslf.record.TextCharsAtom;
 import org.apache.poi.hslf.usermodel.HSLFSlideShowImpl;
 
 
@@ -28,7 +33,7 @@ import org.apache.poi.hslf.usermodel.HSLFSlideShowImpl;
  *  searches those for text. Prints out any text it finds
  */
 public final class PPDrawingTextListing {
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) throws IOException {
 		if(args.length < 1) {
 			System.err.println("Need to give a filename");
 			System.exit(1);
@@ -78,5 +83,7 @@ public final class PPDrawingTextListing {
 				}
 			}
 		}
+		
+		ss.close();
 	}
 }

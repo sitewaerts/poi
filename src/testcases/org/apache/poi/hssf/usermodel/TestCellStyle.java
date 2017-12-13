@@ -24,9 +24,13 @@ import java.util.Calendar;
 import java.util.Date;
 
 import org.apache.poi.hssf.HSSFTestDataSamples;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -68,7 +72,7 @@ public final class TestCellStyle extends TestCase {
         HSSFCellStyle    cs   = wb.createCellStyle();
 
         fnt.setColor(HSSFFont.COLOR_RED);
-        fnt.setBoldweight(HSSFFont.BOLDWEIGHT_BOLD);
+        fnt.setBold(true);
         cs.setFont(fnt);
         for (int rownum = 0; rownum < 100; rownum++) {
             r = s.createRow(rownum);
@@ -180,16 +184,16 @@ public final class TestCellStyle extends TestCase {
         HSSFCellStyle    cs   = wb.createCellStyle();
         HSSFCellStyle    cs2  = wb.createCellStyle();
 
-        cs.setBorderBottom(HSSFCellStyle.BORDER_THIN);
-        cs.setBorderLeft(HSSFCellStyle.BORDER_THIN);
-        cs.setBorderRight(HSSFCellStyle.BORDER_THIN);
-        cs.setBorderTop(HSSFCellStyle.BORDER_THIN);
+        cs.setBorderBottom(BorderStyle.THIN);
+        cs.setBorderLeft(BorderStyle.THIN);
+        cs.setBorderRight(BorderStyle.THIN);
+        cs.setBorderTop(BorderStyle.THIN);
         cs.setFillForegroundColor(( short ) 0xA);
-        cs.setFillPattern(( short ) 1);
+        cs.setFillPattern(FillPatternType.DIAMONDS);
         fnt.setColor(( short ) 0xf);
         fnt.setItalic(true);
         cs2.setFillForegroundColor(( short ) 0x0);
-        cs2.setFillPattern(( short ) 1);
+        cs2.setFillPattern(FillPatternType.DIAMONDS);
         cs2.setFont(fnt);
         for (int rownum = 0; rownum < 100; rownum++) {
             r = s.createRow(rownum);
@@ -224,23 +228,23 @@ public final class TestCellStyle extends TestCase {
         assertEquals(5, wb.getNumberOfFonts());
         
         HSSFCellStyle orig = wb.createCellStyle();
-        orig.setAlignment(HSSFCellStyle.ALIGN_RIGHT);
+        orig.setAlignment(HorizontalAlignment.JUSTIFY);
         orig.setFont(fnt);
         orig.setDataFormat((short)18);
         
-        assertTrue(HSSFCellStyle.ALIGN_RIGHT == orig.getAlignment());
-        assertTrue(fnt == orig.getFont(wb));
-        assertTrue(18 == orig.getDataFormat());
+        assertEquals(HorizontalAlignment.JUSTIFY, orig.getAlignment());
+        assertEquals(fnt, orig.getFont(wb));
+        assertEquals(18, orig.getDataFormat());
         
         HSSFCellStyle clone = wb.createCellStyle();
-        assertFalse(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
+        assertFalse(HorizontalAlignment.RIGHT == clone.getAlignment());
         assertFalse(fnt == clone.getFont(wb));
         assertFalse(18 == clone.getDataFormat());
         
         clone.cloneStyleFrom(orig);
-        assertTrue(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
-        assertTrue(fnt == clone.getFont(wb));
-        assertTrue(18 == clone.getDataFormat());
+        assertEquals(HorizontalAlignment.JUSTIFY, clone.getAlignment());
+        assertEquals(fnt, clone.getFont(wb));
+        assertEquals(18, clone.getDataFormat());
         assertEquals(5, wb.getNumberOfFonts());
     }
     
@@ -260,13 +264,13 @@ public final class TestCellStyle extends TestCase {
         fmt.getFormat("MadeUpTwo");
         
         HSSFCellStyle orig = wbOrig.createCellStyle();
-        orig.setAlignment(HSSFCellStyle.ALIGN_RIGHT);
+        orig.setAlignment(HorizontalAlignment.RIGHT);
         orig.setFont(fnt);
         orig.setDataFormat(fmt.getFormat("Test##"));
         
-        assertTrue(HSSFCellStyle.ALIGN_RIGHT == orig.getAlignment());
-        assertTrue(fnt == orig.getFont(wbOrig));
-        assertTrue(fmt.getFormat("Test##") == orig.getDataFormat());
+        assertEquals(HorizontalAlignment.RIGHT, orig.getAlignment());
+        assertEquals(fnt, orig.getFont(wbOrig));
+        assertEquals(fmt.getFormat("Test##"), orig.getDataFormat());
         
         // Now a style on another workbook
         HSSFWorkbook wbClone = new HSSFWorkbook();
@@ -276,13 +280,13 @@ public final class TestCellStyle extends TestCase {
         HSSFCellStyle clone = wbClone.createCellStyle();
         assertEquals(4, wbClone.getNumberOfFonts());
         
-        assertFalse(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
+        assertFalse(HorizontalAlignment.RIGHT == clone.getAlignment());
         assertFalse("TestingFont" == clone.getFont(wbClone).getFontName());
         
         clone.cloneStyleFrom(orig);
-        assertTrue(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
-        assertTrue("TestingFont" == clone.getFont(wbClone).getFontName());
-        assertTrue(fmtClone.getFormat("Test##") == clone.getDataFormat());
+        assertEquals(HorizontalAlignment.RIGHT, clone.getAlignment());
+        assertEquals("TestingFont", clone.getFont(wbClone).getFontName());
+        assertEquals(fmtClone.getFormat("Test##"), clone.getDataFormat());
         assertFalse(fmtClone.getFormat("Test##") == fmt.getFormat("Test##"));
         assertEquals(5, wbClone.getNumberOfFonts());
     }
@@ -346,40 +350,40 @@ public final class TestCellStyle extends TestCase {
     	HSSFCellStyle cs;
 
     	cs = s.getRow(0).getCell(0).getCellStyle();
-    	assertEquals(CellStyle.BORDER_HAIR, cs.getBorderRight());
+    	assertEquals(BorderStyle.HAIR, cs.getBorderRight());
 
     	cs = s.getRow(1).getCell(1).getCellStyle();
-    	assertEquals(CellStyle.BORDER_DOTTED, cs.getBorderRight());
+    	assertEquals(BorderStyle.DOTTED, cs.getBorderRight());
 
     	cs = s.getRow(2).getCell(2).getCellStyle();
-    	assertEquals(CellStyle.BORDER_DASH_DOT_DOT, cs.getBorderRight());
+    	assertEquals(BorderStyle.DASH_DOT_DOT, cs.getBorderRight());
 
     	cs = s.getRow(3).getCell(3).getCellStyle();
-    	assertEquals(CellStyle.BORDER_DASHED, cs.getBorderRight());
+    	assertEquals(BorderStyle.DASHED, cs.getBorderRight());
 
     	cs = s.getRow(4).getCell(4).getCellStyle();
-    	assertEquals(CellStyle.BORDER_THIN, cs.getBorderRight());
+    	assertEquals(BorderStyle.THIN, cs.getBorderRight());
 
     	cs = s.getRow(5).getCell(5).getCellStyle();
-    	assertEquals(CellStyle.BORDER_MEDIUM_DASH_DOT_DOT, cs.getBorderRight());
+    	assertEquals(BorderStyle.MEDIUM_DASH_DOT_DOT, cs.getBorderRight());
 
     	cs = s.getRow(6).getCell(6).getCellStyle();
-    	assertEquals(CellStyle.BORDER_SLANTED_DASH_DOT, cs.getBorderRight());
+    	assertEquals(BorderStyle.SLANTED_DASH_DOT, cs.getBorderRight());
 
     	cs = s.getRow(7).getCell(7).getCellStyle();
-    	assertEquals(CellStyle.BORDER_MEDIUM_DASH_DOT, cs.getBorderRight());
+    	assertEquals(BorderStyle.MEDIUM_DASH_DOT, cs.getBorderRight());
 
     	cs = s.getRow(8).getCell(8).getCellStyle();
-    	assertEquals(CellStyle.BORDER_MEDIUM_DASHED, cs.getBorderRight());
+    	assertEquals(BorderStyle.MEDIUM_DASHED, cs.getBorderRight());
 
     	cs = s.getRow(9).getCell(9).getCellStyle();
-    	assertEquals(CellStyle.BORDER_MEDIUM, cs.getBorderRight());
+    	assertEquals(BorderStyle.MEDIUM, cs.getBorderRight());
 
     	cs = s.getRow(10).getCell(10).getCellStyle();
-    	assertEquals(CellStyle.BORDER_THICK, cs.getBorderRight());
+    	assertEquals(BorderStyle.THICK, cs.getBorderRight());
 
     	cs = s.getRow(11).getCell(11).getCellStyle();
-    	assertEquals(CellStyle.BORDER_DOUBLE, cs.getBorderRight());
+    	assertEquals(BorderStyle.DOUBLE, cs.getBorderRight());
     }
 
     public void testShrinkToFit() {
@@ -415,8 +419,8 @@ public final class TestCellStyle extends TestCase {
     
     
     private static class CellFormatBugExample extends Thread {
-        private String fileName;
-        private Throwable exception = null;
+        private final String fileName;
+        private Throwable exception;
 
         public CellFormatBugExample(String fileName) {
             this.fileName = fileName;
@@ -434,10 +438,10 @@ public final class TestCellStyle extends TestCase {
         
                             Cell cell = row.getCell(idxCell);
                             cell.getCellStyle().getDataFormatString();
-                            if (cell.getCellType() == HSSFCell.CELL_TYPE_NUMERIC) {
+                            if (cell.getCellType() == CellType.NUMERIC) {
                                 boolean isDate = HSSFDateUtil.isCellDateFormatted(cell);
                                 if (idxCell > 0 && isDate) {
-                                    fail("cell " + idxCell + " is not a date: " + idxCell.toString());
+                                    fail("cell " + idxCell + " is not a date: " + idxCell);
                                 }
                             }
                         }
@@ -451,8 +455,8 @@ public final class TestCellStyle extends TestCase {
         public Throwable getException() {
             return exception;
         }
-    };
-    
+    }
+
     public void test56563() throws Throwable {
         CellFormatBugExample threadA = new CellFormatBugExample("56563a.xls");
         threadA.start();
@@ -485,7 +489,7 @@ public final class TestCellStyle extends TestCase {
         font.setColor(Font.COLOR_RED);
         
         CellStyle style = wb.createCellStyle();
-        style.setBorderBottom(CellStyle.BORDER_DOTTED);
+        style.setBorderBottom(BorderStyle.DOTTED);
         style.setFont(font);
         
         Cell cell = row.createCell(0);
@@ -498,7 +502,7 @@ public final class TestCellStyle extends TestCase {
         newCell.setCellValue("2testtext2");
 
         CellStyle newStyle = newCell.getCellStyle();
-        assertEquals(CellStyle.BORDER_DOTTED, newStyle.getBorderBottom());
+        assertEquals(BorderStyle.DOTTED, newStyle.getBorderBottom());
         assertEquals(Font.COLOR_RED, ((HSSFCellStyle)newStyle).getFont(wb).getColor());
         
 //        OutputStream out = new FileOutputStream("/tmp/56959.xls");

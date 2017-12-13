@@ -35,12 +35,14 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STDataValidationType;
  *
  */
 public class XSSFDataValidationHelper implements DataValidationHelper {
-	private XSSFSheet xssfSheet;
+	// Findbugs: URF_UNREAD_FIELD. Do not delete without understanding how this class works.
+	//private XSSFSheet xssfSheet;
 	
     
     public XSSFDataValidationHelper(XSSFSheet xssfSheet) {
 		super();
-		this.xssfSheet = xssfSheet;
+		// Findbugs: URF_UNREAD_FIELD. Do not delete without understanding how this class works.
+		//this.xssfSheet = xssfSheet;
 	}
 
 	/* (non-Javadoc)
@@ -161,7 +163,7 @@ public class XSSFDataValidationHelper implements DataValidationHelper {
 		}
 		
 		CellRangeAddress[] cellRangeAddresses = cellRangeAddressList.getCellRangeAddresses();
-		List<String> sqref = new ArrayList<String>();
+		List<String> sqref = new ArrayList<>();
 		for (int i = 0; i < cellRangeAddresses.length; i++) {
 			CellRangeAddress cellRangeAddress = cellRangeAddresses[i];
 			sqref.add(cellRangeAddress.formatAsString());

@@ -17,11 +17,13 @@
 
 package org.apache.poi.sl.draw;
 
-import static org.apache.poi.sl.draw.Drawable.DRAW_FACTORY;
-
 import java.awt.Graphics2D;
 import java.awt.font.TextLayout;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Rectangle2D;
 import java.text.AttributedString;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.poi.sl.usermodel.Background;
 import org.apache.poi.sl.usermodel.ConnectorShape;
@@ -38,9 +40,10 @@ import org.apache.poi.sl.usermodel.TableShape;
 import org.apache.poi.sl.usermodel.TextBox;
 import org.apache.poi.sl.usermodel.TextParagraph;
 import org.apache.poi.sl.usermodel.TextShape;
+import org.apache.poi.util.JvmBugs;
 
 public class DrawFactory {
-    protected static final ThreadLocal<DrawFactory> defaultFactory = new ThreadLocal<DrawFactory>();
+    protected static final ThreadLocal<DrawFactory> defaultFactory = new ThreadLocal<>();
 
     /**
      * Set a custom draw factory for the current thread.
@@ -53,12 +56,20 @@ public class DrawFactory {
         defaultFactory.set(factory);
     }
 
+    /**
+     * Returns the DrawFactory, preferably via a graphics instance.
+     * If graphics is null, the current thread local is checked or
+     * if it is not set, a new factory is created. 
+     *
+     * @param graphics the current graphics context or null
+     * @return the draw factory
+     */
     public static DrawFactory getInstance(Graphics2D graphics) {
         // first try to find the factory over the rendering hint
         DrawFactory factory = null;
         boolean isHint = false;
         if (graphics != null) {
-            factory = (DrawFactory)graphics.getRenderingHint(DRAW_FACTORY);
+            factory = (DrawFactory)graphics.getRenderingHint(Drawable.DRAW_FACTORY);
             isHint = (factory != null);
         }
         // secondly try the thread local default
@@ -70,7 +81,7 @@ public class DrawFactory {
             factory = new DrawFactory();
         }
         if (graphics != null && !isHint) {
-            graphics.setRenderingHint(DRAW_FACTORY, factory);
+            graphics.setRenderingHint(Drawable.DRAW_FACTORY, factory);
         }
         return factory;
     }
@@ -165,5 +176,80 @@ public class DrawFactory {
     
     public DrawPaint getPaint(PlaceableShape<?,?> shape) {
         return new DrawPaint(shape);
+    }
+
+    /**
+     * Convenience method for drawing single shapes.
+     * For drawing whole slides, use {@link Slide#draw(Graphics2D)}
+     *
+     * @param graphics the graphics context to draw to
+     * @param shape the shape
+     * @param bounds the bounds within the graphics context to draw to 
+     */
+    public void drawShape(Graphics2D graphics, Shape<?,?> shape, Rectangle2D bounds) {
+        Rectangle2D shapeBounds = shape.getAnchor();
+        if (shapeBounds.isEmpty() || (bounds != null && bounds.isEmpty())) {
+            return;
+        }
+
+        AffineTransform txg = (AffineTransform)graphics.getRenderingHint(Drawable.GROUP_TRANSFORM);
+        AffineTransform tx = new AffineTransform();
+        try {
+            if (bounds != null) {
+                double scaleX = bounds.getWidth()/shapeBounds.getWidth();
+                double scaleY = bounds.getHeight()/shapeBounds.getHeight();
+                tx.translate(bounds.getCenterX(), bounds.getCenterY());
+                tx.scale(scaleX, scaleY);
+                tx.translate(-shapeBounds.getCenterX(), -shapeBounds.getCenterY());
+            }
+            graphics.setRenderingHint(Drawable.GROUP_TRANSFORM, tx);
+            
+            Drawable d = getDrawable(shape);
+            d.applyTransform(graphics);
+            d.draw(graphics);
+        } finally {
+            graphics.setRenderingHint(Drawable.GROUP_TRANSFORM, txg);
+        }
+    }
+    
+    
+    /**
+     * Replace font families for Windows JVM 6, which contains a font rendering error.
+     * This is likely to be removed, when POI upgrades to JDK 7
+     *
+     * @param graphics the graphics context which will contain the font mapping
+     */
+    public void fixFonts(Graphics2D graphics) {
+        if (!JvmBugs.hasLineBreakMeasurerBug()) return;
+        @SuppressWarnings("unchecked")
+        Map<String,String> fontMap = (Map<String,String>)graphics.getRenderingHint(Drawable.FONT_MAP);
+        if (fontMap == null) {
+            fontMap = new HashMap<>();
+            graphics.setRenderingHint(Drawable.FONT_MAP, fontMap);
+        }
+        
+        String fonts[][] = {
+            { "Calibri", "Lucida Sans" },
+            { "Cambria", "Lucida Bright" },
+            { "Times New Roman", "Lucida Bright" },
+            { "serif", "Lucida Bright" }
+        };
+
+        for (String f[] : fonts) {
+            if (!fontMap.containsKey(f[0])) {
+                fontMap.put(f[0], f[1]);
+            }
+        }
+    }
+    
+    /**
+     * Return a FontManager, either registered beforehand or a default implementation
+     *
+     * @param graphics the graphics context holding potentially a font manager
+     * @return the font manager
+     */
+    public DrawFontManager getFontManager(Graphics2D graphics) {
+        DrawFontManager fontHandler = (DrawFontManager)graphics.getRenderingHint(Drawable.FONT_HANDLER);
+        return (fontHandler != null) ? fontHandler : new DrawFontManagerDefault();
     }
 }

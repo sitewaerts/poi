@@ -31,6 +31,8 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 
 	/**
 	 * Creates a new text extractor for the given document
+	 * 
+	 * @param document the document to extract from
 	 */
 	public POIXMLTextExtractor(POIXMLDocument document) {
 		_document = document;
@@ -38,18 +40,24 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 
 	/**
 	 * Returns the core document properties
+	 * 
+	 * @return the core document properties
 	 */
 	public CoreProperties getCoreProperties() {
 		 return _document.getProperties().getCoreProperties();
 	}
 	/**
 	 * Returns the extended document properties
+	 * 
+	 * @return the extended document properties
 	 */
 	public ExtendedProperties getExtendedProperties() {
 		return _document.getProperties().getExtendedProperties();
 	}
 	/**
 	 * Returns the custom document properties
+	 * 
+	 * @return the custom document properties
 	 */
 	public CustomProperties getCustomProperties() {
 		return _document.getProperties().getCustomProperties();
@@ -57,6 +65,8 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 
 	/**
 	 * Returns opened document
+	 * 
+	 * @return the opened document
 	 */
 	public final POIXMLDocument getDocument() {
 		return _document;
@@ -64,6 +74,8 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 
 	/**
 	 * Returns the opened OPCPackage that contains the document
+	 * 
+	 * @return the opened OPCPackage
 	 */
 	public OPCPackage getPackage() {
 	   return _document.getPackage();
@@ -73,7 +85,8 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 	 * Returns an OOXML properties text extractor for the
 	 *  document properties metadata, such as title and author.
 	 */
-	public POIXMLPropertiesTextExtractor getMetadataTextExtractor() {
+	@Override
+    public POIXMLPropertiesTextExtractor getMetadataTextExtractor() {
 		return new POIXMLPropertiesTextExtractor(_document);
 	}
 
@@ -81,7 +94,8 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 	public void close() throws IOException {
 		// e.g. XSSFEventBaseExcelExtractor passes a null-document
 		if(_document != null) {
-			OPCPackage pkg = _document.getPackage();
+			@SuppressWarnings("resource")
+            OPCPackage pkg = _document.getPackage();
 			if(pkg != null) {
 			    // revert the package to not re-write the file, which is very likely not wanted for a TextExtractor!
 				pkg.revert();
@@ -90,7 +104,7 @@ public abstract class POIXMLTextExtractor extends POITextExtractor {
 		super.close();
 	}
 
-	protected void checkMaxTextSize(StringBuffer text, String string) {
+	protected void checkMaxTextSize(CharSequence text, String string) {
         if(string == null) {
             return;
         }

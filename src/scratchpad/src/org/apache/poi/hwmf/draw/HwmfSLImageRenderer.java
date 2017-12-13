@@ -29,13 +29,18 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import org.apache.poi.hwmf.usermodel.HwmfPicture;
+import org.apache.poi.sl.draw.DrawPictureShape;
 import org.apache.poi.sl.draw.ImageRenderer;
 import org.apache.poi.sl.usermodel.PictureData;
 import org.apache.poi.util.Units;
 
+/**
+ * Helper class which is instantiated by {@link DrawPictureShape}
+ * via reflection
+ */
 public class HwmfSLImageRenderer implements ImageRenderer {
-    HwmfPicture image = null;
-    double alpha = 0;
+    HwmfPicture image;
+    double alpha;
     
     @Override
     public void loadImage(InputStream data, String contentType) throws IOException {
@@ -72,18 +77,22 @@ public class HwmfSLImageRenderer implements ImageRenderer {
 
     @Override
     public BufferedImage getImage() {
+        return getImage(getDimension());
+    }
+
+    @Override
+    public BufferedImage getImage(Dimension dim) {
         if (image == null) {
             return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB); 
         }
         
-        Dimension dim = getDimension();
         BufferedImage bufImg = new BufferedImage((int)dim.getWidth(), (int)dim.getHeight(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = bufImg.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        image.draw(g);
+        image.draw(g, new Rectangle2D.Double(0,0,dim.getWidth(),dim.getHeight()));
         g.dispose();
         
         if (alpha != 0) {
@@ -97,7 +106,7 @@ public class HwmfSLImageRenderer implements ImageRenderer {
         
         return bufImg;
     }
-
+    
     @Override
     public boolean drawImage(Graphics2D graphics, Rectangle2D anchor) {
         return drawImage(graphics, anchor, null);

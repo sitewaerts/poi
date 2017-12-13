@@ -31,7 +31,6 @@ import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlOptions;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTDocDefaults;
@@ -52,7 +51,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.StylesDocument;
  */
 public class XWPFStyles extends POIXMLDocumentPart {
     private CTStyles ctStyles;
-    private List<XWPFStyle> listStyle = new ArrayList<XWPFStyle>();
+    private List<XWPFStyle> listStyle = new ArrayList<>();
 
     private XWPFLatentStyles latentStyles;
     private XWPFDefaultRunStyle defaultRunStyle;
@@ -67,14 +66,6 @@ public class XWPFStyles extends POIXMLDocumentPart {
      */
     public XWPFStyles(PackagePart part) throws IOException, OpenXML4JException {
         super(part);
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XWPFStyles(PackagePart part, PackageRelationship rel) throws IOException, OpenXML4JException {
-        this(part);
     }
     
     /**
@@ -195,8 +186,12 @@ public class XWPFStyles extends POIXMLDocumentPart {
      */
     public XWPFStyle getStyle(String styleID) {
         for (XWPFStyle style : listStyle) {
-            if (style.getStyleId().equals(styleID))
-                return style;
+            try {
+                if (style.getStyleId().equals(styleID))
+                    return style;
+            } catch (NullPointerException e) {
+                // Ignore NPE
+            }
         }
         return null;
     }
@@ -213,7 +208,7 @@ public class XWPFStyles extends POIXMLDocumentPart {
      * @return a list of all styles which were used by this method
      */
     public List<XWPFStyle> getUsedStyleList(XWPFStyle style) {
-        List<XWPFStyle> usedStyleList = new ArrayList<XWPFStyle>();
+        List<XWPFStyle> usedStyleList = new ArrayList<>();
         usedStyleList.add(style);
         return getUsedStyleList(style, usedStyleList);
     }

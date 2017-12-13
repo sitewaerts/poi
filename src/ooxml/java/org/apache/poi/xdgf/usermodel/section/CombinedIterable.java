@@ -56,8 +56,8 @@ public class CombinedIterable<T> implements Iterable<T> {
 
             Long lastI = Long.MIN_VALUE;
 
-            Entry<Long, T> currentBase = null;
-            Entry<Long, T> currentMaster = null;
+            Entry<Long, T> currentBase;
+            Entry<Long, T> currentMaster;
 
             // grab the iterator for both
             Iterator<Entry<Long, T>> baseI = _baseItems.entrySet().iterator();
@@ -118,7 +118,7 @@ public class CombinedIterable<T> implements Iterable<T> {
 
                     } else {
                         lastI = masterIdx;
-                        val = currentMaster.getValue();
+                        val = (currentMaster != null) ? currentMaster.getValue() : null;
                         currentMaster = null;
                     }
 

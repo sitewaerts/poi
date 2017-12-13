@@ -45,13 +45,41 @@ public class Units {
      */
     public static final int POINT_DPI = 72;    
 
+
+    /**
+     * Width of one "standard character" of the default font in pixels. Same for Calibri and Arial.
+     * "Standard character" defined as the widest digit character in the given font.
+     * Copied from XSSFWorkbook, since that isn't available here.
+     * <p>
+     * Note this is only valid for workbooks using the default Excel font.
+     * <p>
+     * Would be nice to eventually support arbitrary document default fonts.
+     */
+    public static final float DEFAULT_CHARACTER_WIDTH = 7.0017f;
+
+    /**
+     * Column widths are in fractional characters, this is the EMU equivalent.
+     * One character is defined as the widest value for the integers 0-9 in the 
+     * default font.
+     */
+    public static final int EMU_PER_CHARACTER = (int) (EMU_PER_PIXEL * DEFAULT_CHARACTER_WIDTH);
+
     /**
      * Converts points to EMUs
      * @param points points
-     * @return emus
+     * @return EMUs
      */
     public static int toEMU(double points){
         return (int)Math.rint(EMU_PER_POINT*points);
+    }
+    
+    /**
+     * Converts pixels to EMUs
+     * @param pixels pixels
+     * @return EMUs
+     */
+    public static int pixelToEMU(int pixels) {
+        return pixels*EMU_PER_PIXEL;
     }
 
     /**
@@ -66,31 +94,31 @@ public class Units {
     /**
      * Converts a value of type FixedPoint to a floating point
      *
-     * @param fixedPoint
+     * @param fixedPoint value in fixed point notation
      * @return floating point (double)
      * 
      * @see <a href="http://msdn.microsoft.com/en-us/library/dd910765(v=office.12).aspx">[MS-OSHARED] - 2.2.1.6 FixedPoint</a>
      */
     public static double fixedPointToDouble(int fixedPoint) {
         int i = (fixedPoint >> 16);
-        int f = (fixedPoint >> 0) & 0xFFFF;
-        double floatPoint = (i + f/65536d);
-        return floatPoint;
+        int f = fixedPoint & 0xFFFF;
+        return (i + f/65536d);
     }
     
     /**
      * Converts a value of type floating point to a FixedPoint
      *
-     * @param floatPoint
-     * @return fixedPoint
+     * @param floatPoint value in floating point notation
+     * @return fixedPoint value in fixed points notation
      * 
      * @see <a href="http://msdn.microsoft.com/en-us/library/dd910765(v=office.12).aspx">[MS-OSHARED] - 2.2.1.6 FixedPoint</a>
      */
     public static int doubleToFixedPoint(double floatPoint) {
-        int i = (int)Math.floor(floatPoint);
-        int f = (int)((floatPoint % 1d)*65536d);
-        int fixedPoint = (i << 16) | (f & 0xFFFF);
-        return fixedPoint;
+        double fractionalPart = floatPoint % 1d;
+        double integralPart = floatPoint - fractionalPart;
+        int i = (int)Math.floor(integralPart);
+        int f = (int)Math.rint(fractionalPart*65536d);
+        return (i << 16) | (f & 0xFFFF);
     }
 
     public static double masterToPoints(int masterDPI) {
@@ -117,5 +145,25 @@ public class Units {
         points *= POINT_DPI;
         points /= PIXEL_DPI;
         return points;
+    }
+    
+    public static int charactersToEMU(double characters) {
+        return (int) characters * EMU_PER_CHARACTER;
+    }
+    
+    /**
+     * @param columnWidth specified in 256ths of a standard character
+     * @return equivalent EMUs
+     */
+    public static int columnWidthToEMU(int columnWidth) {
+        return charactersToEMU(columnWidth / 256d);
+    }
+    
+    /**
+     * @param twips (1/20th of a point) typically used for row heights
+     * @return equivalent EMUs
+     */
+    public static int TwipsToEMU(short twips) {
+        return (int) (twips / 20d * EMU_PER_POINT);
     }
 }

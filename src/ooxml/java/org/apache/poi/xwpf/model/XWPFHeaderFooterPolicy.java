@@ -16,11 +16,6 @@
 ==================================================================== */
 package org.apache.poi.xwpf.model;
 
-import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
-
-import java.io.IOException;
-import java.io.OutputStream;
-
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLDocumentPart.RelationPart;
 import org.apache.poi.util.POILogFactory;
@@ -32,6 +27,7 @@ import org.apache.poi.xwpf.usermodel.XWPFHeader;
 import org.apache.poi.xwpf.usermodel.XWPFHeaderFooter;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRelation;
+import org.apache.xmlbeans.impl.values.XmlValueOutOfRangeException;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBody;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTHdrFtr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTHdrFtrRef;
@@ -67,8 +63,6 @@ import com.microsoft.schemas.vml.STTrueFalse;
  * the right headers and footers for the document.
  */
 public class XWPFHeaderFooterPolicy {
-    private static final POILogger LOG = POILogFactory.getLogger(XWPFHeaderFooterPolicy.class);
-    
     public static final Enum DEFAULT = STHdrFtr.DEFAULT;
     public static final Enum EVEN = STHdrFtr.EVEN;
     public static final Enum FIRST = STHdrFtr.FIRST;
@@ -90,7 +84,7 @@ public class XWPFHeaderFooterPolicy {
      * as required.
      */
     public XWPFHeaderFooterPolicy(XWPFDocument doc) {
-        this(doc, doc.getDocument().getBody().getSectPr());
+        this(doc, null);
     }
 
     /**
@@ -103,6 +97,12 @@ public class XWPFHeaderFooterPolicy {
         // For now, we don't care about different ranges, as it
         //  doesn't seem that .docx properly supports that
         //  feature of the file format yet
+        if (sectPr == null) {
+            CTBody ctBody = doc.getDocument().getBody();
+            sectPr = ctBody.isSetSectPr()
+                    ? ctBody.getSectPr()
+                    : ctBody.addNewSectPr();
+        }
         this.doc = doc;
         for (int i = 0; i < sectPr.sizeOfHeaderReferenceArray(); i++) {
             // Get the header
@@ -112,8 +112,14 @@ public class XWPFHeaderFooterPolicy {
             if (relatedPart != null && relatedPart instanceof XWPFHeader) {
                 hdr = (XWPFHeader) relatedPart;
             }
-            // Assign it
-            Enum type = ref.getType();
+            // Assign it; treat invalid options as "default" POI-60293
+            Enum type;
+            try {
+                type = ref.getType();
+            } catch (XmlValueOutOfRangeException e) {
+                type = STHdrFtr.DEFAULT;
+            }
+
             assignHeader(hdr, type);
         }
         for (int i = 0; i < sectPr.sizeOfFooterReferenceArray(); i++) {
@@ -124,8 +130,13 @@ public class XWPFHeaderFooterPolicy {
             if (relatedPart != null && relatedPart instanceof XWPFFooter) {
                 ftr = (XWPFFooter) relatedPart;
             }
-            // Assign it
-            Enum type = ref.getType();
+            // Assign it; treat invalid options as "default" POI-60293
+            Enum type;
+            try {
+                type = ref.getType();
+            } catch (XmlValueOutOfRangeException e) {
+                type = STHdrFtr.DEFAULT;
+            }
             assignFooter(ftr, type);
         }
     }
@@ -154,7 +165,7 @@ public class XWPFHeaderFooterPolicy {
      * Creates an empty header of the specified type, containing a single
      * empty paragraph, to which you can then set text, add more paragraphs etc.
      */
-    public XWPFHeader createHeader(Enum type) throws IOException {
+    public XWPFHeader createHeader(Enum type) {
         return createHeader(type, null);
     }
 
@@ -163,33 +174,35 @@ public class XWPFHeaderFooterPolicy {
      * supplied (and previously unattached!) paragraphs are
      * added to.
      */
-    public XWPFHeader createHeader(Enum type, XWPFParagraph[] pars) throws IOException {
-        XWPFRelation relation = XWPFRelation.HEADER;
-        String pStyle = "Header";
-        int i = getRelationIndex(relation);
-        HdrDocument hdrDoc = HdrDocument.Factory.newInstance();
-        
-        XWPFHeader wrapper = (XWPFHeader) doc.createRelationship(relation, XWPFFactory.getInstance(), i);
-        wrapper.setXWPFDocument(doc);
+    public XWPFHeader createHeader(Enum type, XWPFParagraph[] pars) {
+        XWPFHeader header = getHeader(type);
 
-        CTHdrFtr hdr = buildHdr(type, pStyle, wrapper, pars);
-        wrapper.setHeaderFooter(hdr);
+        if (header == null) {
+            HdrDocument hdrDoc = HdrDocument.Factory.newInstance();
 
-        OutputStream outputStream = wrapper.getPackagePart().getOutputStream();
-        hdrDoc.setHdr(hdr);
+            XWPFRelation relation = XWPFRelation.HEADER;
+            int i = getRelationIndex(relation);
 
-        assignHeader(wrapper, type);
-        hdrDoc.save(outputStream, DEFAULT_XML_OPTIONS);
-        outputStream.close();
-        
-        return wrapper;
+            XWPFHeader wrapper = (XWPFHeader) doc.createRelationship(relation,
+                    XWPFFactory.getInstance(), i);
+            wrapper.setXWPFDocument(doc);
+
+            String pStyle = "Header";
+            CTHdrFtr hdr = buildHdr(type, pStyle, wrapper, pars);
+            wrapper.setHeaderFooter(hdr);
+            hdrDoc.setHdr(hdr);
+            assignHeader(wrapper, type);
+            header = wrapper;
+        }
+
+        return header;
     }
 
     /**
      * Creates an empty footer of the specified type, containing a single
      * empty paragraph, to which you can then set text, add more paragraphs etc.
      */
-    public XWPFFooter createFooter(Enum type) throws IOException {
+    public XWPFFooter createFooter(Enum type) {
         return createFooter(type, null);
     }
 
@@ -198,25 +211,28 @@ public class XWPFHeaderFooterPolicy {
      * supplied (and previously unattached!) paragraphs are
      * added to.
      */
-    public XWPFFooter createFooter(Enum type, XWPFParagraph[] pars) throws IOException {
-        XWPFRelation relation = XWPFRelation.FOOTER;
-        String pStyle = "Footer";
-        int i = getRelationIndex(relation);
-        FtrDocument ftrDoc = FtrDocument.Factory.newInstance();
-        
-        XWPFFooter wrapper = (XWPFFooter) doc.createRelationship(relation, XWPFFactory.getInstance(), i);
-        wrapper.setXWPFDocument(doc);
+    public XWPFFooter createFooter(Enum type, XWPFParagraph[] pars) {
+        XWPFFooter footer = getFooter(type);
 
-        CTHdrFtr ftr = buildFtr(type, pStyle, wrapper, pars);
-        wrapper.setHeaderFooter(ftr);
+        if (footer == null) {
+            FtrDocument ftrDoc = FtrDocument.Factory.newInstance();
 
-        OutputStream outputStream = wrapper.getPackagePart().getOutputStream();
-        ftrDoc.setFtr(ftr);
+            XWPFRelation relation = XWPFRelation.FOOTER;
+            int i = getRelationIndex(relation);
 
-        assignFooter(wrapper, type);
-        ftrDoc.save(outputStream, DEFAULT_XML_OPTIONS);
-        outputStream.close();
-        return wrapper;
+            XWPFFooter wrapper = (XWPFFooter) doc.createRelationship(relation,
+                    XWPFFactory.getInstance(), i);
+            wrapper.setXWPFDocument(doc);
+
+            String pStyle = "Footer";
+            CTHdrFtr ftr = buildFtr(type, pStyle, wrapper, pars);
+            wrapper.setHeaderFooter(ftr);
+            ftrDoc.setFtr(ftr);
+            assignFooter(wrapper, type);
+            footer = wrapper;
+        }
+
+        return footer;
     }
 
     private int getRelationIndex(XWPFRelation relation) {
@@ -262,20 +278,20 @@ public class XWPFHeaderFooterPolicy {
                 CTP p = ftr.addNewP();
                 ftr.setPArray(i, paragraphs[i].getCTP());
             }
-        } else {
-            CTP p = ftr.addNewP();
-            CTBody body = doc.getDocument().getBody();
-            if (body.sizeOfPArray() > 0) {
-                CTP p0 = body.getPArray(0);
-                if (p0.isSetRsidR()) {
-                    byte[] rsidr = p0.getRsidR();
-                    byte[] rsidrdefault = p0.getRsidRDefault();
-                    p.setRsidP(rsidr);
-                    p.setRsidRDefault(rsidrdefault);
-                }
-            }
-            CTPPr pPr = p.addNewPPr();
-            pPr.addNewPStyle().setVal(pStyle);
+//        } else {
+//            CTP p = ftr.addNewP();
+//            CTBody body = doc.getDocument().getBody();
+//            if (body.sizeOfPArray() > 0) {
+//                CTP p0 = body.getPArray(0);
+//                if (p0.isSetRsidR()) {
+//                    byte[] rsidr = p0.getRsidR();
+//                    byte[] rsidrdefault = p0.getRsidRDefault();
+//                    p.setRsidP(rsidr);
+//                    p.setRsidRDefault(rsidrdefault);
+//                }
+//            }
+//            CTPPr pPr = p.addNewPPr();
+//            pPr.addNewPStyle().setVal(pStyle);
         }
         return ftr;
     }
@@ -349,6 +365,21 @@ public class XWPFHeaderFooterPolicy {
         }
         return defaultHeader;
     }
+    
+    /**
+     * Get this section header for the given type
+     *
+     * @param type of header to return
+     * @return {@link XWPFHeader} object
+     */
+    public XWPFHeader getHeader(Enum type) {
+        if (type == STHdrFtr.EVEN) {
+            return evenPageHeader;
+        } else if (type == STHdrFtr.FIRST) {
+            return firstPageHeader;
+        }
+        return defaultHeader;
+    }
 
     /**
      * Get the footer that applies to the given
@@ -365,19 +396,31 @@ public class XWPFHeaderFooterPolicy {
         }
         return defaultFooter;
     }
+    
+    /**
+     * Get this section footer for the given type
+     *
+     * @param type of footer to return
+     * @return {@link XWPFFooter} object
+     */
+    public XWPFFooter getFooter(Enum type) {
+        if (type == STHdrFtr.EVEN) {
+            return evenPageFooter;
+        } else if (type == STHdrFtr.FIRST) {
+            return firstPageFooter;
+        }
+        return defaultFooter;
+    }
+    
 
     public void createWatermark(String text) {
         XWPFParagraph[] pars = new XWPFParagraph[1];
-        try {
-            pars[0] = getWatermarkParagraph(text, 1);
-            createHeader(DEFAULT, pars);
-            pars[0] = getWatermarkParagraph(text, 2);
-            createHeader(FIRST, pars);
-            pars[0] = getWatermarkParagraph(text, 3);
-            createHeader(EVEN, pars);
-        } catch (IOException e) {
-            LOG.log(POILogger.ERROR, "error while creating watermark", e);
-        }
+        pars[0] = getWatermarkParagraph(text, 1);
+        createHeader(DEFAULT, pars);
+        pars[0] = getWatermarkParagraph(text, 2);
+        createHeader(FIRST, pars);
+        pars[0] = getWatermarkParagraph(text, 3);
+        createHeader(EVEN, pars);
     }
 
     /*

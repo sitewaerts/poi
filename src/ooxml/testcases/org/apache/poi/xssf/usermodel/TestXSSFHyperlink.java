@@ -17,24 +17,21 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import java.io.IOException;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
-
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.hssf.usermodel.HSSFHyperlink;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.openxml4j.opc.PackageRelationshipCollection;
-import org.apache.poi.ss.usermodel.BaseTestHyperlink;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CreationHelper;
-import org.apache.poi.ss.usermodel.Hyperlink;
-import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.XSSFITestDataProvider;
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.junit.Test;
+
+import java.io.IOException;
+
+import static org.junit.Assert.*;
 
 public final class TestXSSFHyperlink extends BaseTestHyperlink {
     public TestXSSFHyperlink() {
@@ -68,7 +65,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
                 "http://apache.org/default.php?s=isTramsformed&submit=Search&la=*&li=*"};
         for(int i = 0; i < urls.length; i++){
             String s = urls[i];
-            XSSFHyperlink link = createHelper.createHyperlink(Hyperlink.LINK_URL);
+            XSSFHyperlink link = createHelper.createHyperlink(HyperlinkType.URL);
             link.setAddress(s);
 
             XSSFCell cell = row.createCell(i);
@@ -81,6 +78,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         for(int i = 0; i < rels.size(); i++){
             PackageRelationship rel = rels.getRelationship(i);
             // there should be a relationship for each URL
+            assertNotNull(rel);
             assertEquals(urls[i], rel.getTargetURI().toString());
         }
 
@@ -92,6 +90,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         for(int i = 0; i < rels.size(); i++){
             PackageRelationship rel = rels.getRelationship(i);
             // there should be a relationship for each URL
+            assertNotNull(rel);
             assertEquals(urls[i], rel.getTargetURI().toString());
         }
     }
@@ -108,10 +107,10 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
                 "\\poi"};
         for(String s : invalidURLs){
             try {
-                createHelper.createHyperlink(Hyperlink.LINK_URL).setAddress(s);
+                createHelper.createHyperlink(HyperlinkType.URL).setAddress(s);
                 fail("expected IllegalArgumentException: " + s);
             } catch (IllegalArgumentException e){
-
+                // expected here
             }
         }
         workbook.close();
@@ -150,7 +149,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         Row r17 = sheet.createRow(17);
         Cell r17c = r17.createCell(2);
 
-        Hyperlink hyperlink = createHelper.createHyperlink(Hyperlink.LINK_URL);
+        Hyperlink hyperlink = createHelper.createHyperlink(HyperlinkType.URL);
         hyperlink.setAddress("http://poi.apache.org/spreadsheet/");
         hyperlink.setLabel("POI SS Link");
         r17c.setHyperlink(hyperlink);
@@ -158,7 +157,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         assertEquals(5, sheet.getNumHyperlinks());
         doTestHyperlinkContents(sheet);
 
-        assertEquals(Hyperlink.LINK_URL,
+        assertEquals(HyperlinkType.URL,
                 sheet.getRow(17).getCell(2).getHyperlink().getType());
         assertEquals("POI SS Link",
                 sheet.getRow(17).getCell(2).getHyperlink().getLabel());
@@ -179,7 +178,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         assertEquals(5, sheet.getNumHyperlinks());
         doTestHyperlinkContents(sheet);
 
-        assertEquals(Hyperlink.LINK_URL,
+        assertEquals(HyperlinkType.URL,
                 sheet.getRow(17).getCell(2).getHyperlink().getType());
         assertEquals("POI SS Link",
                 sheet.getRow(17).getCell(2).getHyperlink().getLabel());
@@ -197,7 +196,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         assertNotNull(sheet.getRow(16).getCell(2).getHyperlink());
 
         // First is a link to poi
-        assertEquals(Hyperlink.LINK_URL,
+        assertEquals(HyperlinkType.URL,
                 sheet.getRow(3).getCell(2).getHyperlink().getType());
         assertEquals(null,
                 sheet.getRow(3).getCell(2).getHyperlink().getLabel());
@@ -205,7 +204,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
                 sheet.getRow(3).getCell(2).getHyperlink().getAddress());
 
         // Next is an internal doc link
-        assertEquals(Hyperlink.LINK_DOCUMENT,
+        assertEquals(HyperlinkType.DOCUMENT,
                 sheet.getRow(14).getCell(2).getHyperlink().getType());
         assertEquals("Internal hyperlink to A2",
                 sheet.getRow(14).getCell(2).getHyperlink().getLabel());
@@ -213,7 +212,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
                 sheet.getRow(14).getCell(2).getHyperlink().getAddress());
 
         // Next is a file
-        assertEquals(Hyperlink.LINK_FILE,
+        assertEquals(HyperlinkType.FILE,
                 sheet.getRow(15).getCell(2).getHyperlink().getType());
         assertEquals(null,
                 sheet.getRow(15).getCell(2).getHyperlink().getLabel());
@@ -221,7 +220,7 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
                 sheet.getRow(15).getCell(2).getHyperlink().getAddress());
 
         // Last is a mailto
-        assertEquals(Hyperlink.LINK_EMAIL,
+        assertEquals(HyperlinkType.EMAIL,
                 sheet.getRow(16).getCell(2).getHyperlink().getType());
         assertEquals(null,
                 sheet.getRow(16).getCell(2).getHyperlink().getLabel());
@@ -239,13 +238,13 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
 
         assertEquals(sh1.getNumberOfComments(), sh2.getNumberOfComments());
         XSSFHyperlink l1 = sh1.getHyperlink(0, 1);
-        assertEquals(XSSFHyperlink.LINK_DOCUMENT, l1.getType());
+        assertEquals(HyperlinkType.DOCUMENT, l1.getType());
         assertEquals("B1", l1.getCellRef());
         assertEquals("Sort on Titel", l1.getTooltip());
 
         XSSFHyperlink l2 = sh2.getHyperlink(0, 1);
         assertEquals(l1.getTooltip(), l2.getTooltip());
-        assertEquals(XSSFHyperlink.LINK_DOCUMENT, l2.getType());
+        assertEquals(HyperlinkType.DOCUMENT, l2.getType());
         assertEquals("B1", l2.getCellRef());
     }
 
@@ -277,8 +276,9 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
     }
     
     @Test
-    public void testCopyHSSFHyperlink() {
-        HSSFHyperlink hlink = new HSSFHyperlink(Hyperlink.LINK_URL);
+    public void testCopyHSSFHyperlink() throws IOException {
+        HSSFWorkbook hssfworkbook = new HSSFWorkbook();
+        HSSFHyperlink hlink = hssfworkbook.getCreationHelper().createHyperlink(HyperlinkType.URL);
         hlink.setAddress("http://poi.apache.org/");
         hlink.setFirstColumn(3);
         hlink.setFirstRow(2);
@@ -291,5 +291,85 @@ public final class TestXSSFHyperlink extends BaseTestHyperlink {
         assertEquals(new CellReference(2, 3), new CellReference(xlink.getCellRef()));
         // Are HSSFHyperlink.label and XSSFHyperlink.tooltip the same? If so, perhaps one of these needs renamed for a consistent Hyperlink interface
         // assertEquals("label", xlink.getTooltip());
+        
+        hssfworkbook.close();
+    }
+    
+    /* bug 59775: XSSFHyperlink has wrong type if it contains a location (CTHyperlink#getLocation)
+     * URLs with a hash mark (#) are still URL hyperlinks, not document links
+     */
+    @Test
+    public void testURLsWithHashMark() throws IOException {
+        XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("59775.xlsx");
+        XSSFSheet sh = wb.getSheetAt(0);
+        CellAddress A2 = new CellAddress("A2");
+        CellAddress A3 = new CellAddress("A3");
+        CellAddress A4 = new CellAddress("A4");
+        CellAddress A7 = new CellAddress("A7");
+        
+        XSSFHyperlink link = sh.getHyperlink(A2);
+        assertEquals("address", "A2", link.getCellRef());
+        assertEquals("link type", HyperlinkType.URL, link.getType());
+        assertEquals("link target", "http://twitter.com/#!/apacheorg", link.getAddress());
+        
+        link = sh.getHyperlink(A3);
+        assertEquals("address", "A3", link.getCellRef());
+        assertEquals("link type", HyperlinkType.URL, link.getType());
+        assertEquals("link target", "http://www.bailii.org/databases.html#ie", link.getAddress());
+        
+        link = sh.getHyperlink(A4);
+        assertEquals("address", "A4", link.getCellRef());
+        assertEquals("link type", HyperlinkType.URL, link.getType());
+        assertEquals("link target", "https://en.wikipedia.org/wiki/Apache_POI#See_also", link.getAddress());
+        
+        link = sh.getHyperlink(A7);
+        assertEquals("address", "A7", link.getCellRef());
+        assertEquals("link type", HyperlinkType.DOCUMENT, link.getType());
+        assertEquals("link target", "Sheet1", link.getAddress());
+        
+        wb.close();
+    }
+
+    @Test
+    public void test() throws IOException {
+        XSSFWorkbook wb = new XSSFWorkbook();
+
+        CreationHelper createHelper = wb.getCreationHelper();
+        XSSFCellStyle hlinkStyle = wb.createCellStyle();
+        Font hlinkFont = wb.createFont();
+
+        Sheet sheet = wb.createSheet("test");
+
+        Row rowDet = sheet.createRow(0);
+
+        Cell cellDet = rowDet.createCell(7);
+        cellDet.setCellValue("http://www.google.at");
+        //set up style to be able to create hyperlinks
+            hlinkFont.setColor(IndexedColors.BLUE.getIndex());
+            hlinkStyle.setFont(hlinkFont);
+        Hyperlink link = createHelper.createHyperlink(HyperlinkType.URL);
+            link.setAddress("http://www.example.com");
+            cellDet.setHyperlink(link);
+            cellDet.setCellStyle(hlinkStyle);
+
+        //set up style to be able to create hyperlinks
+        hlinkFont.setColor(IndexedColors.BLUE.getIndex());
+        hlinkStyle.setFont(hlinkFont);
+        link = createHelper.createHyperlink(HyperlinkType.URL);
+
+        //string for hyperlink
+        cellDet = rowDet.createCell(13);
+        cellDet.setCellValue("http://www.other.com");
+        link.setAddress("http://www.gmx.at");
+        cellDet.setHyperlink(link);
+        cellDet.setCellStyle(hlinkStyle);
+
+        XSSFWorkbook wbBack = XSSFTestDataSamples.writeOutAndReadBack(wb);
+
+        assertNotNull(wbBack.getSheetAt(0).getRow(0).getCell(7).getHyperlink());
+        assertNotNull(wbBack.getSheetAt(0).getRow(0).getCell(13).getHyperlink());
+
+        wb.close();
+        wbBack.close();
     }
 }

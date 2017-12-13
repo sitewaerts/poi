@@ -26,7 +26,7 @@ import org.apache.poi.hssf.record.CFHeaderRecord;
 import org.apache.poi.ss.formula.FormulaShifter;
 
 /**
- * Holds all the conditional formatting for a workbook sheet.<p/>
+ * Holds all the conditional formatting for a workbook sheet.<p>
  * 
  * See OOO exelfileformat.pdf sec 4.12 'Conditional Formatting Table'
  */
@@ -37,12 +37,12 @@ public final class ConditionalFormattingTable extends RecordAggregate {
 	 * Creates an empty ConditionalFormattingTable
 	 */
 	public ConditionalFormattingTable() {
-		_cfHeaders = new ArrayList<CFRecordsAggregate>();
+		_cfHeaders = new ArrayList<>();
 	}
 
 	public ConditionalFormattingTable(RecordStream rs) {
 
-		List<CFRecordsAggregate> temp = new ArrayList<CFRecordsAggregate>();
+		List<CFRecordsAggregate> temp = new ArrayList<>();
 		while (rs.peekNextClass() == CFHeaderRecord.class ||
 		       rs.peekNextClass() == CFHeader12Record.class) {
 			temp.add(CFRecordsAggregate.createCFAggregate(rs));
@@ -51,8 +51,7 @@ public final class ConditionalFormattingTable extends RecordAggregate {
 	}
 
 	public void visitContainedRecords(RecordVisitor rv) {
-		for (int i = 0; i < _cfHeaders.size(); i++) {
-			CFRecordsAggregate subAgg = _cfHeaders.get(i);
+		for (CFRecordsAggregate subAgg : _cfHeaders) {
 			subAgg.visitContainedRecords(rv);
 		}
 	}

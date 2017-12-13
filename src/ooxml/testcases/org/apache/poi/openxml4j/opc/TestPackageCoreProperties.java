@@ -70,19 +70,47 @@ public final class TestPackageCoreProperties {
         df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
 		Date dateToInsert = df.parse("2007-05-12T08:00:00Z", new ParsePosition(0));
 
+        SimpleDateFormat msdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
+        msdf.setTimeZone(LocaleUtil.TIMEZONE_UTC);
+
 		PackageProperties props = p.getPackageProperties();
-		props.setCategoryProperty("MyCategory");
+
+        //test various date formats
+        props.setCreatedProperty("2007-05-12T08:00:00Z");
+        assertEquals(dateToInsert, props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2007-05-12T08:00:00"); //no Z, assume Z
+        assertEquals(dateToInsert, props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2007-05-12T08:00:00.123Z");//millis
+        assertEquals(msdf.parse("2007-05-12T08:00:00.123Z"), props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2007-05-12T10:00:00+0200");
+        assertEquals(dateToInsert, props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2007-05-12T10:00:00+02:00");//colon in tz
+        assertEquals(dateToInsert, props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2007-05-12T06:00:00-0200");
+        assertEquals(dateToInsert, props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2015-07-27");
+        assertEquals(msdf.parse("2015-07-27T00:00:00.000Z"), props.getCreatedProperty().getValue());
+
+        props.setCreatedProperty("2007-05-12T10:00:00.123+0200");
+        assertEquals(msdf.parse("2007-05-12T08:00:00.123Z"), props.getCreatedProperty().getValue());
+
+        props.setCategoryProperty("MyCategory");
 		props.setContentStatusProperty("MyContentStatus");
 		props.setContentTypeProperty("MyContentType");
-		props.setCreatedProperty(new Nullable<Date>(dateToInsert));
 		props.setCreatorProperty("MyCreator");
 		props.setDescriptionProperty("MyDescription");
 		props.setIdentifierProperty("MyIdentifier");
 		props.setKeywordsProperty("MyKeywords");
 		props.setLanguageProperty("MyLanguage");
 		props.setLastModifiedByProperty("Julien Chable");
-		props.setLastPrintedProperty(new Nullable<Date>(dateToInsert));
-		props.setModifiedProperty(new Nullable<Date>(dateToInsert));
+		props.setLastPrintedProperty(new Nullable<>(dateToInsert));
+		props.setModifiedProperty(new Nullable<>(dateToInsert));
 		props.setRevisionProperty("2");
 		props.setTitleProperty("MyTitle");
 		props.setSubjectProperty("MySubject");
@@ -140,10 +168,10 @@ public final class TestPackageCoreProperties {
         props.setCreatedProperty((String)null);
         assertEquals("", props.getCreatedPropertyString());
         assertNull(props.getCreatedProperty().getValue());
-        props.setCreatedProperty(new Nullable<Date>());
+        props.setCreatedProperty(new Nullable<>());
         assertEquals("", props.getCreatedPropertyString());
         assertNull(props.getCreatedProperty().getValue());
-        props.setCreatedProperty(new Nullable<Date>(date));
+        props.setCreatedProperty(new Nullable<>(date));
         assertEquals(strDate, props.getCreatedPropertyString());
         assertEquals(date, props.getCreatedProperty().getValue());
         props.setCreatedProperty(strDate);
@@ -156,10 +184,10 @@ public final class TestPackageCoreProperties {
         props.setLastPrintedProperty((String)null);
         assertEquals("", props.getLastPrintedPropertyString());
         assertNull(props.getLastPrintedProperty().getValue());
-        props.setLastPrintedProperty(new Nullable<Date>());
+        props.setLastPrintedProperty(new Nullable<>());
         assertEquals("", props.getLastPrintedPropertyString());
         assertNull(props.getLastPrintedProperty().getValue());
-        props.setLastPrintedProperty(new Nullable<Date>(date));
+        props.setLastPrintedProperty(new Nullable<>(date));
         assertEquals(strDate, props.getLastPrintedPropertyString());
         assertEquals(date, props.getLastPrintedProperty().getValue());
         props.setLastPrintedProperty(strDate);
@@ -170,9 +198,9 @@ public final class TestPackageCoreProperties {
         assertNull(props.getModifiedProperty().getValue());
         props.setModifiedProperty((String)null);
         assertNull(props.getModifiedProperty().getValue());
-        props.setModifiedProperty(new Nullable<Date>());
+        props.setModifiedProperty(new Nullable<>());
         assertNull(props.getModifiedProperty().getValue());
-        props.setModifiedProperty(new Nullable<Date>(date));
+        props.setModifiedProperty(new Nullable<>(date));
         assertEquals(strDate, props.getModifiedPropertyString());
         assertEquals(date, props.getModifiedProperty().getValue());
         props.setModifiedProperty(strDate);
@@ -246,4 +274,54 @@ public final class TestPackageCoreProperties {
         wb.close();
         pkg.close();
     }
+	
+	@Test
+	public void testAlternateCorePropertyTimezones() throws Exception {
+        InputStream is = OpenXML4JTestDataSamples.openSampleStream("OPCCompliance_CoreProperties_AlternateTimezones.docx");
+        OPCPackage pkg = OPCPackage.open(is);
+        PackagePropertiesPart props = (PackagePropertiesPart)pkg.getPackageProperties();
+        is.close();
+        
+        // We need predictable dates for testing!
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
+        df.setTimeZone(LocaleUtil.TIMEZONE_UTC);
+
+        // Check text properties first
+        assertEquals("Lorem Ipsum", props.getTitleProperty().getValue());
+        assertEquals("Apache POI", props.getCreatorProperty().getValue());
+        
+        // Created at has a +3 timezone and milliseconds
+        //   2006-10-13T18:06:00.123+03:00
+        // = 2006-10-13T15:06:00.123+00:00
+        assertEquals("2006-10-13T15:06:00Z", props.getCreatedPropertyString());
+        assertEquals("2006-10-13T15:06:00.123Z", df.format(props.getCreatedProperty().getValue()));
+        
+        // Modified at has a -13 timezone but no milliseconds
+        //   2007-06-20T07:59:00-13:00
+        // = 2007-06-20T20:59:00-13:00
+        assertEquals("2007-06-20T20:59:00Z", props.getModifiedPropertyString());
+        assertEquals("2007-06-20T20:59:00.000Z", df.format(props.getModifiedProperty().getValue()));
+        
+        
+        // Ensure we can change them with other timezones and still read back OK
+        props.setCreatedProperty("2007-06-20T20:57:00+13:00");
+        props.setModifiedProperty("2007-06-20T20:59:00.123-13:00");
+        
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        pkg.save(baos);
+        pkg = OPCPackage.open(new ByteArrayInputStream(baos.toByteArray()));
+        
+        // Check text properties first - should be unchanged
+        assertEquals("Lorem Ipsum", props.getTitleProperty().getValue());
+        assertEquals("Apache POI", props.getCreatorProperty().getValue());
+        
+        // Check the updated times
+        //   2007-06-20T20:57:00+13:00
+        // = 2007-06-20T07:57:00Z
+        assertEquals("2007-06-20T07:57:00.000Z", df.format(props.getCreatedProperty().getValue()));
+        
+        //   2007-06-20T20:59:00.123-13:00
+        // = 2007-06-21T09:59:00.123Z
+        assertEquals("2007-06-21T09:59:00.123Z", df.format(props.getModifiedProperty().getValue()));
+	}
 }

@@ -29,20 +29,64 @@ import javax.xml.stream.events.Namespace;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 public final class DocumentHelper {
     private static POILogger logger = POILogFactory.getLogger(DocumentHelper.class);
 
     private DocumentHelper() {}
 
+    private static class DocHelperErrorHandler implements ErrorHandler {
+
+        public void warning(SAXParseException exception) throws SAXException {
+            printError(POILogger.WARN, exception);
+        }
+
+        public void error(SAXParseException exception) throws SAXException {
+            printError(POILogger.ERROR, exception);
+        }
+
+        public void fatalError(SAXParseException exception) throws SAXException {
+            printError(POILogger.FATAL, exception);
+            throw exception;
+        }
+
+        /** Prints the error message. */
+        private void printError(int type, SAXParseException ex) {
+            StringBuilder sb = new StringBuilder();
+            
+            String systemId = ex.getSystemId();
+            if (systemId != null) {
+                int index = systemId.lastIndexOf('/');
+                if (index != -1)
+                    systemId = systemId.substring(index + 1);
+                sb.append(systemId);
+            }
+            sb.append(':');
+            sb.append(ex.getLineNumber());
+            sb.append(':');
+            sb.append(ex.getColumnNumber());
+            sb.append(": ");
+            sb.append(ex.getMessage());
+
+            logger.log(type, sb.toString(), ex);
+        }
+    }
+    
     /**
      * Creates a new document builder, with sensible defaults
+     *
+     * @throws IllegalStateException If creating the DocumentBuilder fails, e.g.
+     *  due to {@link ParserConfigurationException}.
      */
     public static synchronized DocumentBuilder newDocumentBuilder() {
         try {
             DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
             documentBuilder.setEntityResolver(SAXHelper.IGNORING_ENTITY_RESOLVER);
+            documentBuilder.setErrorHandler(new DocHelperErrorHandler());
             return documentBuilder;
         } catch (ParserConfigurationException e) {
             throw new IllegalStateException("cannot create a DocumentBuilder", e);
@@ -57,9 +101,9 @@ public final class DocumentHelper {
         trySetXercesSecurityManager(documentBuilderFactory);
     }
 
-    private static void trySetSAXFeature(DocumentBuilderFactory documentBuilderFactory, String feature, boolean enabled) {
+    private static void trySetSAXFeature(DocumentBuilderFactory dbf, String feature, boolean enabled) {
         try {
-            documentBuilderFactory.setFeature(feature, enabled);
+            dbf.setFeature(feature, enabled);
         } catch (Exception e) {
             logger.log(POILogger.WARN, "SAX Feature unsupported", feature, e);
         } catch (AbstractMethodError ame) {
@@ -67,23 +111,28 @@ public final class DocumentHelper {
         }
     }
     
-    private static void trySetXercesSecurityManager(DocumentBuilderFactory documentBuilderFactory) {
+    private static void trySetXercesSecurityManager(DocumentBuilderFactory dbf) {
         // Try built-in JVM one first, standalone if not
-        for (String securityManagerClassName : new String[] {
-                "com.sun.org.apache.xerces.internal.util.SecurityManager",
+        for (String securityManagerClassName : new String[]{
+                //"com.sun.org.apache.xerces.internal.util.SecurityManager",
                 "org.apache.xerces.util.SecurityManager"
         }) {
             try {
                 Object mgr = Class.forName(securityManagerClassName).newInstance();
                 Method setLimit = mgr.getClass().getMethod("setEntityExpansionLimit", Integer.TYPE);
                 setLimit.invoke(mgr, 4096);
-                documentBuilderFactory.setAttribute("http://apache.org/xml/properties/security-manager", mgr);
+                dbf.setAttribute("http://apache.org/xml/properties/security-manager", mgr);
                 // Stop once one can be setup without error
                 return;
-            } catch (Throwable t) {
-                logger.log(POILogger.WARN, "SAX Security Manager could not be setup", t);
+            } catch (ClassNotFoundException e) {
+                // continue without log, this is expected in some setups
+            } catch (Throwable e) {     // NOSONAR - also catch things like NoClassDefError here
+                logger.log(POILogger.WARN, "SAX Security Manager could not be setup", e);
             }
         }
+
+        // separate old version of Xerces not found => use the builtin way of setting the property
+        dbf.setAttribute("http://www.oracle.com/xml/jaxp/properties/entityExpansionLimit", 4096);
     }
 
     /**
@@ -93,6 +142,16 @@ public final class DocumentHelper {
      * @return the parsed Document 
      */
     public static Document readDocument(InputStream inp) throws IOException, SAXException {
+        return newDocumentBuilder().parse(inp);
+    }
+
+    /**
+     * Parses the given stream via the default (sensible)
+     * DocumentBuilder
+     * @param inp sax source to read the XML data from
+     * @return the parsed Document 
+     */
+    public static Document readDocument(InputSource inp) throws IOException, SAXException {
         return newDocumentBuilder().parse(inp);
     }
 
@@ -121,5 +180,4 @@ public final class DocumentHelper {
     public static void addNamespaceDeclaration(Element element, Namespace namespace) {
         addNamespaceDeclaration(element, namespace.getPrefix(), namespace.getNamespaceURI());
     }
-
 }

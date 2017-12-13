@@ -33,6 +33,7 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.ss.formula.ptg.AttrPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.usermodel.CellType;
 import org.junit.AfterClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -71,7 +72,7 @@ public final class TestRVA {
         workbook = new HSSFWorkbook(poifs);
         sheet = workbook.getSheetAt(0);
 
-        List<Object[]> data = new ArrayList<Object[]>(); 
+        List<Object[]> data = new ArrayList<>();
         
         for (int rowIdx = 0; true; rowIdx++) {
             HSSFRow row = sheet.getRow(rowIdx);
@@ -79,7 +80,7 @@ public final class TestRVA {
                 break;
             }
             HSSFCell cell = row.getCell(0);
-            if (cell == null || cell.getCellType() == HSSFCell.CELL_TYPE_BLANK) {
+            if (cell == null || cell.getCellType() == CellType.BLANK) {
                 break;
             }
 
@@ -124,7 +125,7 @@ public final class TestRVA {
 			if (poiPtg.isBaseToken()) {
 				continue;
 			}
-			sb.append("  token[" + i + "] " + excelPtg.toString() + " "
+			sb.append("  token[" + i + "] " + excelPtg + " "
 					+ excelPtg.getRVAType());
 
 			if (excelPtg.getPtgClass() != poiPtg.getPtgClass()) {

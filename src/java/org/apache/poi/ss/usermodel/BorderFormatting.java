@@ -19,50 +19,102 @@
 
 package org.apache.poi.ss.usermodel;
 
+import org.apache.poi.util.Removal;
+
 /**
  * High level representation for Border Formatting component
  * of Conditional Formatting settings
  */
 public interface BorderFormatting {
-    /** No border */
-    short BORDER_NONE                = 0x0;
-    /** Thin border */
-    short BORDER_THIN                = 0x1;
-    /** Medium border */
-    short BORDER_MEDIUM              = 0x2;
-    /** dash border */
-    short BORDER_DASHED              = 0x3;
-    /** dot border */
-    short BORDER_HAIR                = 0x4;
-    /** Thick border */
-    short BORDER_THICK               = 0x5;
-    /** double-line border */
-    short BORDER_DOUBLE              = 0x6;
-    /** hair-line border */
-    short BORDER_DOTTED              = 0x7;
-    /** Medium dashed border */
-    short BORDER_MEDIUM_DASHED       = 0x8;
-    /** dash-dot border */
-    short BORDER_DASH_DOT            = 0x9;
-    /** medium dash-dot border */
-    short BORDER_MEDIUM_DASH_DOT     = 0xA;
-    /** dash-dot-dot border */
-    short BORDER_DASH_DOT_DOT        = 0xB;
-    /** medium dash-dot-dot border */
-    short BORDER_MEDIUM_DASH_DOT_DOT = 0xC;
-    /** slanted dash-dot border */
-    short BORDER_SLANTED_DASH_DOT    = 0xD;
 
-    short getBorderBottom();
+    /** @since POI 4.0.0 */
+    BorderStyle getBorderBottom();
 
-    short getBorderDiagonal();
+    /** @since POI 4.0.0 */
+    BorderStyle getBorderDiagonal();
 
-    short getBorderLeft();
+    /** @since POI 4.0.0 */
+    BorderStyle getBorderLeft();
 
-    short getBorderRight();
+    /** @since POI 4.0.0 */
+    BorderStyle getBorderRight();
 
-    short getBorderTop();
+    /** @since POI 4.0.0 */
+    BorderStyle getBorderTop();
 
+    /**
+     * Only valid for range borders, such as table styles
+     * @since 4.0.0
+     * @return border style
+     */
+    BorderStyle getBorderVertical();
+    /**
+     * Only valid for range borders, such as table styles
+     * @since 4.0.0
+     * @return border style
+     */
+    BorderStyle getBorderHorizontal();
+
+    /**
+     * @since POI 3.15
+     * @deprecated use <code>getBorderBottom</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderBottomEnum();
+
+    /**
+     * @since POI 3.15
+     * @deprecated use <code>getBorderDiagonal</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderDiagonalEnum();
+
+    /**
+     * @since POI 3.15
+     * @deprecated use <code>getBorderLeft</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderLeftEnum();
+
+    /**
+     * @since POI 3.15
+     * @deprecated use <code>getBorderRight</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderRightEnum();
+
+    /**
+     * @since POI 3.15
+     * @deprecated use <code>getBorderTop</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderTopEnum();
+
+    /**
+     * Only valid for range borders, such as table styles
+     * @since 3.17 beta 1
+     * @return border style
+     * @deprecated use <code>getBorderVertical</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderVerticalEnum();
+
+    /**
+     * Only valid for range borders, such as table styles
+     * @since 3.17 beta 1
+     * @return border style
+     * @deprecated use <code>getBorderHorizontal</code> instead
+     */
+    @Removal(version = "4.2")
+    @Deprecated
+    BorderStyle getBorderHorizontalEnum();
+    
     short getBottomBorderColor();
     Color getBottomBorderColorColor();
 
@@ -78,35 +130,82 @@ public interface BorderFormatting {
     short getTopBorderColor();
     Color getTopBorderColorColor();
 
-    void setBorderBottom(short border);
-
+    /**
+     * Range internal borders. Only relevant for range styles, such as table formatting
+     * @since  3.17 beta 1
+     * @return color index
+     */
+    short getVerticalBorderColor();
+    /**
+     * Range internal borders. Only relevant for range styles, such as table formatting
+     * @since  3.17 beta 1
+     * @return color
+     */
+    Color getVerticalBorderColorColor();
+    
+    /**
+     * Range internal borders. Only relevant for range styles, such as table formatting
+     * @since  3.17 beta 1
+     * @return color index
+     */
+    short getHorizontalBorderColor();
+    /**
+     * Range internal borders. Only relevant for range styles, such as table formatting
+     * @since  3.17 beta 1
+     * @return color
+     */
+    Color getHorizontalBorderColorColor();
+    
+    /**
+     * Set bottom border.
+     *
+     * @param border The style of border to set.
+     */
+    void setBorderBottom(BorderStyle border);
+    
     /**
      * Set diagonal border.
      *
-     * @param border  MUST be a BORDER_* constant
+     * @param border The style of border to set.
      */
-    void setBorderDiagonal(short border);
+    void setBorderDiagonal(BorderStyle border);
 
     /**
      * Set left border.
      *
-     * @param border  MUST be a BORDER_* constant
+     * @param border The style of border to set.
      */
-    void setBorderLeft(short border);
+    void setBorderLeft(BorderStyle border);
 
     /**
      * Set right border.
      *
-     * @param border  MUST be a BORDER_* constant
+     * @param border The style of border to set.
      */
-    void setBorderRight(short border);
+    void setBorderRight(BorderStyle border);
 
     /**
      * Set top border.
      *
-     * @param border  MUST be a BORDER_* constant
+     * @param border The style of border to set.
      */
-    void setBorderTop(short border);
+    void setBorderTop(BorderStyle border);
+    
+    /**
+     * Set range internal horizontal borders.
+     *
+     * @since 3.17 beta 1
+     * @param border The style of border to set.
+     */
+    void setBorderHorizontal(BorderStyle border);
+    
+    /**
+     * Set range internal vertical borders.
+     *
+     * @since 3.17 beta 1
+     * @param border The style of border to set.
+     */
+    void setBorderVertical(BorderStyle border);
 
     void setBottomBorderColor(short color);
     void setBottomBorderColor(Color color);
@@ -122,4 +221,30 @@ public interface BorderFormatting {
 
     void setTopBorderColor(short color);
     void setTopBorderColor(Color color);
+    
+    /**
+     * Range internal border color, such as table styles
+     * @since 3.17 beta 1
+     * @param color index
+     */
+    void setHorizontalBorderColor(short color);
+    /**
+     * Range internal border color, such as table styles
+     * @since 3.17 beta 1
+     * @param color index
+     */
+    void setHorizontalBorderColor(Color color);
+    
+    /**
+     * Range internal border color, such as table styles
+     * @since 3.17 beta 1
+     * @param color index
+     */
+    void setVerticalBorderColor(short color);
+    /**
+     * Range internal border color, such as table styles
+     * @since 3.17 beta 1
+     * @param color index
+     */
+    void setVerticalBorderColor(Color color);
 }

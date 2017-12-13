@@ -17,6 +17,7 @@
 
 package org.apache.poi.ss.formula.ptg;
 
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.SheetIdentifier;
 import org.apache.poi.ss.formula.SheetNameFormatter;
 import org.apache.poi.ss.formula.SheetRangeIdentifier;
@@ -36,9 +37,9 @@ public final class Area3DPxg extends AreaPtgBase implements Pxg3D {
     private String firstSheetName;
     private String lastSheetName;
 
-	public Area3DPxg(int externalWorkbookNumber, SheetIdentifier sheetName, String arearef) {
-		this(externalWorkbookNumber, sheetName, new AreaReference(arearef));
-	}
+    public Area3DPxg(int externalWorkbookNumber, SheetIdentifier sheetName, String arearef) {
+        this(externalWorkbookNumber, sheetName, new AreaReference(arearef, SpreadsheetVersion.EXCEL2007));
+    }
     public Area3DPxg(int externalWorkbookNumber, SheetIdentifier sheetName, AreaReference arearef) {
         super(arearef);
         this.externalWorkbookNumber = externalWorkbookNumber;
@@ -51,14 +52,14 @@ public final class Area3DPxg extends AreaPtgBase implements Pxg3D {
     }
 
     public Area3DPxg(SheetIdentifier sheetName, String arearef) {
-        this(sheetName, new AreaReference(arearef));
+        this(sheetName, new AreaReference(arearef, SpreadsheetVersion.EXCEL2007));
     }
     public Area3DPxg(SheetIdentifier sheetName, AreaReference arearef) {
         this(-1, sheetName, arearef);
     }
 
-	@Override
-	public String toString() {
+    @Override
+    public String toString() {
         StringBuffer sb = new StringBuffer();
         sb.append(getClass().getName());
         sb.append(" [");
@@ -76,8 +77,8 @@ public final class Area3DPxg extends AreaPtgBase implements Pxg3D {
         sb.append(formatReferenceAsString());
         sb.append("]");
         return sb.toString();
-	}
-	
+    }
+    
     public int getExternalWorkbookNumber() {
         return externalWorkbookNumber;
     }
@@ -100,7 +101,7 @@ public final class Area3DPxg extends AreaPtgBase implements Pxg3D {
     }
     
     public String toFormulaString() {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder(64);
         if (externalWorkbookNumber >= 0) {
             sb.append('[');
             sb.append(externalWorkbookNumber);

@@ -48,10 +48,12 @@ public class TestXSLFTextParagraph {
             super(p);
         }
         
+        @Override
         public void breakText(Graphics2D graphics) {
             super.breakText(graphics);
         }
         
+        @Override
         public double getWrappingWidth(boolean firstLine, Graphics2D graphics) {
             return super.getWrappingWidth(firstLine, graphics);
         }
@@ -326,12 +328,20 @@ public class TestXSLFTextParagraph {
         assertEquals(200.0, p.getSpaceAfter(), 0);
         p.setSpaceAfter(-15.);
         assertEquals(-15.0, p.getSpaceAfter(), 0);
+        p.setSpaceAfter(null);
+        assertNull(p.getSpaceAfter());
+        p.setSpaceAfter(null);
+        assertNull(p.getSpaceAfter());
 
         assertNull(p.getSpaceBefore());
         p.setSpaceBefore(200.);
         assertEquals(200.0, p.getSpaceBefore(), 0);
         p.setSpaceBefore(-15.);
         assertEquals(-15.0, p.getSpaceBefore(), 0);
+        p.setSpaceBefore(null);
+        assertNull(p.getSpaceBefore());
+        p.setSpaceBefore(null);
+        assertNull(p.getSpaceBefore());
 
         assertEquals(TextAlign.LEFT, p.getTextAlign());
         p.setTextAlign(TextAlign.RIGHT);
@@ -355,11 +365,10 @@ public class TestXSLFTextParagraph {
 
     @Test(expected = IllegalStateException.class)
     public void testLineBreak() throws IOException {
-        XMLSlideShow ppt = new XMLSlideShow();
-        try {
+        try (XMLSlideShow ppt = new XMLSlideShow()) {
             XSLFSlide slide = ppt.createSlide();
             XSLFTextShape sh = slide.createAutoShape();
-    
+
             XSLFTextParagraph p = sh.addNewTextParagraph();
             XSLFTextRun r1 = p.addNewTextRun();
             r1.setText("Hello,");
@@ -372,13 +381,11 @@ public class TestXSLFTextParagraph {
             r3.setFontSize(20.0);
             XSLFTextRun r4 = p.addLineBreak();
             assertEquals(20.0, r4.getFontSize(), 0);
-    
-            assertEquals("Hello,\nWorld!\n",sh.getText());
+
+            assertEquals("Hello,\nWorld!\n", sh.getText());
 
             // "You cannot change text of a line break, it is always '\\n'"
             r2.setText("aaa");
-        } finally {
-            ppt.close();
         }
     }
 }

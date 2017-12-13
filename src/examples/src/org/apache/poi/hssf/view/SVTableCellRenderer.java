@@ -19,18 +19,28 @@
 
 package org.apache.poi.hssf.view;
 
-import javax.swing.*;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.border.*;
-
-import java.awt.Component;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Rectangle;
-
 import java.io.Serializable;
-import java.text.*;
+import java.text.DecimalFormat;
+import java.text.Format;
+import java.text.SimpleDateFormat;
 
-import org.apache.poi.hssf.usermodel.*;
+import javax.swing.JLabel;
+import javax.swing.JTable;
+import javax.swing.SwingConstants;
+import javax.swing.UIManager;
+import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.TableCellRenderer;
+
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFCellStyle;
+import org.apache.poi.hssf.usermodel.HSSFFont;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
 
 
 /**
@@ -42,11 +52,11 @@ import org.apache.poi.hssf.usermodel.*;
 public class SVTableCellRenderer extends JLabel
     implements TableCellRenderer, Serializable
 {
-    protected static Border noFocusBorder = new EmptyBorder(1, 1, 1, 1);
+    protected static final Border noFocusBorder = new EmptyBorder(1, 1, 1, 1);
     protected SVBorder cellBorder = new SVBorder();
 
 
-    private HSSFWorkbook wb = null;
+    private HSSFWorkbook wb;
 
     /** This class holds the references to the predefined cell formats.
      */
@@ -99,14 +109,6 @@ public class SVTableCellRenderer extends JLabel
         textFormatter[0x30] = new DecimalFormat("##0.0E0");
       }
 
-      public String format(short index, Object value) {
-        if (index == 0)
-          return value.toString();
-        if (textFormatter[index] == null)
-          throw new RuntimeException("Sorry. I cant handle the format code :"+Integer.toHexString(index));
-        return textFormatter[index].format(value);
-      }
-
       public String format(short index, double value) {
         if ( index <= 0 )
           return generalNumberFormat.format(value);
@@ -135,6 +137,7 @@ public class SVTableCellRenderer extends JLabel
         this.wb = wb;
     }
 
+    @Override
     public Component getTableCellRendererComponent(JTable table, Object value,
                           boolean isSelected, boolean hasFocus, int row, int column) {
 	boolean isBorderSet = false;
@@ -148,7 +151,7 @@ public class SVTableCellRenderer extends JLabel
           HSSFFont f = wb.getFontAt(s.getFontIndex());
           setFont(SVTableUtils.makeFont(f));
 
-          if (s.getFillPattern() == HSSFCellStyle.SOLID_FOREGROUND) {
+          if (s.getFillPattern() == FillPatternType.SOLID_FOREGROUND) {
             setBackground(SVTableUtils.getAWTColor(s.getFillForegroundColor(), SVTableUtils.white));
           } else setBackground(SVTableUtils.white);
 
@@ -166,17 +169,17 @@ public class SVTableCellRenderer extends JLabel
 
             //Set the value that is rendered for the cell
             switch (c.getCellType()) {
-              case HSSFCell.CELL_TYPE_BLANK:
+              case BLANK:
                 setValue("");
               break;
-              case HSSFCell.CELL_TYPE_BOOLEAN:
+              case BOOLEAN:
                 if (c.getBooleanCellValue()) {
                   setValue("true");
                 } else {
                   setValue("false");
                 }
               break;
-              case HSSFCell.CELL_TYPE_NUMERIC:
+              case NUMERIC:
                 short format = s.getDataFormat();
                 double numericValue = c.getNumericCellValue();
                 if (cellFormatter.useRedColor(format, numericValue))
@@ -184,26 +187,26 @@ public class SVTableCellRenderer extends JLabel
                 else setForeground(null);
                 setValue(cellFormatter.format(format, c.getNumericCellValue()));
               break;
-              case HSSFCell.CELL_TYPE_STRING:
+              case STRING:
                 setValue(c.getRichStringCellValue().getString());
               break;
-              case HSSFCell.CELL_TYPE_FORMULA:
+              case FORMULA:
               default:
                 setValue("?");
             }
             //Set the text alignment of the cell
             switch (s.getAlignment()) {
-              case HSSFCellStyle.ALIGN_LEFT:
-              case HSSFCellStyle.ALIGN_JUSTIFY:
-              case HSSFCellStyle.ALIGN_FILL:
+              case LEFT:
+              case JUSTIFY:
+              case FILL:
                 setHorizontalAlignment(SwingConstants.LEFT);
                 break;
-              case HSSFCellStyle.ALIGN_CENTER:
-              case HSSFCellStyle.ALIGN_CENTER_SELECTION:
+              case CENTER:
+              case CENTER_SELECTION:
                 setHorizontalAlignment(SwingConstants.CENTER);
                 break;
-              case HSSFCellStyle.ALIGN_GENERAL:
-              case HSSFCellStyle.ALIGN_RIGHT:
+              case GENERAL:
+              case RIGHT:
                 setHorizontalAlignment(SwingConstants.RIGHT);
                 break;
               default:
@@ -224,10 +227,10 @@ public class SVTableCellRenderer extends JLabel
                                    SVTableUtils.black,
                                    SVTableUtils.black,
                                    SVTableUtils.black,
-                                   HSSFCellStyle.BORDER_NONE,
-                                   HSSFCellStyle.BORDER_NONE,
-                                   HSSFCellStyle.BORDER_NONE,
-                                   HSSFCellStyle.BORDER_NONE,
+                                   BorderStyle.NONE,
+                                   BorderStyle.NONE,
+                                   BorderStyle.NONE,
+                                   BorderStyle.NONE,
                                    isSelected);
               setBorder(cellBorder);
             }
@@ -247,14 +250,19 @@ public class SVTableCellRenderer extends JLabel
 	return this;
     }
 
+    @Override
     public void validate() {}
 
+    @Override
     public void revalidate() {}
 
+    @Override
     public void repaint(long tm, int x, int y, int width, int height) {}
 
+    @Override
     public void repaint(Rectangle r) { }
 
+    @Override
     protected void firePropertyChange(String propertyName, Object oldValue, Object newValue) {
 	// Strings get interned...
 	if (propertyName=="text") {
@@ -262,6 +270,7 @@ public class SVTableCellRenderer extends JLabel
 	}
     }
 
+    @Override
     public void firePropertyChange(String propertyName, boolean oldValue, boolean newValue) { }
 
     /**

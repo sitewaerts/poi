@@ -29,18 +29,17 @@ import java.security.GeneralSecurityException;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import javax.crypto.Cipher;
+
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.XSSFTestDataSamples;
+import org.junit.Assume;
 import org.junit.Test;
 
-/**
- *  @author Maxim Valyanskiy
- *  @author Gary King
- */
 public class TestDecryptor {
     @Test
     public void passwordVerification() throws IOException, GeneralSecurityException {
@@ -51,6 +50,8 @@ public class TestDecryptor {
         Decryptor d = Decryptor.getInstance(info);
 
         assertTrue(d.verifyPassword(Decryptor.DEFAULT_PASSWORD));
+
+        fs.close();
     }
 
     @Test
@@ -64,6 +65,8 @@ public class TestDecryptor {
         d.verifyPassword(Decryptor.DEFAULT_PASSWORD);
 
         zipOk(fs.getRoot(), d);
+
+        fs.close();
     }
 
     @Test
@@ -79,6 +82,8 @@ public class TestDecryptor {
         assertTrue(d.verifyPassword(Decryptor.DEFAULT_PASSWORD));
 
         zipOk(fs.getRoot(), d);
+
+        fs.close();
     }
 
     private void zipOk(DirectoryNode root, Decryptor d) throws IOException, GeneralSecurityException {
@@ -86,9 +91,13 @@ public class TestDecryptor {
 
         while (true) {
             ZipEntry entry = zin.getNextEntry();
-            if (entry==null) break;
+            if (entry==null) {
+                break;
+            }
             // crc32 is checked within zip-stream
-            if (entry.isDirectory()) continue;
+            if (entry.isDirectory()) {
+                continue;
+            }
             zin.skip(entry.getSize());
             byte buf[] = new byte[10];
             int readBytes = zin.read(buf);
@@ -156,10 +165,34 @@ public class TestDecryptor {
 
     @Test
     public void test58616() throws IOException, GeneralSecurityException {
-        POIFSFileSystem pfs = new POIFSFileSystem(new FileInputStream(XSSFTestDataSamples.getSampleFile("58616.xlsx")));                
+        FileInputStream fis = new FileInputStream(XSSFTestDataSamples.getSampleFile("58616.xlsx"));                
+        POIFSFileSystem pfs = new POIFSFileSystem(fis);                
         EncryptionInfo info = new EncryptionInfo(pfs);             
         Decryptor dec = Decryptor.getInstance(info);   
         //dec.verifyPassword(null);
         dec.getDataStream(pfs);
+        pfs.close();
+        fis.close();
     }
+
+    @Test
+    public void bug60320() throws IOException, GeneralSecurityException {
+        int maxKeyLen = Cipher.getMaxAllowedKeyLength("AES");
+        Assume.assumeTrue("Please install JCE Unlimited Strength Jurisdiction Policy files for AES 256", maxKeyLen == 2147483647);
+
+        InputStream is = POIDataSamples.getPOIFSInstance().openResourceAsStream("60320-protected.xlsx");
+        POIFSFileSystem fs = new POIFSFileSystem(is);
+        is.close();
+
+        EncryptionInfo info = new EncryptionInfo(fs);
+
+        Decryptor d = Decryptor.getInstance(info);
+
+        boolean b = d.verifyPassword("Test001!!");
+        assertTrue(b);
+
+        zipOk(fs.getRoot(), d);
+        
+        fs.close();
+    }    
 }

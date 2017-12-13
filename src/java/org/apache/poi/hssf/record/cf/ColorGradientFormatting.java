@@ -33,7 +33,7 @@ import org.apache.poi.util.POILogger;
 public final class ColorGradientFormatting implements Cloneable {
     private static POILogger log = POILogFactory.getLogger(ColorGradientFormatting.class);
 
-    private byte options = 0;
+    private byte options;
     private ColorGradientThreshold[] thresholds;
     private ExtendedColor[] colors;
     
@@ -89,7 +89,7 @@ public final class ColorGradientFormatting implements Cloneable {
         return thresholds;
     }
     public void setThresholds(ColorGradientThreshold[] thresholds) {
-        this.thresholds = thresholds;
+        this.thresholds = (thresholds == null) ? null : thresholds.clone();
         updateThresholdPositions();
     }
 
@@ -97,7 +97,7 @@ public final class ColorGradientFormatting implements Cloneable {
         return colors;
     }
     public void setColors(ExtendedColor[] colors) {
-        this.colors = colors;
+        this.colors = (colors == null) ? null : colors.clone();
     }
     
     public boolean isClampToCurve() {
@@ -124,10 +124,10 @@ public final class ColorGradientFormatting implements Cloneable {
         buffer.append("          .clamp     = ").append(isClampToCurve()).append("\n");
         buffer.append("          .background= ").append(isAppliesToBackground()).append("\n");
         for (Threshold t : thresholds) {
-            buffer.append(t.toString());
+            buffer.append(t);
         }
         for (ExtendedColor c : colors) {
-            buffer.append(c.toString());
+            buffer.append(c);
         }
         buffer.append("    [/Color Gradient Formatting]\n");
         return buffer.toString();

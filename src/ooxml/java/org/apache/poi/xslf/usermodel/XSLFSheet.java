@@ -34,6 +34,7 @@ import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackageNamespaces;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackagePartName;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
@@ -44,23 +45,19 @@ import org.apache.poi.sl.draw.Drawable;
 import org.apache.poi.sl.usermodel.PictureData;
 import org.apache.poi.sl.usermodel.Placeholder;
 import org.apache.poi.sl.usermodel.Sheet;
-import org.apache.poi.util.Beta;
-import org.apache.poi.util.IOUtils;
-import org.apache.poi.util.Internal;
+import org.apache.poi.util.*;
+import org.apache.xmlbeans.XmlCursor;
+import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlObject;
 import org.apache.xmlbeans.XmlOptions;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTCommonSlideData;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTConnector;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTGraphicalObjectFrame;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTGroupShape;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTPicture;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTPlaceholder;
-import org.openxmlformats.schemas.presentationml.x2006.main.CTShape;
+import org.apache.xmlbeans.impl.values.XmlAnyTypeImpl;
+import org.openxmlformats.schemas.presentationml.x2006.main.*;
 
 @Beta
 public abstract class XSLFSheet extends POIXMLDocumentPart
 implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
-    private XSLFCommonSlideData _commonSlideData;
+    private static POILogger LOG = POILogFactory.getLogger(XSLFSheet.class);
+
     private XSLFDrawing _drawing;
     private List<XSLFShape> _shapes;
     private CTGroupShape _spTree;
@@ -72,20 +69,12 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
     public XSLFSheet() {
         super();
     }
-    
+
     /**
      * @since POI 3.14-Beta1
      */
     public XSLFSheet(PackagePart part) {
         super(part);
-    }    
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XSLFSheet(PackagePart part, PackageRelationship rel){
-        this(part);
     }
 
     /**
@@ -104,22 +93,45 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
     }
 
     protected static List<XSLFShape> buildShapes(CTGroupShape spTree, XSLFSheet sheet){
-        List<XSLFShape> shapes = new ArrayList<XSLFShape>();
-        for(XmlObject ch : spTree.selectPath("*")){
-            if(ch instanceof CTShape){ // simple shape
-                XSLFAutoShape shape = XSLFAutoShape.create((CTShape)ch, sheet);
-                shapes.add(shape);
-            } else if (ch instanceof CTGroupShape){
-                shapes.add(new XSLFGroupShape((CTGroupShape)ch, sheet));
-            } else if (ch instanceof CTConnector){
-                shapes.add(new XSLFConnectorShape((CTConnector)ch, sheet));
-            } else if (ch instanceof CTPicture){
-                shapes.add(new XSLFPictureShape((CTPicture)ch, sheet));
-            } else if (ch instanceof CTGraphicalObjectFrame){
-                XSLFGraphicFrame shape = XSLFGraphicFrame.create((CTGraphicalObjectFrame)ch, sheet);
-                shapes.add(shape);
+        List<XSLFShape> shapes = new ArrayList<>();
+        XmlCursor cur = spTree.newCursor();
+        try {
+            for (boolean b=cur.toFirstChild();b;b=cur.toNextSibling()) {
+                XmlObject ch = cur.getObject();
+                if(ch instanceof CTShape){
+                    // simple shape
+                    XSLFAutoShape shape = XSLFAutoShape.create((CTShape)ch, sheet);
+                    shapes.add(shape);
+                } else if (ch instanceof CTGroupShape){
+                    shapes.add(new XSLFGroupShape((CTGroupShape)ch, sheet));
+                } else if (ch instanceof CTConnector){
+                    shapes.add(new XSLFConnectorShape((CTConnector)ch, sheet));
+                } else if (ch instanceof CTPicture){
+                    shapes.add(new XSLFPictureShape((CTPicture)ch, sheet));
+                } else if (ch instanceof CTGraphicalObjectFrame){
+                    XSLFGraphicFrame shape = XSLFGraphicFrame.create((CTGraphicalObjectFrame)ch, sheet);
+                    shapes.add(shape);
+                } else if (ch instanceof XmlAnyTypeImpl) {
+                    // TODO: the link of the XLSF classes to the xml beans objects will
+                    // be broken, when the elements are parsed a second time.
+                    // Unfortunately, the xml schema type can't be set of the alternate
+                    // content element
+                    cur.push();
+                    if (cur.toChild(PackageNamespaces.MARKUP_COMPATIBILITY, "Choice") && cur.toFirstChild()) {
+                        try {
+                            CTGroupShape grp = CTGroupShape.Factory.parse(cur.newXMLStreamReader());
+                            shapes.addAll(buildShapes(grp, sheet));
+                        } catch (XmlException e) {
+                            LOG.log(POILogger.DEBUG, "unparsable alternate content", e);
+                        }
+                    }
+                    cur.pop();
+                }
             }
+        } finally {
+            cur.dispose();
         }
+
         return shapes;
     }
 
@@ -127,19 +139,6 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * @return top-level Xml bean representing this sheet
      */
     public abstract XmlObject getXmlObject();
-
-    @Internal
-    public XSLFCommonSlideData getCommonSlideData() {
-       return _commonSlideData;
-    }
-
-    protected void setCommonSlideData(CTCommonSlideData data) {
-       if(data == null) {
-          _commonSlideData = null;
-       } else {
-          _commonSlideData = new XSLFCommonSlideData(data);
-       }
-    }
 
     private XSLFDrawing getDrawing(){
         initDrawingAndShapes();
@@ -156,7 +155,7 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
         initDrawingAndShapes();
         return _shapes;
     }
-    
+
     /**
      * Helper method for initializing drawing and shapes in one go.
      * If they are initialized separately, there's a risk that shapes
@@ -256,22 +255,24 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
         return sh;
     }
 
-    
+
     /**
      * Returns an iterator over the shapes in this sheet
      *
      * @return an iterator over the shapes in this sheet
      */
+    @Override
     public Iterator<XSLFShape> iterator(){
         return getShapes().iterator();
     }
 
+    @Override
     public void addShape(XSLFShape shape) {
         throw new UnsupportedOperationException(
             "Adding a shape from a different container is not supported -"
             + " create it from scratch witht XSLFSheet.create* methods");
     }
-    
+
     /**
      * Removes the specified shape from this sheet, if it is present
      * (optional operation).  If this sheet does not contain the element,
@@ -282,6 +283,7 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * @throws IllegalArgumentException if the type of the specified shape
      *         is incompatible with this sheet (optional)
      */
+    @Override
     public boolean removeShape(XSLFShape xShape) {
         XmlObject obj = xShape.getXmlObject();
         CTGroupShape spTree = getSpTree();
@@ -307,8 +309,9 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * Removes all of the elements from this container (optional operation).
      * The container will be empty after this call returns.
      */
+    @Override
     public void clear() {
-        List<XSLFShape> shapes = new ArrayList<XSLFShape>(getShapes());
+        List<XSLFShape> shapes = new ArrayList<>(getShapes());
         for(XSLFShape shape : shapes){
             removeShape(shape);
         }
@@ -321,12 +324,15 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
             XmlObject root = getXmlObject();
             XmlObject[] sp = root.selectPath(
                     "declare namespace p='http://schemas.openxmlformats.org/presentationml/2006/main' .//*/p:spTree");
-            if(sp.length == 0) throw new IllegalStateException("CTGroupShape was not found");
+            if(sp.length == 0) {
+                throw new IllegalStateException("CTGroupShape was not found");
+            }
             _spTree = (CTGroupShape)sp[0];
         }
         return _spTree;
     }
 
+    @Override
     protected final void commit() throws IOException {
         XmlOptions xmlOptions = new XmlOptions(DEFAULT_XML_OPTIONS);
         String docName = getRootElementName();
@@ -350,28 +356,35 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * @return modified 'this'
      */
     public XSLFSheet importContent(XSLFSheet src){
+        _spTree = null;
+
+        // first copy the source xml
+        getSpTree().set(src.getSpTree().copy());
+
+        wipeAndReinitialize(src, 0);
+
+        return this;
+    }
+
+    private void wipeAndReinitialize(XSLFSheet src, int offset) {
+        // explicitly initialize drawing and shapes from _spTree
         _shapes = null;
-        _spTree = null;
         _drawing = null;
-        _spTree = null;
+        initDrawingAndShapes();
+
+        // placeholders will be implicitly initialized when requested
         _placeholders = null;
 
-        // fix-me: wth would this ever happen to work ...
-        
-        
-        // first copy the source xml
-        getSpTree().set(src.getSpTree());
-
-        // recursively update each shape
+        // update each shape according to its own additional copy rules
         List<XSLFShape> tgtShapes = getShapes();
         List<XSLFShape> srcShapes = src.getShapes();
-        for(int i = 0; i < tgtShapes.size(); i++){
+        for(int i = 0; i < srcShapes.size(); i++){
             XSLFShape s1 = srcShapes.get(i);
-            XSLFShape s2 = tgtShapes.get(i);
+            XSLFShape s2 = tgtShapes.get(offset + i);
 
             s2.copy(s1);
         }
-        return this;
+
     }
 
     /**
@@ -381,39 +394,26 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * @return modified <code>this</code>.
      */
     public XSLFSheet appendContent(XSLFSheet src){
-        CTGroupShape spTree = getSpTree();
         int numShapes = getShapes().size();
-
+        CTGroupShape spTree = getSpTree();
         CTGroupShape srcTree = src.getSpTree();
+
         for(XmlObject ch : srcTree.selectPath("*")){
             if(ch instanceof CTShape){ // simple shape
-                spTree.addNewSp().set(ch);
+                spTree.addNewSp().set(ch.copy());
             } else if (ch instanceof CTGroupShape){
-                spTree.addNewGrpSp().set(ch);
+                spTree.addNewGrpSp().set(ch.copy());
             } else if (ch instanceof CTConnector){
-                spTree.addNewCxnSp().set(ch);
+                spTree.addNewCxnSp().set(ch.copy());
             } else if (ch instanceof CTPicture){
-                spTree.addNewPic().set(ch);
+                spTree.addNewPic().set(ch.copy());
             } else if (ch instanceof CTGraphicalObjectFrame){
-                spTree.addNewGraphicFrame().set(ch);
+                spTree.addNewGraphicFrame().set(ch.copy());
             }
         }
 
-        _shapes = null;
-        _spTree = null;
-        _drawing = null;
-        _spTree = null;
-        _placeholders = null;
+        wipeAndReinitialize(src, numShapes);
 
-        // recursively update each shape
-        List<XSLFShape> tgtShapes = getShapes();
-        List<XSLFShape> srcShapes = src.getShapes();
-        for(int i = 0; i < srcShapes.size(); i++){
-            XSLFShape s1 = srcShapes.get(i);
-            XSLFShape s2 = tgtShapes.get(numShapes + i);
-
-            s2.copy(s1);
-        }
         return this;
     }
 
@@ -424,7 +424,7 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      *  method and return the corresponding package part.
      */
     XSLFTheme getTheme(){
-    	return null;
+        return null;
     }
 
     protected XSLFTextShape getTextShapeByType(Placeholder type){
@@ -441,7 +441,9 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
 
     XSLFSimpleShape getPlaceholder(CTPlaceholder ph) {
         XSLFSimpleShape shape = null;
-        if(ph.isSetIdx()) shape = getPlaceholderById((int)ph.getIdx());
+        if(ph.isSetIdx()) {
+            shape = getPlaceholderById((int)ph.getIdx());
+        }
 
         if (shape == null && ph.isSetType()) {
             shape = getPlaceholderByType(ph.getType().intValue());
@@ -451,9 +453,9 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
 
     void initPlaceholders() {
         if(_placeholders == null) {
-            _placeholders = new ArrayList<XSLFTextShape>();
-            _placeholderByIdMap = new HashMap<Integer, XSLFSimpleShape>();
-            _placeholderByTypeMap = new HashMap<Integer, XSLFSimpleShape>();
+            _placeholders = new ArrayList<>();
+            _placeholderByIdMap = new HashMap<>();
+            _placeholderByTypeMap = new HashMap<>();
 
             for(XSLFShape sh : getShapes()){
                 if(sh instanceof XSLFTextShape){
@@ -519,6 +521,7 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * Sheets that support the notion of master (slide, slideLayout) should override it and
      * check this setting in the sheet XML
      */
+    @Override
     public boolean getFollowMasterGraphics(){
         return false;
     }
@@ -550,7 +553,6 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
      * @param packagePart   package part containing the data to import
      * @return ID of the created relationship
      */
-    @SuppressWarnings("resource")
     String importBlip(String blipId, PackagePart packagePart) {
         PackageRelationship blipRel = packagePart.getRelationship(blipId);
         PackagePart blipPart;
@@ -566,24 +568,23 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
         PackagePart pic = pictureData.getPackagePart();
 
         RelationPart rp = addRelation(blipId, XSLFRelation.IMAGES, new XSLFPictureData(pic));
-        
+
         return rp.getRelationship().getId();
     }
 
     /**
      * Import a package part into this sheet.
      */
-    @SuppressWarnings("resource")
     PackagePart importPart(PackageRelationship srcRel, PackagePart srcPafrt) {
         PackagePart destPP = getPackagePart();
         PackagePartName srcPPName = srcPafrt.getPartName();
-        
+
         OPCPackage pkg = destPP.getPackage();
         if(pkg.containPart(srcPPName)){
             // already exists
             return pkg.getPart(srcPPName);
-        }            
-            
+        }
+
         destPP.addRelationship(srcPPName, TargetMode.INTERNAL, srcRel.getRelationshipType());
 
         PackagePart part = pkg.createPart(srcPPName, srcPafrt.getContentType());
@@ -598,14 +599,13 @@ implements XSLFShapeContainer, Sheet<XSLFShape,XSLFTextParagraph> {
         }
         return part;
     }
-    
+
     /**
      * Helper method for sheet and group shapes
      *
      * @param pictureShape the picture shapes whose relation is to be removed
      */
     void removePictureRelation(XSLFPictureShape pictureShape) {
-        POIXMLDocumentPart pd = getRelationById(pictureShape.getBlipId());
-        removeRelation(pd);
+        removeRelation(pictureShape.getBlipId());
     }
 }

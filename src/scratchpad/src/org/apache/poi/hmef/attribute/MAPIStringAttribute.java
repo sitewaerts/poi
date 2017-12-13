@@ -32,7 +32,7 @@ import org.apache.poi.util.StringUtil;
  *  to a {@link HMEFMessage} or one of its {@link Attachment}s.
  */
 public final class MAPIStringAttribute extends MAPIAttribute {
-   private static POILogger logger = POILogFactory.getLogger(MAPIStringAttribute.class);
+   private final static POILogger logger = POILogFactory.getLogger(MAPIStringAttribute.class);
    private static final String CODEPAGE = "CP1252";
    private final String data;
    
@@ -60,7 +60,7 @@ public final class MAPIStringAttribute extends MAPIAttribute {
    }
    
    public String toString() {
-      return getProperty().toString() + " " + data;
+      return getProperty() + " " + data;
    }
    
    /**
@@ -77,7 +77,7 @@ public final class MAPIStringAttribute extends MAPIAttribute {
          return ((MAPIRtfAttribute)attr).getDataString();
       }
       
-      logger.log(POILogger.WARN, "Warning, non string property found: " + attr.toString());
+      logger.log(POILogger.WARN, "Warning, non string property found: " + attr);
       return null;
   }
 }

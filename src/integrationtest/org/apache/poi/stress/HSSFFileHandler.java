@@ -16,21 +16,38 @@
 ==================================================================== */
 package org.apache.poi.stress;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.util.HashSet;
+import java.util.Set;
 
+import org.apache.poi.hssf.OldExcelFormatException;
+import org.apache.poi.hssf.dev.BiffViewer;
+import org.apache.poi.hssf.usermodel.HSSFOptimiser;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.junit.Test;
 
 public class HSSFFileHandler extends SpreadsheetHandler {
-	private POIFSFileHandler delegate = new POIFSFileHandler();
+	private final POIFSFileHandler delegate = new POIFSFileHandler();
 	@Override
-    public void handleFile(InputStream stream) throws Exception {
+    public void handleFile(InputStream stream, String path) throws Exception {
 		HSSFWorkbook wb = new HSSFWorkbook(stream);
-		handleWorkbook(wb, ".xls");
-		
+		handleWorkbook(wb);
+
 		// TODO: some documents fail currently...
+        // Note - as of Bugzilla 48036 (svn r828244, r828247) POI is capable of evaluating
+        // IntersectionPtg.  However it is still not capable of parsing it.
+        // So FormulaEvalTestData.xls now contains a few formulas that produce errors here.
         //HSSFFormulaEvaluator evaluator = new HSSFFormulaEvaluator(wb);
         //evaluator.evaluateAll();
         
@@ -38,16 +55,65 @@ public class HSSFFileHandler extends SpreadsheetHandler {
 
 		// also try to see if some of the Records behave incorrectly
 		// TODO: still fails on some records... RecordsStresser.handleWorkbook(wb);
+
+		HSSFOptimiser.optimiseCellStyles(wb);
+		for(Sheet sheet : wb) {
+			for (Row row : sheet) {
+				for (Cell cell : row) {
+					assertNotNull(cell.getCellStyle());
+				}
+			}
+		}
+	}
+
+	private static final Set<String> EXPECTED_ADDITIONAL_FAILURES = new HashSet<>();
+	static {
+		// encrypted
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/35897-type4.xls");
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/xor-encryption-abc.xls");
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/password.xls");
+		// broken files
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/43493.xls");
+		// TODO: ok to ignore?
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/50833.xls");
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/51832.xls");
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/XRefCalc.xls");
+		EXPECTED_ADDITIONAL_FAILURES.add("spreadsheet/61300.xls");
+	}
+
+	@Override
+	public void handleAdditional(File file) throws Exception {
+		// redirect stdout as the examples often write lots of text
+		PrintStream oldOut = System.out;
+		try {
+			System.setOut(new PrintStream(new OutputStream() {
+				@Override
+				public void write(int b) throws IOException {
+				}
+			}));
+
+			BiffViewer.main(new String[]{file.getAbsolutePath()});
+
+			assertFalse("Expected Extraction to fail for file " + file + " and handler " + this + ", but did not fail!",
+					EXPECTED_ADDITIONAL_FAILURES.contains(file.getParentFile().getName() + "/" + file.getName()));
+		} catch (OldExcelFormatException e) {
+			// old excel formats are not supported here
+		} catch (RuntimeException e) {
+			if(!EXPECTED_ADDITIONAL_FAILURES.contains(file.getParentFile().getName() + "/" + file.getName())) {
+				throw e;
+			}
+		} finally {
+			System.setOut(oldOut);
+		}
 	}
 
 	// a test-case to test this locally without executing the full TestAllFiles
 	@Test
 	public void test() throws Exception {
-		InputStream stream = new FileInputStream("test-data/spreadsheet/49219.xls");
-		try {
-			handleFile(stream);
-		} finally {
-			stream.close();
+        File file = new File("test-data/spreadsheet/49219.xls");
+
+		try (InputStream stream = new FileInputStream(file)) {
+			handleFile(stream, file.getPath());
 		}
 	}
 

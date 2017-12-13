@@ -150,8 +150,10 @@ public class TSPTimeStampService implements TimeStampService {
         
         int statusCode = huc.getResponseCode();
         if (statusCode != 200) {
-            LOG.log(POILogger.ERROR, "Error contacting TSP server ", signatureConfig.getTspUrl());
-            throw new IOException("Error contacting TSP server " + signatureConfig.getTspUrl());
+            LOG.log(POILogger.ERROR, "Error contacting TSP server ", signatureConfig.getTspUrl() +
+                    ", had status code " + statusCode + "/" + huc.getResponseMessage());
+            throw new IOException("Error contacting TSP server " + signatureConfig.getTspUrl() +
+                    ", had status code " + statusCode + "/" + huc.getResponseMessage());
         }
 
         // HTTP input validation
@@ -168,7 +170,9 @@ public class TSPTimeStampService implements TimeStampService {
             ? "application/timestamp-response"
             : "application/timestamp-reply"
         )) {
-            throw new RuntimeException("invalid Content-Type: " + contentType);
+            throw new RuntimeException("invalid Content-Type: " + contentType +
+                    // dump the first few bytes
+                    ": " + HexDump.dump(bos.toByteArray(), 0, 0, 200));
         }
         
         if (bos.size() == 0) {
@@ -203,7 +207,7 @@ public class TSPTimeStampService implements TimeStampService {
         Collection<X509CertificateHolder> certificates = timeStampToken.getCertificates().getMatches(null);
         
         X509CertificateHolder signerCert = null;
-        Map<X500Name, X509CertificateHolder> certificateMap = new HashMap<X500Name, X509CertificateHolder>();
+        Map<X500Name, X509CertificateHolder> certificateMap = new HashMap<>();
         for (X509CertificateHolder certificate : certificates) {
             if (signerCertIssuer.equals(certificate.getIssuer())
                 && signerCertSerialNumber.equals(certificate.getSerialNumber())) {
@@ -216,7 +220,7 @@ public class TSPTimeStampService implements TimeStampService {
         if (signerCert == null) {
             throw new RuntimeException("TSP response token has no signer certificate");
         }
-        List<X509Certificate> tspCertificateChain = new ArrayList<X509Certificate>();
+        List<X509Certificate> tspCertificateChain = new ArrayList<>();
         JcaX509CertificateConverter x509converter = new JcaX509CertificateConverter();
         x509converter.setProvider("BC");
         X509CertificateHolder certificate = signerCert;
@@ -248,8 +252,7 @@ public class TSPTimeStampService implements TimeStampService {
         LOG.log(POILogger.DEBUG, "time-stamp token time: "
                 + timeStampToken.getTimeStampInfo().getGenTime());
 
-        byte[] timestamp = timeStampToken.getEncoded();
-        return timestamp;
+        return timeStampToken.getEncoded();
     }
 
     public void setSignatureConfig(SignatureConfig signatureConfig) {

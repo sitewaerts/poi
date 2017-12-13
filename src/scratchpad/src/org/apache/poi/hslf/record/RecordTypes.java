@@ -47,8 +47,8 @@ public enum RecordTypes {
     ViewInfo(1020,null),
     ViewInfoAtom(1021,null),
     SlideViewInfoAtom(1022,null),
-    VBAInfo(1023,null),
-    VBAInfoAtom(1024,null),
+    VBAInfo(1023,VBAInfoContainer.class),
+    VBAInfoAtom(1024,VBAInfoAtom.class),
     SSDocInfoAtom(1025,null),
     Summary(1026,null),
     DocRoutingSlip(1030,null),
@@ -63,7 +63,7 @@ public enum RecordTypes {
     NamedShowSlides(1042,null),
     SheetProperties(1044,null),
     RoundTripCustomTableStyles12Atom(1064,null),
-    List(2000,null),
+    List(2000,DocInfoListContainer.class),
     FontCollection(2005,FontCollection.class),
     BookmarkCollection(2019,null),
     SoundCollection(2020,SoundCollection.class),
@@ -204,12 +204,13 @@ public enum RecordTypes {
     EscherDeletedPspl(0xf11d,null),
     EscherSplitMenuColors(0xf11e,null),
     EscherOleObject(0xf11f,null),
+    // same as EscherTertiaryOptRecord.RECORD_ID
     EscherUserDefined(0xf122,null);
 
     private static final Map<Short,RecordTypes> LOOKUP;
 
     static {
-        LOOKUP = new HashMap<Short,RecordTypes>();
+        LOOKUP = new HashMap<>();
         for(RecordTypes s : values()) {
             LOOKUP.put(s.typeID, s);
         }
@@ -279,7 +280,7 @@ public enum RecordTypes {
 //               }
 //            }
 //        } catch (IllegalAccessException e){
-//            throw new RuntimeException("Failed to initialize records types");
+//            throw new HSLFException("Failed to initialize records types");
 //        }
 //    }
 

@@ -36,6 +36,7 @@ import org.apache.poi.hssf.record.Record;
 import org.apache.poi.hssf.record.StringRecord;
 import org.apache.poi.ss.usermodel.BaseTestCell;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
@@ -62,7 +63,7 @@ public final class TestHSSFCell extends BaseTestCell {
 	 *  but there's a separate unit test for that.
 	 */
 	@Test
-	public void testDateWindowingRead() throws Exception {
+	public void testDateWindowingRead() throws IOException {
 	    Calendar cal = LocaleUtil.getLocaleCalendar(2000, 0, 1, 0, 0, 0);// Jan. 1, 2000
 		Date date = cal.getTime();
 
@@ -94,7 +95,7 @@ public final class TestHSSFCell extends BaseTestCell {
 	 * results of this test are meaningless.
 	 */
 	@Test
-	public void testDateWindowingWrite() throws Exception {
+	public void testDateWindowingWrite() throws IOException {
 	    Calendar cal = LocaleUtil.getLocaleCalendar(2000,0,1,0,0,0); // Jan. 1, 2000
 		Date date = cal.getTime();
 
@@ -143,7 +144,7 @@ public final class TestHSSFCell extends BaseTestCell {
 	 * Tests that the active cell can be correctly read and set
 	 */
 	@Test
-	public void testActiveCell() throws Exception {
+	public void testActiveCell() throws IOException {
 		//read in sample
 		HSSFWorkbook wb1 = HSSFTestDataSamples.openSampleWorkbook("Simple.xls");
 
@@ -178,7 +179,7 @@ public final class TestHSSFCell extends BaseTestCell {
 		wb2.close();
 	}
 
-	
+
 	@Test
 	public void testActiveCellBug56114() throws IOException {
 	    Workbook wb = new HSSFWorkbook();
@@ -196,15 +197,17 @@ public final class TestHSSFCell extends BaseTestCell {
         assertEquals(0, ((HSSFSheet)wb.getSheetAt(0)).getSheet().getActiveCellCol());
 
 	    cell.setAsActiveCell();
+	    cell.setCellValue("this should be active");
         
         assertEquals(1, ((HSSFSheet)wb.getSheetAt(0)).getSheet().getActiveCellRow());
         assertEquals(3, ((HSSFSheet)wb.getSheetAt(0)).getSheet().getActiveCellCol());
 
-//	    FileOutputStream fos = new FileOutputStream("/tmp/56114.xls");
-//
-//	    wb.write(fos);
-//
-//	    fos.close();
+	    /*OutputStream fos = new FileOutputStream("c:/temp/56114.xls");
+		try {
+			wb.write(fos);
+		} finally {
+			fos.close();
+		}*/
 	            
 	    Workbook wbBack = _testDataProvider.writeOutAndReadBack(wb);
 	    wb.close();
@@ -216,12 +219,13 @@ public final class TestHSSFCell extends BaseTestCell {
         
         assertEquals(3, ((HSSFSheet)wbBack.getSheetAt(0)).getSheet().getActiveCellRow());
         assertEquals(3, ((HSSFSheet)wbBack.getSheetAt(0)).getSheet().getActiveCellCol());
-	    
-//	    fos = new FileOutputStream("/tmp/56114a.xls");
-//
-//	    wbBack.write(fos);
-//
-//	    fos.close();
+
+		/*fos = new FileOutputStream("c:/temp/56114a.xls");
+		try {
+			wb.write(fos);
+		} finally {
+			fos.close();
+		}*/
 	            
         Workbook wbBack2 = _testDataProvider.writeOutAndReadBack(wbBack);
         wbBack.close();
@@ -235,7 +239,7 @@ public final class TestHSSFCell extends BaseTestCell {
 	 * Test reading hyperlinks
 	 */
 	@Test
-	public void testWithHyperlink() throws Exception {
+	public void testWithHyperlink() throws IOException {
 
 		HSSFWorkbook wb = HSSFTestDataSamples.openSampleWorkbook("WithHyperlink.xls");
 
@@ -256,7 +260,7 @@ public final class TestHSSFCell extends BaseTestCell {
 	 * Test reading hyperlinks
 	 */
 	@Test
-	public void testWithTwoHyperlinks() throws Exception {
+	public void testWithTwoHyperlinks() throws IOException {
 
 		HSSFWorkbook wb = HSSFTestDataSamples.openSampleWorkbook("WithTwoHyperLinks.xls");
 
@@ -286,7 +290,7 @@ public final class TestHSSFCell extends BaseTestCell {
 	 *  to our workbook, and not those from other workbooks.
 	 */
 	@Test
-	public void testCellStyleWorkbookMatch() throws Exception {
+	public void testCellStyleWorkbookMatch() throws IOException {
 		HSSFWorkbook wbA = new HSSFWorkbook();
 		HSSFWorkbook wbB = new HSSFWorkbook();
 
@@ -297,31 +301,31 @@ public final class TestHSSFCell extends BaseTestCell {
 		styB.verifyBelongsToWorkbook(wbB);
 		try {
 			styA.verifyBelongsToWorkbook(wbB);
-			fail();
+			fail("expected IllegalArgumentException");
 		} catch (IllegalArgumentException e) {
 			// expected during successful test
 		}
 		try {
 			styB.verifyBelongsToWorkbook(wbA);
-			fail();
+			fail("expected IllegalArgumentException");
 		} catch (IllegalArgumentException e) {
 			// expected during successful test
 		}
 
-		HSSFCell cellA = wbA.createSheet().createRow(0).createCell(0);
-		HSSFCell cellB = wbB.createSheet().createRow(0).createCell(0);
+		Cell cellA = wbA.createSheet().createRow(0).createCell(0);
+		Cell cellB = wbB.createSheet().createRow(0).createCell(0);
 
 		cellA.setCellStyle(styA);
 		cellB.setCellStyle(styB);
 		try {
 			cellA.setCellStyle(styB);
-			fail();
+			fail("expected IllegalArgumentException");
 		} catch (IllegalArgumentException e) {
 			// expected during successful test
 		}
 		try {
 			cellB.setCellStyle(styA);
-			fail();
+			fail("expected IllegalArgumentException");
 		} catch (IllegalArgumentException e) {
 			// expected during successful test
 		}
@@ -335,7 +339,6 @@ public final class TestHSSFCell extends BaseTestCell {
 	 * the {@link StringRecord} following the {@link FormulaRecord} after the result type had been
 	 * changed to number/boolean/error.  Excel silently ignores the extra record, but some POI
 	 * versions (prior to bug 46213 / r717883) crash instead.
-	 * @throws IOException 
 	 */
 	@Test
 	public void testCachedTypeChange() throws IOException {
@@ -349,7 +352,7 @@ public final class TestHSSFCell extends BaseTestCell {
 		Record[] recs = RecordInspector.getRecords(sheet, 0);
 		if (recs.length == 28 && recs[23] instanceof StringRecord) {
 		    wb.close();
-			throw new AssertionFailedError("Identified bug - leftover StringRecord");
+			fail("Identified bug - leftover StringRecord");
 		}
 		confirmStringRecord(sheet, false);
 
@@ -378,7 +381,7 @@ public final class TestHSSFCell extends BaseTestCell {
 		} else {
 			assertFalse(StringRecord.class == recs[index].getClass());
 		}
-		Record dbcr = recs[index++];
+		Record dbcr = recs[index];
 		assertEquals(DBCellRecord.class, dbcr.getClass());
 	}
 
@@ -386,14 +389,14 @@ public final class TestHSSFCell extends BaseTestCell {
      * HSSF prior to version 3.7 had a bug: it could write a NaN but could not read such a file back.
      */
 	@Test
-	public void testReadNaN() throws Exception {
+	public void testReadNaN() throws IOException {
         HSSFWorkbook wb = HSSFTestDataSamples.openSampleWorkbook("49761.xls");
         assertNotNull(wb);
         wb.close();
     }
 
 	@Test
-	public void testHSSFCell() throws Exception {
+	public void testHSSFCell() throws IOException {
         HSSFWorkbook wb = new HSSFWorkbook();
         HSSFSheet sheet = wb.createSheet();
         HSSFRow row = sheet.createRow(0);
@@ -403,9 +406,8 @@ public final class TestHSSFCell extends BaseTestCell {
         wb.close();
     }
 
-    @SuppressWarnings("deprecation")
     @Test
-    public void testDeprecatedMethods() throws Exception {
+    public void testDeprecatedMethods() throws IOException {
         HSSFWorkbook wb = new HSSFWorkbook();
         HSSFSheet sheet = wb.createSheet();
         HSSFRow row = sheet.createRow(0);
@@ -418,12 +420,7 @@ public final class TestHSSFCell extends BaseTestCell {
             cell.getCachedFormulaResultType();
             fail("Should catch exception");
         } catch (IllegalStateException e) {
-        }
-        
-        try {
-            assertNotNull(new HSSFCell(wb, sheet, 0, (short)0, Cell.CELL_TYPE_ERROR+1 ));
-            fail("Should catch exception");
-        } catch (RuntimeException e) {
+            // expected here
         }
         
         cell.removeCellComment();
@@ -439,36 +436,36 @@ public final class TestHSSFCell extends BaseTestCell {
         Row row = sheet.createRow(0);
         Cell cell = row.createCell(0);
 
-        cell.setCellType(Cell.CELL_TYPE_BLANK);
+        cell.setCellType(CellType.BLANK);
         assertNull(null, cell.getDateCellValue());
         assertFalse(cell.getBooleanCellValue());
         assertEquals("", cell.toString());
         
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        cell.setCellType(CellType.STRING);
         assertEquals("", cell.toString());
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        cell.setCellType(CellType.STRING);
         cell.setCellValue(1.2);
-        cell.setCellType(Cell.CELL_TYPE_NUMERIC);
+        cell.setCellType(CellType.NUMERIC);
         assertEquals("1.2", cell.toString());
-        cell.setCellType(Cell.CELL_TYPE_BOOLEAN);
+        cell.setCellType(CellType.BOOLEAN);
         assertEquals("TRUE", cell.toString());
-        cell.setCellType(Cell.CELL_TYPE_BOOLEAN);
+        cell.setCellType(CellType.BOOLEAN);
         cell.setCellValue("" + FormulaError.VALUE.name());
-        cell.setCellType(Cell.CELL_TYPE_ERROR);
+        cell.setCellType(CellType.ERROR);
         assertEquals("#VALUE!", cell.toString());
-        cell.setCellType(Cell.CELL_TYPE_ERROR);
-        cell.setCellType(Cell.CELL_TYPE_BOOLEAN);
+        cell.setCellType(CellType.ERROR);
+        cell.setCellType(CellType.BOOLEAN);
         assertEquals("FALSE", cell.toString());
         cell.setCellValue(1.2);
-        cell.setCellType(Cell.CELL_TYPE_NUMERIC);
+        cell.setCellType(CellType.NUMERIC);
         assertEquals("1.2", cell.toString());
-        cell.setCellType(Cell.CELL_TYPE_BOOLEAN);
-        cell.setCellType(Cell.CELL_TYPE_STRING);
-        cell.setCellType(Cell.CELL_TYPE_ERROR);
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        cell.setCellType(CellType.BOOLEAN);
+        cell.setCellType(CellType.STRING);
+        cell.setCellType(CellType.ERROR);
+        cell.setCellType(CellType.STRING);
         cell.setCellValue(1.2);
-        cell.setCellType(Cell.CELL_TYPE_NUMERIC);
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        cell.setCellType(CellType.NUMERIC);
+        cell.setCellType(CellType.STRING);
         assertEquals("1.2", cell.toString());
         
         cell.setCellValue((String)null);

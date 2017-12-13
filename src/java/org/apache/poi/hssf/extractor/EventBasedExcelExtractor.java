@@ -40,7 +40,6 @@ import org.apache.poi.hssf.record.NumberRecord;
 import org.apache.poi.hssf.record.Record;
 import org.apache.poi.hssf.record.SSTRecord;
 import org.apache.poi.hssf.record.StringRecord;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 
@@ -57,22 +56,13 @@ import org.apache.poi.poifs.filesystem.POIFSFileSystem;
  * To turn an excel file into a CSV or similar, then see
  *  the XLS2CSVmra example
  * </p>
- * <link href="http://svn.apache.org/repos/asf/poi/trunk/src/examples/src/org/apache/poi/hssf/eventusermodel/examples/XLS2CSVmra.java">
- * http://svn.apache.org/repos/asf/poi/trunk/src/examples/src/org/apache/poi/hssf/eventusermodel/examples/XLS2CSVmra.java</link>
+ * 
+ * @see <a href="http://svn.apache.org/repos/asf/poi/trunk/src/examples/src/org/apache/poi/hssf/eventusermodel/examples/XLS2CSVmra.java">XLS2CSVmra</a>
  */
 public class EventBasedExcelExtractor extends POIOLE2TextExtractor implements org.apache.poi.ss.extractor.ExcelExtractor {
     private DirectoryNode _dir;
     boolean _includeSheetNames = true;
-    boolean _formulasNotResults = false;
-
-    /**
-     * @deprecated Use {@link #EventBasedExcelExtractor(DirectoryNode)} instead
-     */
-    @Deprecated
-    public EventBasedExcelExtractor( DirectoryNode dir, POIFSFileSystem fs )
-    {
-        this( dir );
-    }
+    boolean _formulasNotResults;
 
     public EventBasedExcelExtractor( DirectoryNode dir )
     {
@@ -82,6 +72,7 @@ public class EventBasedExcelExtractor extends POIOLE2TextExtractor implements or
 
    public EventBasedExcelExtractor(POIFSFileSystem fs) {
       this(fs.getRoot());
+      super.setFilesystem(fs);
    }
 
    /**
@@ -136,7 +127,7 @@ public class EventBasedExcelExtractor extends POIOLE2TextExtractor implements or
     * Retreives the text contents of the file
     */
    public String getText() {
-       String text = null;
+       String text;
        try {
            TextListener tl = triggerExtraction();
 
@@ -175,11 +166,11 @@ public class EventBasedExcelExtractor extends POIOLE2TextExtractor implements or
        private int sheetNum = -1;
        private int rowNum;
 
-       private boolean outputNextStringValue = false;
+       private boolean outputNextStringValue;
        private int nextRow = -1;
 
        public TextListener() {
-           sheetNames = new ArrayList<String>();
+           sheetNames = new ArrayList<>();
        }
        public void processRecord(Record record) {
            String thisText = null;
@@ -211,7 +202,7 @@ public class EventBasedExcelExtractor extends POIOLE2TextExtractor implements or
                thisRow = frec.getRow();
 
                if(_formulasNotResults) {
-                   thisText = HSSFFormulaParser.toFormulaString((HSSFWorkbook)null, frec.getParsedExpression());
+                   thisText = HSSFFormulaParser.toFormulaString(null, frec.getParsedExpression());
                } else {
                    if(frec.hasCachedResultString()) {
                        // Formula result is a string

@@ -49,13 +49,13 @@ public class XWPFTableCell implements IBody, ICell {
 
     static {
         // populate enum maps
-        alignMap = new EnumMap<XWPFVertAlign, STVerticalJc.Enum>(XWPFVertAlign.class);
+        alignMap = new EnumMap<>(XWPFVertAlign.class);
         alignMap.put(XWPFVertAlign.TOP, STVerticalJc.Enum.forInt(STVerticalJc.INT_TOP));
         alignMap.put(XWPFVertAlign.CENTER, STVerticalJc.Enum.forInt(STVerticalJc.INT_CENTER));
         alignMap.put(XWPFVertAlign.BOTH, STVerticalJc.Enum.forInt(STVerticalJc.INT_BOTH));
         alignMap.put(XWPFVertAlign.BOTTOM, STVerticalJc.Enum.forInt(STVerticalJc.INT_BOTTOM));
 
-        stVertAlignTypeMap = new HashMap<Integer, XWPFVertAlign>();
+        stVertAlignTypeMap = new HashMap<>();
         stVertAlignTypeMap.put(STVerticalJc.INT_TOP, XWPFVertAlign.TOP);
         stVertAlignTypeMap.put(STVerticalJc.INT_CENTER, XWPFVertAlign.CENTER);
         stVertAlignTypeMap.put(STVerticalJc.INT_BOTH, XWPFVertAlign.BOTH);
@@ -64,13 +64,12 @@ public class XWPFTableCell implements IBody, ICell {
     }
 
     private final CTTc ctTc;
-    protected List<XWPFParagraph> paragraphs = null;
-    protected List<XWPFTable> tables = null;
-    protected List<IBodyElement> bodyElements = null;
+    protected List<XWPFParagraph> paragraphs;
+    protected List<XWPFTable> tables;
+    protected List<IBodyElement> bodyElements;
 
-    ;
     protected IBody part;
-    private XWPFTableRow tableRow = null;
+    private XWPFTableRow tableRow;
 
     /**
      * If a table cell does not include at least one block-level element, then this document shall be considered corrupt
@@ -82,9 +81,9 @@ public class XWPFTableCell implements IBody, ICell {
         // NB: If a table cell does not include at least one block-level element, then this document shall be considered corrupt.
         if (cell.sizeOfPArray() < 1)
             cell.addNewP();
-        bodyElements = new ArrayList<IBodyElement>();
-        paragraphs = new ArrayList<XWPFParagraph>();
-        tables = new ArrayList<XWPFTable>();
+        bodyElements = new ArrayList<>();
+        paragraphs = new ArrayList<>();
+        tables = new ArrayList<>();
 
         XmlCursor cursor = ctTc.newCursor();
         cursor.selectPath("./*");
@@ -164,7 +163,7 @@ public class XWPFTableCell implements IBody, ICell {
     /**
      * removes a paragraph of this tablecell
      *
-     * @param pos
+     * @param pos The position in the list of paragraphs, 0-based
      */
     public void removeParagraph(int pos) {
         paragraphs.remove(pos);
@@ -227,14 +226,17 @@ public class XWPFTableCell implements IBody, ICell {
     /**
      * Get the vertical alignment of the cell.
      *
-     * @return the cell alignment enum value
+     * @return the cell alignment enum value or <code>null</code>
+     * if no vertical alignment is set.
      */
     public XWPFVertAlign getVerticalAlignment() {
         XWPFVertAlign vAlign = null;
         CTTcPr tcpr = ctTc.getTcPr();
         if (tcpr != null) {
             CTVerticalJc va = tcpr.getVAlign();
-            vAlign = stVertAlignTypeMap.get(va.getVal().intValue());
+            if(va != null) {
+                vAlign = stVertAlignTypeMap.get(va.getVal().intValue());
+            }
         }
         return vAlign;
     }
@@ -253,10 +255,10 @@ public class XWPFTableCell implements IBody, ICell {
     /**
      * add a new paragraph at position of the cursor
      *
-     * @param cursor
+     * @param cursor The XmlCursor structure created with XmlBeans
      * @return the inserted paragraph
      */
-    public XWPFParagraph insertNewParagraph(XmlCursor cursor) {
+    public XWPFParagraph insertNewParagraph(final XmlCursor cursor) {
         if (!isCursorInTableCell(cursor)) {
             return null;
         }
@@ -271,26 +273,30 @@ public class XWPFTableCell implements IBody, ICell {
         while (!(o instanceof CTP) && (cursor.toPrevSibling())) {
             o = cursor.getObject();
         }
-        if ((!(o instanceof CTP)) || (CTP) o == p) {
+        if ((!(o instanceof CTP)) || o == p) {
             paragraphs.add(0, newP);
         } else {
             int pos = paragraphs.indexOf(getParagraph((CTP) o)) + 1;
             paragraphs.add(pos, newP);
         }
         int i = 0;
-        cursor.toCursor(p.newCursor());
+        XmlCursor p2 = p.newCursor();
+        cursor.toCursor(p2);
+        p2.dispose();
         while (cursor.toPrevSibling()) {
             o = cursor.getObject();
             if (o instanceof CTP || o instanceof CTTbl)
                 i++;
         }
         bodyElements.add(i, newP);
-        cursor.toCursor(p.newCursor());
+        p2 = p.newCursor();
+        cursor.toCursor(p2);
+        p2.dispose();
         cursor.toEndToken();
         return newP;
     }
 
-    public XWPFTable insertNewTbl(XmlCursor cursor) {
+    public XWPFTable insertNewTbl(final XmlCursor cursor) {
         if (isCursorInTableCell(cursor)) {
             String uri = CTTbl.type.getName().getNamespaceURI();
             String localPart = "tbl";
@@ -310,15 +316,18 @@ public class XWPFTableCell implements IBody, ICell {
                 tables.add(pos, newT);
             }
             int i = 0;
-            cursor = t.newCursor();
-            while (cursor.toPrevSibling()) {
-                o = cursor.getObject();
+            XmlCursor cursor2 = t.newCursor();
+            while (cursor2.toPrevSibling()) {
+                o = cursor2.getObject();
                 if (o instanceof CTP || o instanceof CTTbl)
                     i++;
             }
+            cursor2.dispose();
             bodyElements.add(i, newT);
-            cursor = t.newCursor();
+            cursor2 = t.newCursor();
+            cursor.toCursor(cursor2);
             cursor.toEndToken();
+            cursor2.dispose();
             return newT;
         }
         return null;
@@ -330,17 +339,16 @@ public class XWPFTableCell implements IBody, ICell {
     private boolean isCursorInTableCell(XmlCursor cursor) {
         XmlCursor verify = cursor.newCursor();
         verify.toParent();
-        if (verify.getObject() == this.ctTc) {
-            return true;
-        }
-        return false;
+        boolean result = (verify.getObject() == this.ctTc);
+        verify.dispose();
+        return result;
     }
 
     /**
      * @see org.apache.poi.xwpf.usermodel.IBody#getParagraphArray(int)
      */
     public XWPFParagraph getParagraphArray(int pos) {
-        if (pos > 0 && pos < paragraphs.size()) {
+        if (pos >= 0 && pos < paragraphs.size()) {
             return paragraphs.get(pos);
         }
         return null;
@@ -378,7 +386,7 @@ public class XWPFTableCell implements IBody, ICell {
      * @see org.apache.poi.xwpf.usermodel.IBody#getTableArray(int)
      */
     public XWPFTable getTableArray(int pos) {
-        if (pos > 0 && pos < tables.size()) {
+        if(pos >= 0 && pos < tables.size()) {
             return tables.get(pos);
         }
         return null;
@@ -409,7 +417,7 @@ public class XWPFTableCell implements IBody, ICell {
     }
 
     public String getText() {
-        StringBuffer text = new StringBuffer();
+        StringBuilder text = new StringBuilder();
         for (XWPFParagraph p : paragraphs) {
             text.append(p.getText());
         }
@@ -427,19 +435,19 @@ public class XWPFTableCell implements IBody, ICell {
      */
     public String getTextRecursively() {
 
-        StringBuffer text = new StringBuffer();
+        StringBuilder text = new StringBuilder(64);
         for (int i = 0; i < bodyElements.size(); i++) {
-            boolean isLast = (i == bodyElements.size() - 1) ? true : false;
+            boolean isLast = (i == bodyElements.size() - 1);
             appendBodyElementText(text, bodyElements.get(i), isLast);
         }
 
         return text.toString();
     }
 
-    private void appendBodyElementText(StringBuffer text, IBodyElement e, boolean isLast) {
+    private void appendBodyElementText(StringBuilder text, IBodyElement e, boolean isLast) {
         if (e instanceof XWPFParagraph) {
             text.append(((XWPFParagraph) e).getText());
-            if (isLast == false) {
+            if (!isLast) {
                 text.append('\t');
             }
         } else if (e instanceof XWPFTable) {
@@ -448,18 +456,18 @@ public class XWPFTableCell implements IBody, ICell {
                 for (XWPFTableCell cell : row.getTableCells()) {
                     List<IBodyElement> localBodyElements = cell.getBodyElements();
                     for (int i = 0; i < localBodyElements.size(); i++) {
-                        boolean localIsLast = (i == localBodyElements.size() - 1) ? true : false;
+                        boolean localIsLast = (i == localBodyElements.size() - 1);
                         appendBodyElementText(text, localBodyElements.get(i), localIsLast);
                     }
                 }
             }
 
-            if (isLast == false) {
+            if (!isLast) {
                 text.append('\n');
             }
         } else if (e instanceof XWPFSDT) {
             text.append(((XWPFSDT) e).getContent().getText());
-            if (isLast == false) {
+            if (!isLast) {
                 text.append('\t');
             }
         }
@@ -499,7 +507,7 @@ public class XWPFTableCell implements IBody, ICell {
     }
 
     // Create a map from this XWPF-level enum to the STVerticalJc.Enum values
-    public static enum XWPFVertAlign {
+    public enum XWPFVertAlign {
         TOP, CENTER, BOTH, BOTTOM
     }
 }

@@ -20,7 +20,6 @@ package org.apache.poi.hssf.usermodel.examples;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -67,29 +66,20 @@ public class InCellLists {
      *                       the Excel spreadsheet file this code will create.
      */
     public void demonstrateMethodCalls(String outputFilename) throws IOException {
-        HSSFWorkbook workbook = null;
-        HSSFSheet sheet = null;
-        HSSFRow row = null;
-        HSSFCell cell = null;
-        File outputFile = null;
-        FileOutputStream fos = null;
-        ArrayList<MultiLevelListItem> multiLevelListItems = null;
-        ArrayList<String> listItems = null;
-        try {
-            workbook = new HSSFWorkbook();
-            sheet = workbook.createSheet("In Cell Lists");
-            row = sheet.createRow(0);
+        try (HSSFWorkbook workbook = new HSSFWorkbook()) {
+            HSSFSheet sheet = workbook.createSheet("In Cell Lists");
+            HSSFRow row = sheet.createRow(0);
 
             // Create a cell at A1 and insert a single, bulleted, item into
             // that cell.
-            cell = row.createCell(0);
+            HSSFCell cell = row.createCell(0);
             this.bulletedItemInCell(workbook, "List Item", cell);
 
             // Create a cell at A2 and insert a plain list - that is one
             // whose items are neither bulleted or numbered - into that cell.
             row = sheet.createRow(1);
             cell = row.createCell(0);
-            listItems = new ArrayList<String>();
+            ArrayList<String> listItems = new ArrayList<>();
             listItems.add("List Item One.");
             listItems.add("List Item Two.");
             listItems.add("List Item Three.");
@@ -97,7 +87,7 @@ public class InCellLists {
             this.listInCell(workbook, listItems, cell);
             // The row height and cell width are set here to ensure that the
             // list may be seen.
-            row.setHeight((short)1100);
+            row.setHeight((short) 1100);
             sheet.setColumnWidth(0, 9500);
 
             // Create a cell at A3 and insert a numbered list into that cell.
@@ -108,7 +98,7 @@ public class InCellLists {
             listItems.add("List Item Five.");
             listItems.add("List Item Six.");
             this.numberedListInCell(workbook, listItems, cell, 1, 2);
-            row.setHeight((short)1550);
+            row.setHeight((short) 1550);
 
             // Create a cell at A4 and insert a numbered list into that cell.
             // Note that a couple of items have been added to the listItems
@@ -120,7 +110,7 @@ public class InCellLists {
             listItems.add("List Item Nine.");
             listItems.add("List Item Ten.");
             this.bulletedListInCell(workbook, listItems, cell);
-            row.setHeight((short)2550);
+            row.setHeight((short) 2550);
 
             // Insert a plain, multi-level list into cell A5. Note that
             // the major difference here is that the list items are passed as
@@ -129,11 +119,12 @@ public class InCellLists {
             // a Hashtable or HashMap as the ArrayList will preserve the
             // ordering of the items added to it; the first item added will
             // be the first item recovered and the last item added, the last
-            // item recovered.
+            // item recovered. Alternatively, a LinkedHashMap could be used
+            // to preserve order.
             row = sheet.createRow(4);
             cell = row.createCell(0);
-            multiLevelListItems = new ArrayList<MultiLevelListItem>();
-            listItems = new ArrayList<String>();
+            ArrayList<MultiLevelListItem> multiLevelListItems = new ArrayList<>();
+            listItems = new ArrayList<>();
             listItems.add("ML List Item One - Sub Item One.");
             listItems.add("ML List Item One - Sub Item Two.");
             listItems.add("ML List Item One - Sub Item Three.");
@@ -144,13 +135,13 @@ public class InCellLists {
             // item
             multiLevelListItems.add(new MultiLevelListItem("List Item Two.", null));
             multiLevelListItems.add(new MultiLevelListItem("List Item Three.", null));
-            listItems = new ArrayList<String>();
+            listItems = new ArrayList<>();
             listItems.add("ML List Item Four - Sub Item One.");
             listItems.add("ML List Item Four - Sub Item Two.");
             listItems.add("ML List Item Four - Sub Item Three.");
             multiLevelListItems.add(new MultiLevelListItem("List Item Four.", listItems));
             this.multiLevelListInCell(workbook, multiLevelListItems, cell);
-            row.setHeight((short)2800);
+            row.setHeight((short) 2800);
 
             // Insert a numbered multi-level list into cell A6. Note that the
             // same ArrayList as constructed for the above plain multi-level
@@ -158,8 +149,8 @@ public class InCellLists {
             row = sheet.createRow(5);
             cell = row.createCell(0);
             this.multiLevelNumberedListInCell(workbook, multiLevelListItems,
-                                              cell, 1, 1, 1, 2);
-            row.setHeight((short)2800);
+                    cell, 1, 1, 1, 2);
+            row.setHeight((short) 2800);
 
             // Insert a numbered multi-level list into cell A7. Note that the
             // same ArrayList as constructed for the plain multi-level list
@@ -167,32 +158,17 @@ public class InCellLists {
             row = sheet.createRow(6);
             cell = row.createCell(0);
             this.multiLevelBulletedListInCell(workbook, multiLevelListItems, cell);
-            row.setHeight((short)2800);
+            row.setHeight((short) 2800);
 
             // Save the completed workbook
-            outputFile = new File(outputFilename);
-            fos = new FileOutputStream(outputFile);
-            workbook.write(fos);
-        }
-        catch(FileNotFoundException fnfEx) {
-            System.out.println("Caught a: " + fnfEx.getClass().getName());
-            System.out.println("Message: " + fnfEx.getMessage());
-            System.out.println("Stacktrace follows...........");
-            fnfEx.printStackTrace(System.out);
-        }
-        catch(IOException ioEx) {
+            try (FileOutputStream fos = new FileOutputStream(new File(outputFilename))) {
+                workbook.write(fos);
+            }
+        } catch (IOException ioEx) {
             System.out.println("Caught a: " + ioEx.getClass().getName());
             System.out.println("Message: " + ioEx.getMessage());
             System.out.println("Stacktrace follows...........");
             ioEx.printStackTrace(System.out);
-        }
-        finally {
-            if (workbook != null) {
-                workbook.close();
-            }
-            if (fos != null) {
-                fos.close();
-            }
         }
     }
 
@@ -237,7 +213,7 @@ public class InCellLists {
      *             will be written.
      */
     public void listInCell(HSSFWorkbook workbook, ArrayList<String> listItems, HSSFCell cell) {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         HSSFCellStyle wrapStyle = workbook.createCellStyle();
         wrapStyle.setWrapText(true);
         for(String listItem : listItems) {
@@ -270,7 +246,7 @@ public class InCellLists {
                                    HSSFCell cell,
                                    int startingValue,
                                    int increment) {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         int itemNumber = startingValue;
         // Note that again, an HSSFCellStye object is required and that
         // it's wrap text property should be set to 'true'
@@ -279,7 +255,7 @@ public class InCellLists {
         // Note that the basic method is identical to the listInCell() method
         // with one difference; a number prefixed to the items text.
         for(String listItem : listItems) {
-            buffer.append(String.valueOf(itemNumber) + ". ");
+            buffer.append(itemNumber).append(". ");
             buffer.append(listItem);
             buffer.append("\n");
             itemNumber += increment;
@@ -304,7 +280,7 @@ public class InCellLists {
     public void bulletedListInCell(HSSFWorkbook workbook,
                                    ArrayList<String> listItems,
                                    HSSFCell cell) {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         // Note that again, an HSSFCellStye object is required and that
         // it's wrap text property should be set to 'true'
         HSSFCellStyle wrapStyle = workbook.createCellStyle();
@@ -340,8 +316,7 @@ public class InCellLists {
     public void multiLevelListInCell(HSSFWorkbook workbook,
                                      ArrayList<MultiLevelListItem> multiLevelListItems,
                                      HSSFCell cell) {
-        StringBuffer buffer = new StringBuffer();
-        ArrayList<String> lowerLevelItems = null;
+        StringBuilder buffer = new StringBuilder();
         // Note that again, an HSSFCellStye object is required and that
         // it's wrap text property should be set to 'true'
         HSSFCellStyle wrapStyle = workbook.createCellStyle();
@@ -354,7 +329,7 @@ public class InCellLists {
             buffer.append("\n");
             // and then an ArrayList whose elements encapsulate the text
             // for the lower level list items.
-            lowerLevelItems = multiLevelListItem.getLowerLevelItems();
+            ArrayList<String> lowerLevelItems = multiLevelListItem.getLowerLevelItems();
             if(!(lowerLevelItems == null) && !(lowerLevelItems.isEmpty())) {
                 for(String item : lowerLevelItems) {
                     buffer.append(InCellLists.TAB);
@@ -402,10 +377,8 @@ public class InCellLists {
                                              int highLevelIncrement,
                                              int lowLevelStartingValue,
                                              int lowLevelIncrement) {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         int highLevelItemNumber = highLevelStartingValue;
-        int lowLevelItemNumber = 0;
-        ArrayList<String> lowerLevelItems = null;
         // Note that again, an HSSFCellStye object is required and that
         // it's wrap text property should be set to 'true'
         HSSFCellStyle wrapStyle = workbook.createCellStyle();
@@ -414,20 +387,20 @@ public class InCellLists {
         for(MultiLevelListItem multiLevelListItem : multiLevelListItems) {
             // For each element in the ArrayList, get the text for the high
             // level list item......
-            buffer.append(String.valueOf(highLevelItemNumber));
+            buffer.append(highLevelItemNumber);
             buffer.append(". ");
             buffer.append(multiLevelListItem.getItemText());
             buffer.append("\n");
             // and then an ArrayList whose elements encapsulate the text
             // for the lower level list items.
-            lowerLevelItems = multiLevelListItem.getLowerLevelItems();
+            ArrayList<String> lowerLevelItems = multiLevelListItem.getLowerLevelItems();
             if(!(lowerLevelItems == null) && !(lowerLevelItems.isEmpty())) {
-                lowLevelItemNumber = lowLevelStartingValue;
+                int lowLevelItemNumber = lowLevelStartingValue;
                 for(String item : lowerLevelItems) {
                     buffer.append(InCellLists.TAB);
-                    buffer.append(String.valueOf(highLevelItemNumber));
+                    buffer.append(highLevelItemNumber);
                     buffer.append(".");
-                    buffer.append(String.valueOf(lowLevelItemNumber));
+                    buffer.append(lowLevelItemNumber);
                     buffer.append(" ");
                     buffer.append(item);
                     buffer.append("\n");
@@ -460,8 +433,7 @@ public class InCellLists {
     public void multiLevelBulletedListInCell(HSSFWorkbook workbook,
                                              ArrayList<MultiLevelListItem> multiLevelListItems,
                                              HSSFCell cell) {
-        StringBuffer buffer = new StringBuffer();
-        ArrayList<String> lowerLevelItems = null;
+        StringBuilder buffer = new StringBuilder();
         // Note that again, an HSSFCellStye object is required and that
         // it's wrap text property should be set to 'true'
         HSSFCellStyle wrapStyle = workbook.createCellStyle();
@@ -476,7 +448,7 @@ public class InCellLists {
             buffer.append("\n");
             // and then an ArrayList whose elements encapsulate the text
             // for the lower level list items.
-            lowerLevelItems = multiLevelListItem.getLowerLevelItems();
+            ArrayList<String> lowerLevelItems = multiLevelListItem.getLowerLevelItems();
             if(!(lowerLevelItems == null) && !(lowerLevelItems.isEmpty())) {
                 for(String item : lowerLevelItems) {
                     buffer.append(InCellLists.TAB);
@@ -525,8 +497,8 @@ public class InCellLists {
      */
     public final class MultiLevelListItem {
 
-        private String itemText = null;
-        private ArrayList<String> lowerLevelItems = null;
+        private String itemText;
+        private ArrayList<String> lowerLevelItems;
 
         /**
          * Create a new instance of the MultiLevelListItem class using the

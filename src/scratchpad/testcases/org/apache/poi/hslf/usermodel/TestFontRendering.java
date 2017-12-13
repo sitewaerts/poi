@@ -17,24 +17,32 @@
 
 package org.apache.poi.hslf.usermodel;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assume.assumeTrue;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontFormatException;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
 
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.sl.draw.Drawable;
 import org.apache.poi.util.TempFile;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -45,7 +53,7 @@ public class TestFontRendering {
 
     // @Ignore2("This fails on some systems because fonts are rendered slightly different")
     @Test
-    public void bug55902mixedFontWithChineseCharacters() throws Exception {
+    public void bug55902mixedFontWithChineseCharacters() throws IOException, FontFormatException {
         // font files need to be downloaded first via
         // ant test-scratchpad-download-resources
         String fontFiles[][] = {
@@ -59,8 +67,8 @@ public class TestFontRendering {
         
         // setup fonts (especially needed, when run under *nix systems)
         GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        Map<String,String> fontMap = new HashMap<String,String>();
-        Map<String,String> fallbackMap = new HashMap<String,String>();
+        Map<String,String> fontMap = new HashMap<>();
+        Map<String,String> fallbackMap = new HashMap<>();
         
         for (String fontFile[] : fontFiles) {
             File f = new File(fontFile[0]);
@@ -111,5 +119,6 @@ public class TestFontRendering {
         }
         
         assertArrayEquals("Expected to have matching raster-arrays, but found differences", expectedData, actualData);
+        ss.close();
     }
 }

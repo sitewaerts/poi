@@ -17,15 +17,11 @@
 
 package org.apache.poi.hssf.record;
 
-import org.apache.poi.hssf.usermodel.HSSFCell;
 import org.apache.poi.ss.formula.Formula;
 import org.apache.poi.ss.formula.eval.ErrorEval;
 import org.apache.poi.ss.formula.ptg.Ptg;
-import org.apache.poi.util.BitField;
-import org.apache.poi.util.BitFieldFactory;
-import org.apache.poi.util.HexDump;
-import org.apache.poi.util.LittleEndianInput;
-import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.util.*;
 
 /**
  * Formula Record (0x0006).
@@ -53,6 +49,8 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 		private static final int VARIABLE_DATA_LENGTH = 6;
 		private static final int DATA_INDEX = 2;
 
+		// FIXME: can these be merged with {@link CellType}?
+		// are the numbers specific to the HSSF formula record format or just a poor-man's enum?
 		public static final int STRING = 0;
 		public static final int BOOLEAN = 1;
 		public static final int ERROR_CODE = 2;
@@ -63,6 +61,7 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 		private SpecialCachedValue(byte[] data) {
 			_variableData = data;
 		}
+
 		public int getTypeCode() {
 			return _variableData[0];
 		}
@@ -89,42 +88,55 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 				case EMPTY:
 					break;
 				default:
-					throw new RecordFormatException("Bad special value code (" + result[0] + ")");
+					throw new org.apache.poi.util.RecordFormatException("Bad special value code (" + result[0] + ")");
 			}
 			return new SpecialCachedValue(result);
 		}
+
 		public void serialize(LittleEndianOutput out) {
 			out.write(_variableData);
 			out.writeShort(0xFFFF);
 		}
+
 		public String formatDebugString() {
 			return formatValue() + ' ' + HexDump.toHex(_variableData);
 		}
+
 		private String formatValue() {
 			int typeCode = getTypeCode();
 			switch (typeCode) {
-				case STRING:	 return "<string>";
-				case BOOLEAN:	return getDataValue() == 0 ? "FALSE" : "TRUE";
-				case ERROR_CODE: return ErrorEval.getText(getDataValue());
-				case EMPTY:	  return "<empty>";
+				case STRING:
+					return "<string>";
+				case BOOLEAN:
+					return getDataValue() == 0 ? "FALSE" : "TRUE";
+				case ERROR_CODE:
+					return ErrorEval.getText(getDataValue());
+				case EMPTY:
+					return "<empty>";
 			}
 			return "#error(type=" + typeCode + ")#";
 		}
+
 		private int getDataValue() {
 			return _variableData[DATA_INDEX];
 		}
+
 		public static SpecialCachedValue createCachedEmptyValue() {
 			return create(EMPTY, 0);
 		}
+
 		public static SpecialCachedValue createForString() {
 			return create(STRING, 0);
 		}
+
 		public static SpecialCachedValue createCachedBoolean(boolean b) {
 			return create(BOOLEAN, b ? 1 : 0);
 		}
+
 		public static SpecialCachedValue createCachedErrorCode(int errorCode) {
 			return create(ERROR_CODE, errorCode);
 		}
+
 		private static SpecialCachedValue create(int code, int data) {
 			byte[] vd = {
 					(byte) code,
@@ -136,29 +148,30 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 			};
 			return new SpecialCachedValue(vd);
 		}
+
 		@Override
         public String toString() {
-			StringBuffer sb = new StringBuffer(64);
-			sb.append(getClass().getName());
-			sb.append('[').append(formatValue()).append(']');
-			return sb.toString();
+			return getClass().getName() + '[' + formatValue() + ']';
 		}
+
 		public int getValueType() {
 			int typeCode = getTypeCode();
 			switch (typeCode) {
-				case STRING:	 return HSSFCell.CELL_TYPE_STRING;
-				case BOOLEAN:	return HSSFCell.CELL_TYPE_BOOLEAN;
-				case ERROR_CODE: return HSSFCell.CELL_TYPE_ERROR;
-				case EMPTY:	  return HSSFCell.CELL_TYPE_STRING; // is this correct?
+				case STRING:	 return CellType.STRING.getCode();
+				case BOOLEAN:	return CellType.BOOLEAN.getCode();
+				case ERROR_CODE: return CellType.ERROR.getCode();
+				case EMPTY:	  return CellType.STRING.getCode(); // is this correct?
 			}
 			throw new IllegalStateException("Unexpected type id (" + typeCode + ")");
 		}
+
 		public boolean getBooleanValue() {
 			if (getTypeCode() != BOOLEAN) {
 				throw new IllegalStateException("Not a boolean cached value - " + formatValue());
 			}
 			return getDataValue() != 0;
 		}
+
 		public int getErrorValue() {
 			if (getTypeCode() != ERROR_CODE) {
 				throw new IllegalStateException("Not an error cached value - " + formatValue());
@@ -190,19 +203,18 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 
 	public FormulaRecord(RecordInputStream ris) {
 		super(ris);
-		LittleEndianInput in = ris;
-		long valueLongBits  = in.readLong();
-		field_5_options = in.readShort();
+		long valueLongBits  = ris.readLong();
+		field_5_options = ris.readShort();
 		specialCachedValue = SpecialCachedValue.create(valueLongBits);
 		if (specialCachedValue == null) {
 			field_4_value = Double.longBitsToDouble(valueLongBits);
 		}
 
-		field_6_zero = in.readInt();
+		field_6_zero = ris.readInt();
 
-		int field_7_expression_len = in.readShort(); // this length does not include any extra array data
-		int nBytesAvailable = in.available();
-		field_8_parsed_expr = Formula.read(field_7_expression_len, in, nBytesAvailable);
+		int field_7_expression_len = ris.readShort(); // this length does not include any extra array data
+		int nBytesAvailable = ris.available();
+		field_8_parsed_expr = Formula.read(field_7_expression_len, ris, nBytesAvailable);
 	}
 
 	/**
@@ -233,15 +245,13 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 	 *  evaluation.
 	 */
 	public boolean hasCachedResultString() {
-		if (specialCachedValue == null) {
-			return false;
-		}
-		return specialCachedValue.getTypeCode() == SpecialCachedValue.STRING;
+		return specialCachedValue != null &&
+				specialCachedValue.getTypeCode() == SpecialCachedValue.STRING;
 	}
 
 	public int getCachedResultType() {
 		if (specialCachedValue == null) {
-			return HSSFCell.CELL_TYPE_NUMERIC;
+			return CellType.NUMERIC.getCode();
 		}
 		return specialCachedValue.getValueType();
 	}
@@ -370,7 +380,7 @@ public final class FormulaRecord extends CellRecord implements Cloneable {
 			}
 			sb.append("    Ptg[").append(k).append("]=");
 			Ptg ptg = ptgs[k];
-			sb.append(ptg.toString()).append(ptg.getRVAType());
+			sb.append(ptg).append(ptg.getRVAType());
 		}
 	}
 

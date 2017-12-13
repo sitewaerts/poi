@@ -19,35 +19,30 @@
 
 package org.apache.poi.xslf.usermodel;
 
-import org.apache.poi.util.IOUtils;
-
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
 
 /**
  * Images
- *
- * @author Yegor Kozlov
  */
 public class Tutorial5 {
 
     public static void main(String[] args) throws IOException{
-        XMLSlideShow ppt = new XMLSlideShow();
+        try (XMLSlideShow ppt = new XMLSlideShow()) {
+            XSLFSlide slide = ppt.createSlide();
 
-        XSLFSlide slide = ppt.createSlide();
-        File img = new File(System.getProperty("POI.testdata.path"), "slideshow/clock.jpg");
-        byte[] data = IOUtils.toByteArray(new FileInputStream(img));
-        XSLFPictureData pictureIndex = ppt.addPicture(data, PictureType.PNG);
+            File img = new File(System.getProperty("POI.testdata.path", "test-data"), "slideshow/clock.jpg");
+            XSLFPictureData pictureData = ppt.addPicture(img, PictureType.PNG);
 
-        /*XSLFPictureShape shape =*/ slide.createPicture(pictureIndex);
+            /*XSLFPictureShape shape =*/
+            slide.createPicture(pictureData);
 
-        FileOutputStream out = new FileOutputStream("images.pptx");
-        ppt.write(out);
-        out.close();
-        
-        ppt.close();
+            try (FileOutputStream out = new FileOutputStream("images.pptx")) {
+                ppt.write(out);
+            }
+        }
     }
 }

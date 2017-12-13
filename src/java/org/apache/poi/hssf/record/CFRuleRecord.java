@@ -59,6 +59,11 @@ public final class CFRuleRecord extends CFRuleBase implements Cloneable {
 
     /**
      * Creates a new comparison operation rule
+     * 
+     * @param sheet the sheet
+     * @param formulaText the formula text
+     * 
+     * @return a new comparison operation rule
      */
     public static CFRuleRecord create(HSSFSheet sheet, String formulaText) {
         Ptg[] formula1 = parseFormula(formulaText, sheet);
@@ -67,6 +72,13 @@ public final class CFRuleRecord extends CFRuleBase implements Cloneable {
     }
     /**
      * Creates a new comparison operation rule
+     * 
+     * @param sheet the sheet
+     * @param comparisonOperation the comparison operation
+     * @param formulaText1 the first formula text
+     * @param formulaText2 the second formula text
+     * 
+     * @return a new comparison operation rule
      */
     public static CFRuleRecord create(HSSFSheet sheet, byte comparisonOperation,
             String formulaText1, String formulaText2) {
@@ -87,6 +99,7 @@ public final class CFRuleRecord extends CFRuleBase implements Cloneable {
         setFormula2(Formula.read(field_4_formula2_len, in));
     }
 
+    @Override
     public short getSid() {
         return sid;
     }
@@ -98,6 +111,7 @@ public final class CFRuleRecord extends CFRuleBase implements Cloneable {
      *
      * @param out the stream to write to
      */
+    @Override
     public void serialize(LittleEndianOutput out) {
         int formula1Len=getFormulaSize(getFormula1());
         int formula2Len=getFormulaSize(getFormula2());
@@ -113,25 +127,27 @@ public final class CFRuleRecord extends CFRuleBase implements Cloneable {
         getFormula2().serializeTokens(out);
     }
 
+    @Override
     protected int getDataSize() {
         return 6 + getFormattingBlockSize() +
                getFormulaSize(getFormula1())+
                getFormulaSize(getFormula2());
     }
 
+    @Override
     public String toString() {
         StringBuffer buffer = new StringBuffer();
         buffer.append("[CFRULE]\n");
         buffer.append("    .condition_type   =").append(getConditionType()).append("\n");
         buffer.append("    OPTION FLAGS=0x").append(Integer.toHexString(getOptions())).append("\n");
         if (containsFontFormattingBlock()) {
-            buffer.append(_fontFormatting.toString()).append("\n");
+            buffer.append(_fontFormatting).append("\n");
         }
         if (containsBorderFormattingBlock()) {
-            buffer.append(_borderFormatting.toString()).append("\n");
+            buffer.append(_borderFormatting).append("\n");
         }
         if (containsPatternFormattingBlock()) {
-            buffer.append(_patternFormatting.toString()).append("\n");
+            buffer.append(_patternFormatting).append("\n");
         }
         buffer.append("    Formula 1 =").append(Arrays.toString(getFormula1().getTokens())).append("\n");
         buffer.append("    Formula 2 =").append(Arrays.toString(getFormula2().getTokens())).append("\n");

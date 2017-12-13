@@ -17,17 +17,18 @@
 
 package org.apache.poi.hwpf;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.util.List;
 
-import junit.framework.TestCase;
+import javax.imageio.ImageIO;
 
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.hwpf.model.PicturesTable;
 import org.apache.poi.hwpf.usermodel.Picture;
-import org.apache.poi.POIDataSamples;
+
+import junit.framework.TestCase;
 
 /**
  * Test picture support in HWPF
@@ -44,7 +45,9 @@ public final class TestHWPFPictures extends TestCase {
 	private String imgCFile;
 	private String imgDFile;
 
-	protected void setUp() {
+	@Override
+    protected void setUp() throws Exception {
+		super.setUp();
 
 		docAFile = "testPictures.doc";
 		docBFile = "two_images.doc";
@@ -55,6 +58,11 @@ public final class TestHWPFPictures extends TestCase {
 		imgBFile = "simple_image.png";
 		imgCFile = "vector_image.emf";
 		imgDFile = "GaiaTestImg.png";
+
+		// we use ImageIO in one of the tests here so we should ensure that the temporary directory is created correctly
+		File tempDir = new File(System.getProperty("java.io.tmpdir"));
+		assertTrue("Could not create temporary directory " + tempDir.getAbsolutePath() + ": " + tempDir.exists() + "/" + tempDir.isDirectory(),
+				tempDir.exists() || tempDir.mkdirs());
 	}
 
 	/**
@@ -160,7 +168,7 @@ public final class TestHWPFPictures extends TestCase {
 	 * Pending the missing files being uploaded to
 	 *  bug #44937
 	 */
-	public void BROKENtestEscherDrawing() {
+	public void testEscherDrawing() {
 		HWPFDocument docD = HWPFTestDataSamples.openSampleFile(docDFile);
 		List<Picture> allPictures = docD.getPicturesTable().getAllPictures();
 

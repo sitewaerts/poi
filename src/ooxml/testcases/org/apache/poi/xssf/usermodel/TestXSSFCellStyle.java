@@ -73,7 +73,7 @@ public class TestXSSFCellStyle {
 		assertEquals(1, stylesTable.putBorder(borderB));
 
 		ctFill = CTFill.Factory.newInstance();
-		XSSFCellFill fill = new XSSFCellFill(ctFill);
+		XSSFCellFill fill = new XSSFCellFill(ctFill, null);
 		long fillId = stylesTable.putFill(fill);
 		assertEquals(2, fillId);
 
@@ -93,8 +93,8 @@ public class TestXSSFCellStyle {
 		cellXf.setBorderId(1);
 		cellXf.setFillId(1);
 		cellXf.setFontId(1);
-		stylesTable.putCellStyleXf(cellStyleXf);
-		stylesTable.putCellXf(cellXf);
+		assertEquals(2, stylesTable.putCellStyleXf(cellStyleXf));
+		assertEquals(2, stylesTable.putCellXf(cellXf));
 		cellStyle = new XSSFCellStyle(1, 1, stylesTable, null);
 
 		assertNotNull(stylesTable.getFillAt(1).getCTFill().getPatternFill());
@@ -104,11 +104,11 @@ public class TestXSSFCellStyle {
 	@Test
 	public void testGetSetBorderBottom() {
         //default values
-        assertEquals(CellStyle.BORDER_NONE, cellStyle.getBorderBottom());
+        assertEquals(BorderStyle.NONE, cellStyle.getBorderBottom());
 
         int num = stylesTable.getBorders().size();
-        cellStyle.setBorderBottom(CellStyle.BORDER_MEDIUM);
-        assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderBottom());
+        cellStyle.setBorderBottom(BorderStyle.MEDIUM);
+        assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderBottom());
         //a new border has been added
         assertEquals(num + 1, stylesTable.getBorders().size());
         //id of the created border
@@ -121,15 +121,15 @@ public class TestXSSFCellStyle {
         num = stylesTable.getBorders().size();
         //setting the same border multiple times should not change borderId
         for (int i = 0; i < 3; i++) {
-            cellStyle.setBorderBottom(CellStyle.BORDER_MEDIUM);
-            assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderBottom());
+            cellStyle.setBorderBottom(BorderStyle.MEDIUM);
+            assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderBottom());
         }
         assertEquals(borderId, cellStyle.getCoreXf().getBorderId());
         assertEquals(num, stylesTable.getBorders().size());
         assertSame(ctBorder, stylesTable.getBorderAt(borderId).getCTBorder());
 
         //setting border to none removes the <bottom> element
-        cellStyle.setBorderBottom(CellStyle.BORDER_NONE);
+        cellStyle.setBorderBottom(BorderStyle.NONE);
         assertEquals(num, stylesTable.getBorders().size());
         borderId = (int)cellStyle.getCoreXf().getBorderId();
         ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
@@ -139,11 +139,11 @@ public class TestXSSFCellStyle {
 	@Test
     public void testGetSetBorderRight() {
         //default values
-        assertEquals(CellStyle.BORDER_NONE, cellStyle.getBorderRight());
+        assertEquals(BorderStyle.NONE, cellStyle.getBorderRight());
 
         int num = stylesTable.getBorders().size();
-        cellStyle.setBorderRight(CellStyle.BORDER_MEDIUM);
-        assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderRight());
+        cellStyle.setBorderRight(BorderStyle.MEDIUM);
+        assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderRight());
         //a new border has been added
         assertEquals(num + 1, stylesTable.getBorders().size());
         //id of the created border
@@ -156,15 +156,15 @@ public class TestXSSFCellStyle {
         num = stylesTable.getBorders().size();
         //setting the same border multiple times should not change borderId
         for (int i = 0; i < 3; i++) {
-            cellStyle.setBorderRight(CellStyle.BORDER_MEDIUM);
-            assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderRight());
+            cellStyle.setBorderRight(BorderStyle.MEDIUM);
+            assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderRight());
         }
         assertEquals(borderId, cellStyle.getCoreXf().getBorderId());
         assertEquals(num, stylesTable.getBorders().size());
         assertSame(ctBorder, stylesTable.getBorderAt(borderId).getCTBorder());
 
         //setting border to none removes the <right> element
-        cellStyle.setBorderRight(CellStyle.BORDER_NONE);
+        cellStyle.setBorderRight(BorderStyle.NONE);
         assertEquals(num, stylesTable.getBorders().size());
         borderId = (int)cellStyle.getCoreXf().getBorderId();
         ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
@@ -174,11 +174,11 @@ public class TestXSSFCellStyle {
 	@Test
     public void testGetSetBorderLeft() {
         //default values
-        assertEquals(CellStyle.BORDER_NONE, cellStyle.getBorderLeft());
+        assertEquals(BorderStyle.NONE, cellStyle.getBorderLeft());
 
         int num = stylesTable.getBorders().size();
-        cellStyle.setBorderLeft(CellStyle.BORDER_MEDIUM);
-        assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderLeft());
+        cellStyle.setBorderLeft(BorderStyle.MEDIUM);
+        assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderLeft());
         //a new border has been added
         assertEquals(num + 1, stylesTable.getBorders().size());
         //id of the created border
@@ -191,15 +191,15 @@ public class TestXSSFCellStyle {
         num = stylesTable.getBorders().size();
         //setting the same border multiple times should not change borderId
         for (int i = 0; i < 3; i++) {
-            cellStyle.setBorderLeft(CellStyle.BORDER_MEDIUM);
-            assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderLeft());
+            cellStyle.setBorderLeft(BorderStyle.MEDIUM);
+            assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderLeft());
         }
         assertEquals(borderId, cellStyle.getCoreXf().getBorderId());
         assertEquals(num, stylesTable.getBorders().size());
         assertSame(ctBorder, stylesTable.getBorderAt(borderId).getCTBorder());
 
         //setting border to none removes the <left> element
-        cellStyle.setBorderLeft(CellStyle.BORDER_NONE);
+        cellStyle.setBorderLeft(BorderStyle.NONE);
         assertEquals(num, stylesTable.getBorders().size());
         borderId = (int)cellStyle.getCoreXf().getBorderId();
         ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
@@ -209,11 +209,11 @@ public class TestXSSFCellStyle {
 	@Test
     public void testGetSetBorderTop() {
         //default values
-        assertEquals(CellStyle.BORDER_NONE, cellStyle.getBorderTop());
+        assertEquals(BorderStyle.NONE, cellStyle.getBorderTop());
 
         int num = stylesTable.getBorders().size();
-        cellStyle.setBorderTop(CellStyle.BORDER_MEDIUM);
-        assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderTop());
+        cellStyle.setBorderTop(BorderStyle.MEDIUM);
+        assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderTop());
         //a new border has been added
         assertEquals(num + 1, stylesTable.getBorders().size());
         //id of the created border
@@ -226,165 +226,112 @@ public class TestXSSFCellStyle {
         num = stylesTable.getBorders().size();
         //setting the same border multiple times should not change borderId
         for (int i = 0; i < 3; i++) {
-            cellStyle.setBorderTop(CellStyle.BORDER_MEDIUM);
-            assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderTop());
+            cellStyle.setBorderTop(BorderStyle.MEDIUM);
+            assertEquals(BorderStyle.MEDIUM, cellStyle.getBorderTop());
         }
         assertEquals(borderId, cellStyle.getCoreXf().getBorderId());
         assertEquals(num, stylesTable.getBorders().size());
         assertSame(ctBorder, stylesTable.getBorderAt(borderId).getCTBorder());
 
         //setting border to none removes the <top> element
-        cellStyle.setBorderTop(CellStyle.BORDER_NONE);
+        cellStyle.setBorderTop(BorderStyle.NONE);
         assertEquals(num, stylesTable.getBorders().size());
         borderId = (int)cellStyle.getCoreXf().getBorderId();
         ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
         assertFalse(ctBorder.isSetTop());
-	}
+    }
+    
+    private void testGetSetBorderXMLBean(BorderStyle border, STBorderStyle.Enum expected) {
+        cellStyle.setBorderTop(border);
+        assertEquals(border, cellStyle.getBorderTop());
+        int borderId = (int)cellStyle.getCoreXf().getBorderId();
+        assertTrue(borderId > 0);
+        //check changes in the underlying xml bean
+        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
+        assertEquals(expected, ctBorder.getTop().getStyle());
+    }
+    
+    
+    // Border Styles, in BorderStyle/STBorderStyle enum order
+    @Test
+    public void testGetSetBorderNone() {
+        cellStyle.setBorderTop(BorderStyle.NONE);
+        assertEquals(BorderStyle.NONE, cellStyle.getBorderTop());
+        int borderId = (int)cellStyle.getCoreXf().getBorderId();
+        assertTrue(borderId > 0);
+        //check changes in the underlying xml bean
+        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
+        assertNull(ctBorder.getTop());
+        // no border style and STBorderStyle.NONE are equivalent
+        // POI prefers to unset the border style than explicitly set it STBorderStyle.NONE
+    }
 
-	@Test
+    @Test
     public void testGetSetBorderThin() {
-        cellStyle.setBorderTop(CellStyle.BORDER_THIN);
-        assertEquals(CellStyle.BORDER_THIN, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.THIN, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
+        testGetSetBorderXMLBean(BorderStyle.THIN, STBorderStyle.THIN);
+    }
+    
+    @Test
     public void testGetSetBorderMedium() {
-        cellStyle.setBorderTop(CellStyle.BORDER_MEDIUM);
-        assertEquals(CellStyle.BORDER_MEDIUM, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.MEDIUM, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderThick() {
-        cellStyle.setBorderTop(CellStyle.BORDER_THICK);
-        assertEquals(CellStyle.BORDER_THICK, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.THICK, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderHair() {
-        cellStyle.setBorderTop(CellStyle.BORDER_HAIR);
-        assertEquals(CellStyle.BORDER_HAIR, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.HAIR, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderDotted() {
-        cellStyle.setBorderTop(CellStyle.BORDER_DOTTED);
-        assertEquals(CellStyle.BORDER_DOTTED, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.DOTTED, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
+        testGetSetBorderXMLBean(BorderStyle.MEDIUM, STBorderStyle.MEDIUM);
+    }
+    
+    @Test
     public void testGetSetBorderDashed() {
-        cellStyle.setBorderTop(CellStyle.BORDER_DASHED);
-        assertEquals(CellStyle.BORDER_DASHED, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.DASHED, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderDashDot() {
-        cellStyle.setBorderTop(CellStyle.BORDER_DASH_DOT);
-        assertEquals(CellStyle.BORDER_DASH_DOT, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.DASH_DOT, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderDashDotDot() {
-        cellStyle.setBorderTop(CellStyle.BORDER_DASH_DOT_DOT);
-        assertEquals(CellStyle.BORDER_DASH_DOT_DOT, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.DASH_DOT_DOT, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderMediumDashDot() {
-        cellStyle.setBorderTop(CellStyle.BORDER_MEDIUM_DASH_DOT);
-        assertEquals(CellStyle.BORDER_MEDIUM_DASH_DOT, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.MEDIUM_DASH_DOT, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderMediumDashDotDot() {
-        cellStyle.setBorderTop(CellStyle.BORDER_MEDIUM_DASH_DOT_DOT);
-        assertEquals(CellStyle.BORDER_MEDIUM_DASH_DOT_DOT, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.MEDIUM_DASH_DOT_DOT, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderMediumDashed() {
-        cellStyle.setBorderTop(CellStyle.BORDER_MEDIUM_DASHED);
-        assertEquals(CellStyle.BORDER_MEDIUM_DASHED, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.MEDIUM_DASHED, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
-    public void testGetSetBorderSlantDashDot() {
-        cellStyle.setBorderTop(CellStyle.BORDER_SLANTED_DASH_DOT);
-        assertEquals(CellStyle.BORDER_SLANTED_DASH_DOT, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.SLANT_DASH_DOT, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
+        testGetSetBorderXMLBean(BorderStyle.DASHED, STBorderStyle.DASHED);
+    }
+    
+    @Test
+    public void testGetSetBorderDotted() {
+        testGetSetBorderXMLBean(BorderStyle.DOTTED, STBorderStyle.DOTTED);
+    }
+    
+    @Test
+    public void testGetSetBorderThick() {
+        testGetSetBorderXMLBean(BorderStyle.THICK, STBorderStyle.THICK);
+    }
+    
+    @Test
     public void testGetSetBorderDouble() {
-        cellStyle.setBorderTop(CellStyle.BORDER_DOUBLE);
-        assertEquals(CellStyle.BORDER_DOUBLE, cellStyle.getBorderTop());
-        int borderId = (int)cellStyle.getCoreXf().getBorderId();
-        assertTrue(borderId > 0);
-        //check changes in the underlying xml bean
-        CTBorder ctBorder = stylesTable.getBorderAt(borderId).getCTBorder();
-        assertEquals(STBorderStyle.DOUBLE, ctBorder.getTop().getStyle());
-	}
-	
-	@Test
+        testGetSetBorderXMLBean(BorderStyle.DOUBLE, STBorderStyle.DOUBLE);
+    }
+    
+    @Test
+    public void testGetSetBorderHair() {
+        testGetSetBorderXMLBean(BorderStyle.HAIR, STBorderStyle.HAIR);
+    }
+    
+    @Test
+    public void testGetSetBorderMediumDashed() {
+        testGetSetBorderXMLBean(BorderStyle.MEDIUM_DASHED, STBorderStyle.MEDIUM_DASHED);
+    }
+    
+    @Test
+    public void testGetSetBorderDashDot() {
+        testGetSetBorderXMLBean(BorderStyle.DASH_DOT, STBorderStyle.DASH_DOT);
+    }
+    
+    @Test
+    public void testGetSetBorderMediumDashDot() {
+        testGetSetBorderXMLBean(BorderStyle.MEDIUM_DASH_DOT, STBorderStyle.MEDIUM_DASH_DOT);
+    }
+    
+    @Test
+    public void testGetSetBorderDashDotDot() {
+        testGetSetBorderXMLBean(BorderStyle.DASH_DOT_DOT, STBorderStyle.DASH_DOT_DOT);
+    }
+    
+    @Test
+    public void testGetSetBorderMediumDashDotDot() {
+        testGetSetBorderXMLBean(BorderStyle.MEDIUM_DASH_DOT_DOT, STBorderStyle.MEDIUM_DASH_DOT_DOT);
+    }
+    
+    @Test
+    public void testGetSetBorderSlantDashDot() {
+        testGetSetBorderXMLBean(BorderStyle.SLANTED_DASH_DOT, STBorderStyle.SLANT_DASH_DOT);
+    }
+    
+    @Test
     public void testGetSetBottomBorderColor() {
         //defaults
         assertEquals(IndexedColors.BLACK.getIndex(), cellStyle.getBottomBorderColor());
@@ -412,7 +359,7 @@ public class TestXSSFCellStyle {
 
         //setting XSSFColor
         num = stylesTable.getBorders().size();
-        clr = new XSSFColor(java.awt.Color.CYAN);
+        clr = new XSSFColor(java.awt.Color.CYAN, stylesTable.getIndexedColors());
         cellStyle.setBottomBorderColor(clr);
         assertEquals(clr.getCTColor().toString(), cellStyle.getBottomBorderXSSFColor().getCTColor().toString());
         byte[] rgb = cellStyle.getBottomBorderXSSFColor().getRGB();
@@ -453,7 +400,7 @@ public class TestXSSFCellStyle {
 
         //setting XSSFColor
         num = stylesTable.getBorders().size();
-        clr = new XSSFColor(java.awt.Color.CYAN);
+        clr = new XSSFColor(java.awt.Color.CYAN, stylesTable.getIndexedColors());
         cellStyle.setTopBorderColor(clr);
         assertEquals(clr.getCTColor().toString(), cellStyle.getTopBorderXSSFColor().getCTColor().toString());
         byte[] rgb = cellStyle.getTopBorderXSSFColor().getRGB();
@@ -494,7 +441,7 @@ public class TestXSSFCellStyle {
 
         //setting XSSFColor
         num = stylesTable.getBorders().size();
-        clr = new XSSFColor(java.awt.Color.CYAN);
+        clr = new XSSFColor(java.awt.Color.CYAN, stylesTable.getIndexedColors());
         cellStyle.setLeftBorderColor(clr);
         assertEquals(clr.getCTColor().toString(), cellStyle.getLeftBorderXSSFColor().getCTColor().toString());
         byte[] rgb = cellStyle.getLeftBorderXSSFColor().getRGB();
@@ -535,7 +482,7 @@ public class TestXSSFCellStyle {
 
         //setting XSSFColor
         num = stylesTable.getBorders().size();
-        clr = new XSSFColor(java.awt.Color.CYAN);
+        clr = new XSSFColor(java.awt.Color.CYAN, stylesTable.getIndexedColors());
         cellStyle.setRightBorderColor(clr);
         assertEquals(clr.getCTColor().toString(), cellStyle.getRightBorderXSSFColor().getCTColor().toString());
         byte[] rgb = cellStyle.getRightBorderXSSFColor().getRGB();
@@ -576,7 +523,7 @@ public class TestXSSFCellStyle {
 
         //setting XSSFColor
         num = stylesTable.getFills().size();
-        clr = new XSSFColor(java.awt.Color.CYAN);
+        clr = new XSSFColor(java.awt.Color.CYAN, stylesTable.getIndexedColors());
         cellStyle.setFillBackgroundColor(clr);
         assertEquals(clr.getCTColor().toString(), cellStyle.getFillBackgroundXSSFColor().getCTColor().toString());
         byte[] rgb = cellStyle.getFillBackgroundXSSFColor().getRGB();
@@ -590,7 +537,8 @@ public class TestXSSFCellStyle {
         assertEquals(IndexedColors.AUTOMATIC.getIndex(), cellStyle.getFillBackgroundColor());
 	}
 
-	@Test
+	@SuppressWarnings("deprecation")
+    @Test
     public void testDefaultStyles() throws IOException {
 
 		XSSFWorkbook wb1 = new XSSFWorkbook();
@@ -608,6 +556,7 @@ public class TestXSSFCellStyle {
         assertEquals(style2.getFillBackgroundColor(), style1.getFillBackgroundColor());
         assertEquals(style2.getFillForegroundColor(), style1.getFillForegroundColor());
         assertEquals(style2.getFillPattern(), style1.getFillPattern());
+        assertEquals(style2.getFillPattern(), style1.getFillPattern());
 
         assertEquals(style2.getLeftBorderColor(), style1.getLeftBorderColor());
         assertEquals(style2.getTopBorderColor(), style1.getTopBorderColor());
@@ -621,7 +570,8 @@ public class TestXSSFCellStyle {
         wb2.close();
 	}
 
-	@Test
+    @Test
+    @SuppressWarnings("deprecation")
     public void testGetFillForegroundColor() throws IOException {
         XSSFWorkbook wb = new XSSFWorkbook();
         StylesTable styles = wb.getStylesSource();
@@ -631,12 +581,14 @@ public class TestXSSFCellStyle {
         XSSFCellStyle defaultStyle = wb.getCellStyleAt((short)0);
         assertEquals(IndexedColors.AUTOMATIC.getIndex(), defaultStyle.getFillForegroundColor());
         assertEquals(null, defaultStyle.getFillForegroundXSSFColor());
-        assertEquals(CellStyle.NO_FILL, defaultStyle.getFillPattern());
+        assertEquals(FillPatternType.NO_FILL, defaultStyle.getFillPattern());
+        assertEquals(FillPatternType.NO_FILL, defaultStyle.getFillPatternEnum());
 
         XSSFCellStyle customStyle = wb.createCellStyle();
 
-        customStyle.setFillPattern(CellStyle.SOLID_FOREGROUND);
-        assertEquals(CellStyle.SOLID_FOREGROUND, customStyle.getFillPattern());
+        customStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        assertEquals(FillPatternType.SOLID_FOREGROUND, customStyle.getFillPattern());
+        assertEquals(FillPatternType.SOLID_FOREGROUND, customStyle.getFillPatternEnum());
         assertEquals(3, styles.getFills().size());
 
         customStyle.setFillForegroundColor(IndexedColors.BRIGHT_GREEN.getIndex());
@@ -646,8 +598,8 @@ public class TestXSSFCellStyle {
         for (int i = 0; i < 3; i++) {
             XSSFCellStyle style = wb.createCellStyle();
 
-            style.setFillPattern(CellStyle.SOLID_FOREGROUND);
-            assertEquals(CellStyle.SOLID_FOREGROUND, style.getFillPattern());
+            style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            assertEquals(FillPatternType.SOLID_FOREGROUND, style.getFillPattern());
             assertEquals(4, styles.getFills().size());
 
             style.setFillForegroundColor(IndexedColors.BRIGHT_GREEN.getIndex());
@@ -657,16 +609,16 @@ public class TestXSSFCellStyle {
 
         assertNotNull(XSSFTestDataSamples.writeOutAndReadBack(wb));
         wb.close();
-	}
+    }
 
-	@Test
+    @Test
     public void testGetFillPattern() {
 
-        assertEquals(STPatternType.INT_DARK_GRAY-1, cellStyle.getFillPattern());
+        assertEquals(STPatternType.INT_DARK_GRAY-1, cellStyle.getFillPattern().getCode());
 
         int num = stylesTable.getFills().size();
-        cellStyle.setFillPattern(CellStyle.SOLID_FOREGROUND);
-        assertEquals(CellStyle.SOLID_FOREGROUND, cellStyle.getFillPattern());
+        cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        assertEquals(FillPatternType.SOLID_FOREGROUND, cellStyle.getFillPattern());
         assertEquals(num + 1, stylesTable.getFills().size());
         int fillId = (int)cellStyle.getCoreXf().getFillId();
         assertTrue(fillId > 0);
@@ -676,12 +628,12 @@ public class TestXSSFCellStyle {
 
         //setting the same fill multiple time does not update the styles table
         for (int i = 0; i < 3; i++) {
-            cellStyle.setFillPattern(CellStyle.SOLID_FOREGROUND);
+            cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         }
         assertEquals(num + 1, stylesTable.getFills().size());
 
-        cellStyle.setFillPattern(CellStyle.NO_FILL);
-        assertEquals(CellStyle.NO_FILL, cellStyle.getFillPattern());
+        cellStyle.setFillPattern(FillPatternType.NO_FILL);
+        assertEquals(FillPatternType.NO_FILL, cellStyle.getFillPattern());
         fillId = (int)cellStyle.getCoreXf().getFillId();
         ctFill2 = stylesTable.getFillAt(fillId).getCTFill();
         assertFalse(ctFill2.getPatternFill().isSetPatternType());
@@ -720,41 +672,53 @@ public class TestXSSFCellStyle {
 		assertEquals((short)13, cellStyle.getIndention());
 	}
 
-	@Test
-    public void testGetSetAlignement() {
+    @Test
+    public void testGetSetAlignment() {
 		assertNull(cellStyle.getCellAlignment().getCTCellAlignment().getHorizontal());
-		assertEquals(HorizontalAlignment.GENERAL, cellStyle.getAlignmentEnum());
+		assertEquals(HorizontalAlignment.GENERAL, cellStyle.getAlignment());
 
-		cellStyle.setAlignment(XSSFCellStyle.ALIGN_LEFT);
-		assertEquals(XSSFCellStyle.ALIGN_LEFT, cellStyle.getAlignment());
-		assertEquals(HorizontalAlignment.LEFT, cellStyle.getAlignmentEnum());
+		cellStyle.setAlignment(HorizontalAlignment.LEFT);
+		assertEquals(HorizontalAlignment.LEFT, cellStyle.getAlignment());
 		assertEquals(STHorizontalAlignment.LEFT, cellStyle.getCellAlignment().getCTCellAlignment().getHorizontal());
 
 		cellStyle.setAlignment(HorizontalAlignment.JUSTIFY);
-		assertEquals(XSSFCellStyle.ALIGN_JUSTIFY, cellStyle.getAlignment());
-		assertEquals(HorizontalAlignment.JUSTIFY, cellStyle.getAlignmentEnum());
+		assertEquals(HorizontalAlignment.JUSTIFY, cellStyle.getAlignment());
 		assertEquals(STHorizontalAlignment.JUSTIFY, cellStyle.getCellAlignment().getCTCellAlignment().getHorizontal());
 
 		cellStyle.setAlignment(HorizontalAlignment.CENTER);
-		assertEquals(XSSFCellStyle.ALIGN_CENTER, cellStyle.getAlignment());
-		assertEquals(HorizontalAlignment.CENTER, cellStyle.getAlignmentEnum());
+		assertEquals(HorizontalAlignment.CENTER, cellStyle.getAlignment());
 		assertEquals(STHorizontalAlignment.CENTER, cellStyle.getCellAlignment().getCTCellAlignment().getHorizontal());
 	}
-
+	
 	@Test
+    public void testGetSetReadingOrder() {
+	    assertEquals(ReadingOrder.CONTEXT, cellStyle.getReadingOrder());
+	    assertEquals(ReadingOrder.CONTEXT.getCode(), cellStyle.getCellAlignment().getCTCellAlignment().getReadingOrder());
+
+        cellStyle.setReadingOrder(ReadingOrder.LEFT_TO_RIGHT);
+        assertEquals(ReadingOrder.LEFT_TO_RIGHT, cellStyle.getReadingOrder());
+        assertEquals(ReadingOrder.LEFT_TO_RIGHT.getCode(), cellStyle.getCellAlignment().getCTCellAlignment().getReadingOrder());
+
+        cellStyle.setReadingOrder(ReadingOrder.RIGHT_TO_LEFT);
+        assertEquals(ReadingOrder.RIGHT_TO_LEFT, cellStyle.getReadingOrder());
+        assertEquals(ReadingOrder.RIGHT_TO_LEFT.getCode(), cellStyle.getCellAlignment().getCTCellAlignment().getReadingOrder());
+        
+        cellStyle.setReadingOrder(ReadingOrder.CONTEXT);
+        assertEquals(ReadingOrder.CONTEXT, cellStyle.getReadingOrder());
+        assertEquals(ReadingOrder.CONTEXT.getCode(), cellStyle.getCellAlignment().getCTCellAlignment().getReadingOrder());
+    }
+
+    @Test
     public void testGetSetVerticalAlignment() {
-		assertEquals(VerticalAlignment.BOTTOM, cellStyle.getVerticalAlignmentEnum());
-		assertEquals(XSSFCellStyle.VERTICAL_BOTTOM, cellStyle.getVerticalAlignment());
+		assertEquals(VerticalAlignment.BOTTOM, cellStyle.getVerticalAlignment());
 		assertNull(cellStyle.getCellAlignment().getCTCellAlignment().getVertical());
 
-		cellStyle.setVerticalAlignment(XSSFCellStyle.VERTICAL_CENTER);
-		assertEquals(XSSFCellStyle.VERTICAL_CENTER, cellStyle.getVerticalAlignment());
-		assertEquals(VerticalAlignment.CENTER, cellStyle.getVerticalAlignmentEnum());
+		cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+		assertEquals(VerticalAlignment.CENTER, cellStyle.getVerticalAlignment());
 		assertEquals(STVerticalAlignment.CENTER, cellStyle.getCellAlignment().getCTCellAlignment().getVertical());
 
-		cellStyle.setVerticalAlignment(XSSFCellStyle.VERTICAL_JUSTIFY);
-		assertEquals(XSSFCellStyle.VERTICAL_JUSTIFY, cellStyle.getVerticalAlignment());
-		assertEquals(VerticalAlignment.JUSTIFY, cellStyle.getVerticalAlignmentEnum());
+		cellStyle.setVerticalAlignment(VerticalAlignment.JUSTIFY);
+		assertEquals(VerticalAlignment.JUSTIFY, cellStyle.getVerticalAlignment());
 		assertEquals(STVerticalAlignment.JUSTIFY, cellStyle.getCellAlignment().getCTCellAlignment().getVertical());
 	}
 
@@ -780,23 +744,23 @@ public class TestXSSFCellStyle {
       assertEquals(2, wb.getNumberOfFonts());
       
       XSSFCellStyle orig = wb.createCellStyle();
-      orig.setAlignment(HSSFCellStyle.ALIGN_RIGHT);
+      orig.setAlignment(HorizontalAlignment.RIGHT);
       orig.setFont(fnt);
       orig.setDataFormat((short)18);
       
-      assertTrue(HSSFCellStyle.ALIGN_RIGHT == orig.getAlignment());
-      assertTrue(fnt == orig.getFont());
-      assertTrue(18 == orig.getDataFormat());
+      assertEquals(HorizontalAlignment.RIGHT, orig.getAlignment());
+      assertEquals(fnt, orig.getFont());
+      assertEquals(18, orig.getDataFormat());
       
       XSSFCellStyle clone = wb.createCellStyle();
-      assertFalse(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
+      assertFalse(HorizontalAlignment.RIGHT == clone.getAlignment());
       assertFalse(fnt == clone.getFont());
       assertFalse(18 == clone.getDataFormat());
       
       clone.cloneStyleFrom(orig);
-      assertTrue(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
-      assertTrue(fnt == clone.getFont());
-      assertTrue(18 == clone.getDataFormat());
+      assertEquals(HorizontalAlignment.RIGHT, clone.getAlignment());
+      assertEquals(fnt, clone.getFont());
+      assertEquals(18, clone.getDataFormat());
       assertEquals(2, wb.getNumberOfFonts());
 
       XSSFWorkbook wb2 = XSSFTestDataSamples.writeOutAndReadBack(wb);
@@ -825,11 +789,11 @@ public class TestXSSFCellStyle {
        fmt.getFormat("MadeUpTwo");
        
        XSSFCellStyle orig = wbOrig.createCellStyle();
-       orig.setAlignment(HSSFCellStyle.ALIGN_RIGHT);
+       orig.setAlignment(HorizontalAlignment.RIGHT);
        orig.setFont(fnt);
        orig.setDataFormat(fmt.getFormat("Test##"));
        
-       assertTrue(XSSFCellStyle.ALIGN_RIGHT == orig.getAlignment());
+       assertTrue(HorizontalAlignment.RIGHT == orig.getAlignment());
        assertTrue(fnt == orig.getFont());
        assertTrue(fmt.getFormat("Test##") == orig.getDataFormat());
        
@@ -849,7 +813,7 @@ public class TestXSSFCellStyle {
        assertEquals(1, wbClone.getNumberOfFonts());
        assertEquals(0, wbClone.getStylesSource().getNumberFormats().size());
        
-       assertFalse(HSSFCellStyle.ALIGN_RIGHT == clone.getAlignment());
+       assertFalse(HorizontalAlignment.RIGHT == clone.getAlignment());
        assertNotEquals("TestingFont", clone.getFont().getFontName());
        
        clone.cloneStyleFrom(orig);
@@ -858,7 +822,7 @@ public class TestXSSFCellStyle {
        assertEquals(2, wbClone.getNumCellStyles());
        assertEquals(1, wbClone.getStylesSource().getNumberFormats().size());
        
-       assertEquals(HSSFCellStyle.ALIGN_RIGHT, clone.getAlignment());
+       assertEquals(HorizontalAlignment.RIGHT, clone.getAlignment());
        assertEquals("TestingFont", clone.getFont().getFontName());
        assertEquals(fmtClone.getFormat("Test##"), clone.getDataFormat());
        assertFalse(fmtClone.getFormat("Test##") == fmt.getFormat("Test##"));
@@ -870,7 +834,7 @@ public class TestXSSFCellStyle {
        assertEquals(1, wbReload.getStylesSource().getNumberFormats().size());
        
        XSSFCellStyle reload = wbReload.getCellStyleAt((short)1);
-       assertEquals(HSSFCellStyle.ALIGN_RIGHT, reload.getAlignment());
+       assertEquals(HorizontalAlignment.RIGHT, reload.getAlignment());
        assertEquals("TestingFont", reload.getFont().getFontName());
        assertEquals(fmtClone.getFormat("Test##"), reload.getDataFormat());
        assertFalse(fmtClone.getFormat("Test##") == fmt.getFormat("Test##"));
@@ -974,40 +938,38 @@ public class TestXSSFCellStyle {
     
     @Test
     public void testSetColor() throws IOException {
-        Workbook wb = new XSSFWorkbook();
-        Sheet sheet = wb.createSheet();
-        Row row = sheet.createRow(0);
-        
-        DataFormat format = wb.createDataFormat();
-        Cell cell = row.createCell(1);
-        cell.setCellValue("somevalue");
-        CellStyle cellStyle2 = wb.createCellStyle();
+        try(Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet();
+            Row row = sheet.createRow(0);
+
+            DataFormat format = wb.createDataFormat();
+            Cell cell = row.createCell(1);
+            cell.setCellValue("somevalue");
+            CellStyle cellStyle2 = wb.createCellStyle();
 
 
-        cellStyle2.setDataFormat(format.getFormat("###0"));
+            cellStyle2.setDataFormat(format.getFormat("###0"));
 
-        cellStyle2.setFillBackgroundColor(IndexedColors.DARK_BLUE.getIndex());
-        cellStyle2.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
-        cellStyle2.setFillPattern(CellStyle.SOLID_FOREGROUND);
+            cellStyle2.setFillBackgroundColor(IndexedColors.DARK_BLUE.getIndex());
+            cellStyle2.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+            cellStyle2.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-        cellStyle2.setAlignment(CellStyle.ALIGN_RIGHT);
-        cellStyle2.setVerticalAlignment(CellStyle.VERTICAL_TOP);
+            cellStyle2.setAlignment(HorizontalAlignment.RIGHT);
+            cellStyle2.setVerticalAlignment(VerticalAlignment.TOP);
 
-        cell.setCellStyle(cellStyle2);
+            cell.setCellStyle(cellStyle2);
 
-        Workbook wbBack = XSSFTestDataSamples.writeOutAndReadBack(wb);
-        Cell cellBack = wbBack.getSheetAt(0).getRow(0).getCell(1);
-        assertNotNull(cellBack);
-        CellStyle styleBack = cellBack.getCellStyle();
-        assertEquals(IndexedColors.DARK_BLUE.getIndex(), styleBack.getFillBackgroundColor());
-        assertEquals(IndexedColors.DARK_BLUE.getIndex(), styleBack.getFillForegroundColor());
-        assertEquals(CellStyle.ALIGN_RIGHT, styleBack.getAlignment());
-        assertEquals(CellStyle.VERTICAL_TOP, styleBack.getVerticalAlignment());
-        assertEquals(CellStyle.SOLID_FOREGROUND, styleBack.getFillPattern());
-        
-        wbBack.close();
-        
-        wb.close();
+            try (Workbook wbBack = XSSFTestDataSamples.writeOutAndReadBack(wb)) {
+                Cell cellBack = wbBack.getSheetAt(0).getRow(0).getCell(1);
+                assertNotNull(cellBack);
+                CellStyle styleBack = cellBack.getCellStyle();
+                assertEquals(IndexedColors.DARK_BLUE.getIndex(), styleBack.getFillBackgroundColor());
+                assertEquals(IndexedColors.DARK_BLUE.getIndex(), styleBack.getFillForegroundColor());
+                assertEquals(HorizontalAlignment.RIGHT, styleBack.getAlignment());
+                assertEquals(VerticalAlignment.TOP, styleBack.getVerticalAlignment());
+                assertEquals(FillPatternType.SOLID_FOREGROUND, styleBack.getFillPattern());
+            }
+        }
     }
 
     public static void copyStyles(Workbook reference, Workbook target) {
@@ -1091,7 +1053,7 @@ public class TestXSSFCellStyle {
         assertNull(cellStyle.getFillBackgroundColorColor());
 
         cellStyle.setFillPattern(FillPatternType.NO_FILL);
-        assertEquals(FillPatternType.NO_FILL, cellStyle.getFillPatternEnum());
+        assertEquals(FillPatternType.NO_FILL, cellStyle.getFillPattern());
 
         cellStyle.setBottomBorderColor(null);
         assertNull(cellStyle.getBottomBorderXSSFColor());
@@ -1104,5 +1066,7 @@ public class TestXSSFCellStyle {
 
         cellStyle.setRightBorderColor(null);
         assertNull(cellStyle.getRightBorderXSSFColor());
+        
+        workbook.close();
     }
 }

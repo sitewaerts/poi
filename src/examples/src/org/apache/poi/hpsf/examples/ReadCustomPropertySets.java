@@ -19,7 +19,6 @@ package org.apache.poi.hpsf.examples;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 
 import org.apache.poi.hpsf.NoPropertySetStreamException;
@@ -37,9 +36,6 @@ import org.apache.poi.util.HexDump;
  * Call it with the document's file name as command-line parameter.</p>
  *
  * <p>Explanations can be found in the HPSF HOW-TO.</p>
- *
- * @author Rainer Klute <a
- * href="mailto:klute@rainer-klute.de">&lt;klute@rainer-klute.de&gt;</a>
  */
 public class ReadCustomPropertySets
 {
@@ -64,9 +60,10 @@ public class ReadCustomPropertySets
 
     static class MyPOIFSReaderListener implements POIFSReaderListener
     {
+        @Override
         public void processPOIFSReaderEvent(final POIFSReaderEvent event)
         {
-            PropertySet ps = null;
+            PropertySet ps;
             try
             {
                 ps = PropertySetFactory.create(event.getStream());
@@ -95,10 +92,8 @@ public class ReadCustomPropertySets
             /* Print the list of sections: */
             List<Section> sections = ps.getSections();
             int nr = 0;
-            for (Iterator<Section> i = sections.iterator(); i.hasNext();)
-            {
+            for (Section sec : sections) {
                 /* Print a single section: */
-                Section sec = i.next();
                 out("   Section " + nr++ + ":");
                 String s = hex(sec.getFormatID().getBytes());
                 s = s.substring(0, s.length() - 1);
@@ -110,15 +105,13 @@ public class ReadCustomPropertySets
 
                 /* Print the properties: */
                 Property[] properties = sec.getProperties();
-                for (int i2 = 0; i2 < properties.length; i2++)
-                {
+                for (Property p : properties) {
                     /* Print a single property: */
-                    Property p = properties[i2];
                     long id = p.getID();
                     long type = p.getType();
                     Object value = p.getValue();
                     out("      Property ID: " + id + ", type: " + type +
-                        ", value: " + value);
+                            ", value: " + value);
                 }
             }
         }

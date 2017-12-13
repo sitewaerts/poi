@@ -45,16 +45,16 @@ import org.apache.poi.util.SuppressForbidden;
  * and {@link #setMinInflateRatio(double)}.
  */
 public class ZipSecureFile extends ZipFile {
-    private static POILogger logger = POILogFactory.getLogger(ZipSecureFile.class);
+    private static final POILogger LOG = POILogFactory.getLogger(ZipSecureFile.class);
     
     private static double MIN_INFLATE_RATIO = 0.01d;
-    private static long MAX_ENTRY_SIZE = 0xFFFFFFFFl;
+    private static long MAX_ENTRY_SIZE = 0xFFFFFFFFL;
     
     // don't alert for expanded sizes smaller than 100k
-    private static long GRACE_ENTRY_SIZE = 100*1024;
+    private final static long GRACE_ENTRY_SIZE = 100*1024L;
 
     // The default maximum size of extracted text 
-    private static long MAX_TEXT_SIZE = 10*1024*1024;
+    private static long MAX_TEXT_SIZE = 10*1024*1024L;
     
     /**
      * Sets the ratio between de- and inflated bytes to detect zipbomb.
@@ -89,8 +89,8 @@ public class ZipSecureFile extends ZipFile {
      * @param maxEntrySize the max. file size of a single zip entry
      */
     public static void setMaxEntrySize(long maxEntrySize) {
-        if (maxEntrySize < 0 || maxEntrySize > 0xFFFFFFFFl) {
-            throw new IllegalArgumentException("Max entry size is bounded [0-4GB].");
+        if (maxEntrySize < 0 || maxEntrySize > 0xFFFFFFFFL) {   // don't use MAX_ENTRY_SIZE here!
+            throw new IllegalArgumentException("Max entry size is bounded [0-4GB], but had " + maxEntrySize);
         }
         MAX_ENTRY_SIZE = maxEntrySize;
     }
@@ -117,8 +117,8 @@ public class ZipSecureFile extends ZipFile {
      * @param maxTextSize the max. file size of a single zip entry
      */
     public static void setMaxTextSize(long maxTextSize) {
-        if (maxTextSize < 0 || maxTextSize > 0xFFFFFFFFl) {
-            throw new IllegalArgumentException("Max text size is bounded [0-4GB].");
+        if (maxTextSize < 0 || maxTextSize > 0xFFFFFFFFL) {     // don't use MAX_ENTRY_SIZE here!
+            throw new IllegalArgumentException("Max text size is bounded [0-4GB], but had " + maxTextSize);
         }
         MAX_TEXT_SIZE = maxTextSize;
     }
@@ -134,7 +134,7 @@ public class ZipSecureFile extends ZipFile {
         return MAX_TEXT_SIZE;
     }
 
-    public ZipSecureFile(File file, int mode) throws IOException {
+    public ZipSecureFile(File file, int mode) throws ZipException, IOException {
         super(file, mode);
     }
 
@@ -142,7 +142,7 @@ public class ZipSecureFile extends ZipFile {
         super(file);
     }
 
-    public ZipSecureFile(String name) throws IOException {
+    public ZipSecureFile(String name) throws ZipException, IOException {
         super(name);
     }
 
@@ -160,6 +160,7 @@ public class ZipSecureFile extends ZipFile {
      * @throws IOException if an I/O error has occurred
      * @throws IllegalStateException if the zip file has been closed
      */
+    @Override
     @SuppressWarnings("resource")
     public InputStream getInputStream(ZipEntry entry) throws IOException {
         InputStream zipIS = super.getInputStream(entry);
@@ -169,22 +170,22 @@ public class ZipSecureFile extends ZipFile {
     public static ThresholdInputStream addThreshold(final InputStream zipIS) throws IOException {
         ThresholdInputStream newInner;
         if (zipIS instanceof InflaterInputStream) {
-            newInner = AccessController.doPrivileged(new PrivilegedAction<ThresholdInputStream>() {
+            newInner = AccessController.doPrivileged(new PrivilegedAction<ThresholdInputStream>() { // NOSONAR
+                @Override
                 @SuppressForbidden("TODO: Fix this to not use reflection (it will break in Java 9)! " +
-                        "Better would be to wrap *before* instead of tyring to insert wrapper afterwards.")
+                        "Better would be to wrap *before* instead of trying to insert wrapper afterwards.")
                 public ThresholdInputStream run() {
-                    ThresholdInputStream newInner = null;
                     try {
                         Field f = FilterInputStream.class.getDeclaredField("in");
                         f.setAccessible(true);
                         InputStream oldInner = (InputStream)f.get(zipIS);
-                        newInner = new ThresholdInputStream(oldInner, null);
-                        f.set(zipIS, newInner);
+                        ThresholdInputStream newInner2 = new ThresholdInputStream(oldInner, null);
+                        f.set(zipIS, newInner2);
+                        return newInner2;
                     } catch (Exception ex) {
-                        logger.log(POILogger.WARN, "SecurityManager doesn't allow manipulation via reflection for zipbomb detection - continue with original input stream", ex);
-                        newInner = null;
+                        LOG.log(POILogger.WARN, "SecurityManager doesn't allow manipulation via reflection for zipbomb detection - continue with original input stream", ex);
                     }
-                    return newInner;
+                    return null;
                 }
             });
         } else {
@@ -196,35 +197,44 @@ public class ZipSecureFile extends ZipFile {
     }
 
     public static class ThresholdInputStream extends PushbackInputStream {
-        long counter = 0;
+        long counter;
+        long markPos;
         ThresholdInputStream cis;
 
         public ThresholdInputStream(InputStream is, ThresholdInputStream cis) {
-            super(is,1);
+            super(is);
             this.cis = cis;
         }
 
+        @Override
         public int read() throws IOException {
             int b = in.read();
-            if (b > -1) advance(1);
+            if (b > -1) {
+                advance(1);
+            }
             return b;
         }
 
+        @Override
         public int read(byte b[], int off, int len) throws IOException {
             int cnt = in.read(b, off, len);
-            if (cnt > -1) advance(cnt);
+            if (cnt > -1) {
+                advance(cnt);
+            }
             return cnt;
-
         }
 
+        @Override
         public long skip(long n) throws IOException {
-            counter = 0;
-            return in.skip(n);
+            long s = in.skip(n);
+            counter += s;
+            return s;
         }
 
+        @Override
         public synchronized void reset() throws IOException {
-            counter = 0;
-            in.reset();
+            counter = markPos;
+            super.reset();
         }
 
         public void advance(int advance) throws IOException {
@@ -255,10 +265,10 @@ public class ZipSecureFile extends ZipFile {
             }
 
             // one of the limits was reached, report it
-            throw new IOException("Zip bomb detected! The file would exceed the max. ratio of compressed file size to the size of the expanded data. "
-                    + "This may indicate that the file is used to inflate memory usage and thus could pose a security risk. "
-                    + "You can adjust this limit via ZipSecureFile.setMinInflateRatio() if you need to work with files which exceed this limit. "
-                    + "Counter: " + counter + ", cis.counter: " + cis.counter + ", ratio: " + (((double)cis.counter)/counter)
+            throw new IOException("Zip bomb detected! The file would exceed the max. ratio of compressed file size to the size of the expanded data.\n"
+                    + "This may indicate that the file is used to inflate memory usage and thus could pose a security risk.\n"
+                    + "You can adjust this limit via ZipSecureFile.setMinInflateRatio() if you need to work with files which exceed this limit.\n"
+                    + "Counter: " + counter + ", cis.counter: " + cis.counter + ", ratio: " + ratio + "\n"
                     + "Limits: MIN_INFLATE_RATIO: " + MIN_INFLATE_RATIO);
         }
 
@@ -278,32 +288,43 @@ public class ZipSecureFile extends ZipFile {
             ((ZipInputStream)in).closeEntry();
         }
 
+        @Override
         public void unread(int b) throws IOException {
             if (!(in instanceof PushbackInputStream)) {
                 throw new UnsupportedOperationException("underlying stream is not a PushbackInputStream");
             }
-            if (--counter < 0) counter = 0;
+            if (--counter < 0) {
+                counter = 0;
+            }
             ((PushbackInputStream)in).unread(b);
         }
 
+        @Override
         public void unread(byte[] b, int off, int len) throws IOException {
             if (!(in instanceof PushbackInputStream)) {
                 throw new UnsupportedOperationException("underlying stream is not a PushbackInputStream");
             }
             counter -= len;
-            if (--counter < 0) counter = 0;
+            if (--counter < 0) {
+                counter = 0;
+            }
             ((PushbackInputStream)in).unread(b, off, len);
         }
 
+        @Override
+        @SuppressForbidden("just delegating")
         public int available() throws IOException {
             return in.available();
         }
 
+        @Override
         public boolean markSupported() {
             return in.markSupported();
         }
 
+        @Override
         public synchronized void mark(int readlimit) {
+            markPos = counter;
             in.mark(readlimit);
         }
     }

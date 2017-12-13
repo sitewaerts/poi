@@ -21,9 +21,12 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Collections;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.util.Internal;
+import org.apache.poi.util.NotImplemented;
+import org.apache.poi.util.Removal;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBorder;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTDecimalNumber;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
@@ -50,7 +53,7 @@ public class XWPFTable implements IBodyElement, ISDTContents {
 
     static {
         // populate enum maps
-        xwpfBorderTypeMap = new EnumMap<XWPFBorderType, STBorder.Enum>(XWPFBorderType.class);
+        xwpfBorderTypeMap = new EnumMap<>(XWPFBorderType.class);
         xwpfBorderTypeMap.put(XWPFBorderType.NIL, STBorder.Enum.forInt(STBorder.INT_NIL));
         xwpfBorderTypeMap.put(XWPFBorderType.NONE, STBorder.Enum.forInt(STBorder.INT_NONE));
         xwpfBorderTypeMap.put(XWPFBorderType.SINGLE, STBorder.Enum.forInt(STBorder.INT_SINGLE));
@@ -60,7 +63,7 @@ public class XWPFTable implements IBodyElement, ISDTContents {
         xwpfBorderTypeMap.put(XWPFBorderType.DASHED, STBorder.Enum.forInt(STBorder.INT_DASHED));
         xwpfBorderTypeMap.put(XWPFBorderType.DOT_DASH, STBorder.Enum.forInt(STBorder.INT_DOT_DASH));
 
-        stBorderTypeMap = new HashMap<Integer, XWPFBorderType>();
+        stBorderTypeMap = new HashMap<>();
         stBorderTypeMap.put(STBorder.INT_NIL, XWPFBorderType.NIL);
         stBorderTypeMap.put(STBorder.INT_NONE, XWPFBorderType.NONE);
         stBorderTypeMap.put(STBorder.INT_SINGLE, XWPFBorderType.SINGLE);
@@ -71,11 +74,11 @@ public class XWPFTable implements IBodyElement, ISDTContents {
         stBorderTypeMap.put(STBorder.INT_DOT_DASH, XWPFBorderType.DOT_DASH);
     }
 
-    protected StringBuffer text = new StringBuffer();
-    protected List<XWPFTableRow> tableRows;
+    protected StringBuilder text = new StringBuilder(64);
+    protected final List<XWPFTableRow> tableRows = new ArrayList<>();
 
-    ;
-    protected List<String> styleIDs;
+    // Unused: UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD
+    //protected List<String> styleIDs;
     protected IBody part;
     private CTTbl ctTbl;
 
@@ -95,8 +98,6 @@ public class XWPFTable implements IBodyElement, ISDTContents {
     public XWPFTable(CTTbl table, IBody part) {
         this.part = part;
         this.ctTbl = table;
-
-        tableRows = new ArrayList<XWPFTableRow>();
 
         // is an empty table: I add one row and one column as default
         if (table.sizeOfTrArray() == 0)
@@ -146,7 +147,7 @@ public class XWPFTable implements IBodyElement, ISDTContents {
          * CTTblGrid tblgrid=table.addNewTblGrid();
          * tblgrid.addNewGridCol().setW(new BigInteger("2000"));
          */
-        getRows();
+        //getRows();
     }
 
     /**
@@ -161,7 +162,7 @@ public class XWPFTable implements IBodyElement, ISDTContents {
      * Convenience method to extract text in cells.  This
      * does not extract text recursively in cells, and it does not
      * currently include text in SDT (form) components.
-     * <p/>
+     * <p>
      * To get all text within a table, see XWPFWordExtractor's appendTableText
      * as an example.
      *
@@ -171,8 +172,17 @@ public class XWPFTable implements IBodyElement, ISDTContents {
         return text.toString();
     }
 
+    
+    /**
+     * This method has existed since 2008 without an implementation.
+     * It will be removed unless an implementation is provided.
+     * @deprecated 4.0.0 due to lack of implementation.
+     */
+    @Deprecated
+    @Removal
+    @NotImplemented
     public void addNewRowBetween(int start, int end) {
-        // TODO
+        throw new UnsupportedOperationException("XWPFTable#addNewRowBetween(int, int) not implemented");
     }
 
     /**
@@ -580,7 +590,7 @@ public class XWPFTable implements IBodyElement, ISDTContents {
     }
 
     public List<XWPFTableRow> getRows() {
-        return tableRows;
+        return Collections.unmodifiableList(tableRows);
     }
 
     /**

@@ -20,6 +20,7 @@ package org.apache.poi.hssf.record;
 import org.apache.poi.util.HexDump;
 import org.apache.poi.util.LittleEndianInput;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.RecordFormatException;
 
 
 /**
@@ -45,7 +46,7 @@ public final class FtCfSubRecord extends SubRecord implements Cloneable {
      */
     public static final short UNSPECIFIED_BIT = (short)0xFFFF;
     
-    private short flags = 0;
+    private short flags;
 
     /**
      * Construct a new <code>FtPioGrbitSubRecord</code> and

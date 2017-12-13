@@ -16,10 +16,8 @@
 ==================================================================== */
 package org.apache.poi;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
-import org.apache.poi.POIXMLDocumentPart.RelationPart;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
@@ -68,6 +66,17 @@ public abstract class POIXMLFactory {
     
     /**
      * Need to delegate instantiation to sub class because of constructor visibility
+     *
+     * @param cls the document class to be instantiated
+     * @param classes the classes of the constructor arguments
+     * @param values the values of the constructor arguments
+     * @return the new document / part
+     * @throws SecurityException thrown if the object can't be instantiated
+     * @throws NoSuchMethodException thrown if there is no constructor found for the given arguments
+     * @throws InstantiationException thrown if the object can't be instantiated
+     * @throws IllegalAccessException thrown if the object can't be instantiated
+     * @throws InvocationTargetException thrown if the object can't be instantiated
+     * 
      * @since POI 3.14-Beta1
      */
     protected abstract POIXMLDocumentPart createDocumentPart
@@ -77,27 +86,12 @@ public abstract class POIXMLFactory {
     /**
      * returns the descriptor for the given relationship type 
      *
+     * @param relationshipType the relationship type of the descriptor
      * @return the descriptor or null if type is unknown
      * 
      * @since POI 3.14-Beta1
      */
     protected abstract POIXMLRelation getDescriptor(String relationshipType);
-     
-    /**
-     * Create a POIXMLDocumentPart from existing package part and relation. This method is called
-     * from {@link POIXMLDocument#load(POIXMLFactory)} when parsing a document
-     *
-     * @param parent parent part
-     * @param rel   the package part relationship
-     * @param part  the PackagePart representing the created instance
-     * @return A new instance of a POIXMLDocumentPart.
-     * 
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-     @Deprecated
-     public final POIXMLDocumentPart createDocumentPart(POIXMLDocumentPart parent, PackageRelationship rel, PackagePart part) {
-         return createDocumentPart(parent, part);
-     }
 
     /**
      * Create a new POIXMLDocumentPart using the supplied descriptor. This method is used when adding new parts
@@ -117,6 +111,13 @@ public abstract class POIXMLFactory {
 
      /**
       * Retrieves the package relationship of the child part within the parent
+      * 
+      * @param parent the parent to search for the part
+      * @param part the part to look for
+      * 
+      * @return the relationship
+      * 
+      * @throws POIXMLException if the relations are erroneous or the part is not related
       * 
       * @since POI 3.14-Beta1
       */

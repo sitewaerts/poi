@@ -38,7 +38,7 @@ import org.apache.poi.poifs.storage.RawDataBlockList;
  * Tests for the older OPOIFS-based POIFSFileSystem
  */
 public final class TestPOIFSFileSystem extends TestCase {
-   private POIDataSamples _samples = POIDataSamples.getPOIFSInstance();
+   private final POIDataSamples _samples = POIDataSamples.getPOIFSInstance();
 
 	/**
 	 * Mock exception used to ensure correct error handling
@@ -66,6 +66,7 @@ public final class TestPOIFSFileSystem extends TestCase {
 			_isClosed = false;
 		}
 
+		@Override
 		public int read() throws IOException {
 			int result = _is.read();
 			if(result >=0) {
@@ -73,6 +74,7 @@ public final class TestPOIFSFileSystem extends TestCase {
 			}
 			return result;
 		}
+		@Override
 		public int read(byte[] b, int off, int len) throws IOException {
 			int result = _is.read(b, off, len);
 			checkRead(result);
@@ -85,7 +87,8 @@ public final class TestPOIFSFileSystem extends TestCase {
 				throw new MyEx();
 			}
 		}
-		public void close() throws IOException {
+		@Override
+        public void close() throws IOException {
 			_isClosed = true;
 			_is.close();
 		}
@@ -139,10 +142,10 @@ public final class TestPOIFSFileSystem extends TestCase {
 			"ShortLastBlock.qwp", "ShortLastBlock.wps"
 		};
 
-		for(int i=0; i<files.length; i++) {
+		for (String file : files) {
 			// Open the file up
 			OPOIFSFileSystem fs = new OPOIFSFileSystem(
-			    _samples.openResourceAsStream(files[i])
+			    _samples.openResourceAsStream(file)
 			);
 
 			// Write it into a temp output array

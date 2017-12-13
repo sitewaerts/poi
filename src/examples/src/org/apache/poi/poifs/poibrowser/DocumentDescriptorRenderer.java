@@ -27,13 +27,11 @@ import org.apache.poi.util.HexDump;
  * <p>{@link TreeCellRenderer} for a {@link DocumentDescriptor}. The
  * renderer is extremly rudimentary since displays only the document's
  * name, its size and its fist few bytes.</p>
- *
- * @author Rainer Klute <a
- * href="mailto:klute@rainer-klute.de">&lt;klute@rainer-klute.de&gt;</a>
  */
 public class DocumentDescriptorRenderer extends DefaultTreeCellRenderer
 {
 
+    @Override
     public Component getTreeCellRendererComponent(final JTree tree,
                                                   final Object value,
                                                   final boolean selectedCell,
@@ -59,23 +57,16 @@ public class DocumentDescriptorRenderer extends DefaultTreeCellRenderer
     /**
      * <p>Renders {@link DocumentDescriptor} as a string.</p>
      */
-    protected String renderAsString(final DocumentDescriptor d)
-    {
-        final StringBuilder b = new StringBuilder();
-        b.append("Name: ");
-        b.append(d.name);
-        b.append(" ");
-        b.append(HexDump.toHex(d.name));
-        b.append("\n");
-
-        b.append("Size: ");
-        b.append(d.size);
-        b.append(" bytes\n");
-
-        b.append("First bytes: ");
-        b.append(HexDump.toHex(d.bytes));
-
-        return b.toString();
+    protected String renderAsString(final DocumentDescriptor d) {
+        return "Name: " +
+                d.name +
+                " " +
+                HexDump.toHex(d.name) +
+                "\n" +
+                "Size: " +
+                d.size +
+                " bytes\n" +
+                "First bytes: " +
+                HexDump.toHex(d.bytes);
     }
-
 }

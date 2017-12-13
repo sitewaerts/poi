@@ -17,6 +17,9 @@
 package org.apache.poi.ss.usermodel;
 
 import java.util.Map;
+
+import org.apache.poi.util.Internal;
+
 import java.util.HashMap;
 
 /**
@@ -25,6 +28,9 @@ import java.util.HashMap;
  * See also OOO's excelfileformat.pdf (2.5.6)
  */
 public enum FormulaError {
+    @Internal
+    _NO_ERROR(-1, "(no error)"),
+    
     /**
      * Intended to indicate when two areas are required to intersect, but do not.
      * <p>Example:
@@ -141,9 +147,9 @@ public enum FormulaError {
         return repr;
     }
 
-    private static Map<String, FormulaError> smap = new HashMap<String, FormulaError>();
-    private static Map<Byte, FormulaError> bmap = new HashMap<Byte, FormulaError>();
-    private static Map<Integer, FormulaError> imap = new HashMap<Integer, FormulaError>();
+    private static final Map<String, FormulaError> smap = new HashMap<>();
+    private static final Map<Byte, FormulaError> bmap = new HashMap<>();
+    private static final Map<Integer, FormulaError> imap = new HashMap<>();
     static{
         for (FormulaError error : values()) {
             bmap.put(error.getCode(), error);
@@ -152,7 +158,7 @@ public enum FormulaError {
         }
     }
     
-    public static final boolean isValidCode(int errorCode) {
+    public static boolean isValidCode(int errorCode) {
         for (FormulaError error : values()) {
             if (error.getCode() == errorCode) return true;
             if (error.getLongCode() == errorCode) return true;
@@ -160,19 +166,19 @@ public enum FormulaError {
         return false;
     }
 
-    public static FormulaError forInt(byte type){
+    public static FormulaError forInt(byte type) throws IllegalArgumentException {
         FormulaError err = bmap.get(type);
         if(err == null) throw new IllegalArgumentException("Unknown error type: " + type);
         return err;
     }
-    public static FormulaError forInt(int type){
+    public static FormulaError forInt(int type) throws IllegalArgumentException {
         FormulaError err = imap.get(type);
         if(err == null) err = bmap.get((byte)type);
         if(err == null) throw new IllegalArgumentException("Unknown error type: " + type);
         return err;
     }
 
-    public static FormulaError forString(String code){
+    public static FormulaError forString(String code) throws IllegalArgumentException {
         FormulaError err = smap.get(code);
         if(err == null) throw new IllegalArgumentException("Unknown error code: " + code);
         return err;

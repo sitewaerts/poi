@@ -17,9 +17,10 @@
 
 package org.apache.poi.hssf.record;
 
-import org.apache.poi.ss.usermodel.ErrorConstants;
+import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.util.HexDump;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * Creates new BoolErrRecord. (0x0205) <P>
@@ -81,26 +82,38 @@ public final class BoolErrRecord extends CellRecord implements Cloneable {
 	}
 
 	/**
-	 * set the error value for the cell
+	 * set the error value for the cell. See {@link FormulaError} for valid codes.
 	 *
 	 * @param value     error representing the error value
 	 *                  this value can only be 0,7,15,23,29,36 or 42
 	 *                  see bugzilla bug 16560 for an explanation
 	 */
 	public void setValue(byte value) {
+		setValue(FormulaError.forInt(value));
+	}
+
+	/**
+	 * set the error value for the cell
+	 *
+	 * @param value     error representing the error value
+	 *                  this value can only be 0,7,15,23,29,36 or 42
+	 *                  see bugzilla bug 16560 for an explanation
+	 */
+	public void setValue(FormulaError value) {
 		switch(value) {
-			case ErrorConstants.ERROR_NULL:
-			case ErrorConstants.ERROR_DIV_0:
-			case ErrorConstants.ERROR_VALUE:
-			case ErrorConstants.ERROR_REF:
-			case ErrorConstants.ERROR_NAME:
-			case ErrorConstants.ERROR_NUM:
-			case ErrorConstants.ERROR_NA:
-				_value = value;
+			case NULL:
+			case DIV0:
+			case VALUE:
+			case REF:
+			case NAME:
+			case NUM:
+			case NA:
+				_value = value.getCode();
 				_isError = true;
 				return;
+			default:
+		        throw new IllegalArgumentException("Error Value can only be 0,7,15,23,29,36 or 42. It cannot be "+value.getCode()+" ("+value+")");
 		}
-		throw new IllegalArgumentException("Error Value can only be 0,7,15,23,29,36 or 42. It cannot be "+value);
 	}
 
 	/**
@@ -150,7 +163,7 @@ public final class BoolErrRecord extends CellRecord implements Cloneable {
 			sb.append(getBooleanValue());
 		} else {
 			sb.append("  .errCode = ");
-			sb.append(ErrorConstants.getText(getErrorValue()));
+			sb.append(FormulaError.forInt(getErrorValue()).getString());
 			sb.append(" (").append(HexDump.byteToHex(getErrorValue())).append(")");
 		}
 	}

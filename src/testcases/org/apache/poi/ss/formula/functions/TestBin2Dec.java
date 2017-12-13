@@ -43,7 +43,7 @@ public final class TestBin2Dec extends TestCase {
 
     private static void confirmValue(String msg, String number1, String expected) {
 		ValueEval result = invokeValue(number1);
-		assertEquals("Had: " + result.toString(), NumberEval.class, result.getClass());
+		assertEquals("Had: " + result, NumberEval.class, result.getClass());
 		assertEquals(msg, expected, ((NumberEval) result).getStringValue());
 	}
 
@@ -92,13 +92,13 @@ public final class TestBin2Dec extends TestCase {
         HSSFEvaluationWorkbook workbook = HSSFEvaluationWorkbook.create(wb);
         WorkbookEvaluator workbookEvaluator = new WorkbookEvaluator(workbook, new IStabilityClassifier() {
             
+            @Override
             public boolean isCellFinal(int sheetIndex, int rowIndex, int columnIndex) {
                 return true;
             }
         }, null);
-        OperationEvaluationContext ctx = new OperationEvaluationContext(workbookEvaluator, 
+        return new OperationEvaluationContext(workbookEvaluator,
                 workbook, 0, 0, 0, null);
-        return ctx;
     }
 
     public void testRefs() {

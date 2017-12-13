@@ -18,18 +18,22 @@
 package org.apache.poi.hssf.record;
 
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.LittleEndianConsts;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
 import org.apache.poi.util.StringUtil;
 
 /**
- * Title:        Format Record (0x041E) <p/>
- * Description:  describes a number format -- those goofy strings like $(#,###)<p/>
+ * Title:        Format Record (0x041E)<p>
+ * Description:  describes a number format -- those goofy strings like $(#,###)<p>
  *
- * REFERENCE:  PG 317 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)<p/>
- * @author Andrew C. Oliver (acoliver at apache dot org)
- * @author Shawn M. Laubach (slaubach at apache dot org)
+ * REFERENCE:  PG 317 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)
  */
 public final class FormatRecord extends StandardRecord implements Cloneable {
+
+    private static final POILogger logger = POILogFactory.getLogger(FormatRecord.class);
+
     public final static short sid = 0x041E;
 
     private final int field_1_index_code;
@@ -54,9 +58,9 @@ public final class FormatRecord extends StandardRecord implements Cloneable {
         field_3_hasMultibyte = (in.readByte() & 0x01) != 0;
 
         if (field_3_hasMultibyte) {
-            field_4_formatstring = in.readUnicodeLEString(field_3_unicode_len);
+            field_4_formatstring = readStringCommon(in, field_3_unicode_len, false);
         } else {
-            field_4_formatstring = in.readCompressedUnicode(field_3_unicode_len);
+            field_4_formatstring = readStringCommon(in, field_3_unicode_len, true);
         }
     }
 
@@ -115,4 +119,54 @@ public final class FormatRecord extends StandardRecord implements Cloneable {
     public FormatRecord clone() {
         return new FormatRecord(this);
     }
+
+    private static String readStringCommon(RecordInputStream ris, int requestedLength, boolean pIsCompressedEncoding) {
+        //custom copy of ris.readUnicodeLEString to allow for extra bytes at the end
+
+        // Sanity check to detect garbage string lengths
+        if (requestedLength < 0 || requestedLength > 0x100000) { // 16 million chars?
+            throw new IllegalArgumentException("Bad requested string length (" + requestedLength + ")");
+        }
+        char[] buf = null;
+        int availableChars = pIsCompressedEncoding ? ris.remaining() : ris.remaining() / LittleEndianConsts.SHORT_SIZE;
+        //everything worked out.  Great!
+        int remaining = ris.remaining();
+        if (requestedLength == availableChars) {
+            buf = new char[requestedLength];
+        } else {
+            //sometimes in older Excel 97 .xls files,
+            //the requested length is wrong.
+            //Read all available characters.
+            buf = new char[availableChars];
+        }
+        for (int i = 0; i < buf.length; i++) {
+            char ch;
+            if (pIsCompressedEncoding) {
+                ch = (char) ris.readUByte();
+            } else {
+                ch = (char) ris.readShort();
+            }
+            buf[i] = ch;
+        }
+
+        //TIKA-2154's file shows that even in a unicode string
+        //there can be a remaining byte (without proper final '00')
+        //that should be read as a byte
+        if (ris.available() == 1) {
+            char[] tmp = new char[buf.length+1];
+            System.arraycopy(buf, 0, tmp, 0, buf.length);
+            tmp[buf.length] = (char)ris.readUByte();
+            buf = tmp;
+        }
+
+        if (ris.available() > 0) {
+            logger.log(POILogger.INFO, "FormatRecord has "+ris.available()+" unexplained bytes. Silently skipping");
+            //swallow what's left
+            while (ris.available() > 0) {
+                ris.readByte();
+            }
+        }
+        return new String(buf);
+    }
+
 }

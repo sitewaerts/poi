@@ -56,7 +56,6 @@ import org.apache.poi.hssf.record.WSBoolRecord;
 import org.apache.poi.hssf.record.WindowTwoRecord;
 import org.apache.poi.hssf.record.aggregates.WorksheetProtectionBlock;
 import org.apache.poi.hssf.usermodel.RecordInspector.RecordCollector;
-import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.ptg.Area3DPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.usermodel.AutoFilter;
@@ -64,7 +63,6 @@ import org.apache.poi.ss.usermodel.BaseTestSheet;
 import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.DataValidationConstraint;
 import org.apache.poi.ss.usermodel.DataValidationHelper;
-import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -83,11 +81,6 @@ public final class TestHSSFSheet extends BaseTestSheet {
     public TestHSSFSheet() {
         super(HSSFITestDataProvider.instance);
     }
-    
-    @Test(expected=IllegalArgumentException.class)
-    public void createRowAfterLastRow() throws IOException {
-        createRowAfterLastRow(SpreadsheetVersion.EXCEL97);
-    }
 
     /**
      * Test for Bugzilla #29747.
@@ -104,7 +97,6 @@ public final class TestHSSFSheet extends BaseTestSheet {
         assertEquals(3, nameRecord.getSheetNumber());
         wb.close();
     }
-
 
     @Test
     public void getSetMargin() throws IOException {
@@ -163,7 +155,7 @@ public final class TestHSSFSheet extends BaseTestSheet {
 
 
     /**
-     * Test WSBboolRecord fields get set in the user model.
+     * Test WSBoolRecord fields get set in the user model.
      */
     @Test
     public void wsBool() throws IOException {
@@ -173,6 +165,7 @@ public final class TestHSSFSheet extends BaseTestSheet {
                 (WSBoolRecord) s.getSheet().findFirstRecordBySid(WSBoolRecord.sid);
 
         // Check defaults
+        assertNotNull(record);
         assertTrue(record.getAlternateExpression());
         assertTrue(record.getAlternateFormula());
         assertFalse(record.getAutobreaks());
@@ -517,7 +510,6 @@ public final class TestHSSFSheet extends BaseTestSheet {
         workbook.close();
     }
 
-    @SuppressWarnings("deprecation")
     @Test
     public void zoom() throws IOException {
         HSSFWorkbook wb = new HSSFWorkbook();
@@ -526,7 +518,9 @@ public final class TestHSSFSheet extends BaseTestSheet {
         sheet.setZoom(75);
         assertTrue(sheet.getSheet().findFirstRecordLocBySid(SCLRecord.sid) > 0);
         SCLRecord sclRecord = (SCLRecord) sheet.getSheet().findFirstRecordBySid(SCLRecord.sid);
-        assertEquals(75, 100*sclRecord.getNumerator()/sclRecord.getDenominator());
+        assertNotNull(sclRecord);
+        short numerator = sclRecord.getNumerator();
+        assertEquals(75, 100* numerator /sclRecord.getDenominator());
 
         int sclLoc = sheet.getSheet().findFirstRecordLocBySid(SCLRecord.sid);
         int window2Loc = sheet.getSheet().findFirstRecordLocBySid(WindowTwoRecord.sid);
@@ -695,46 +689,6 @@ public final class TestHSSFSheet extends BaseTestSheet {
         wb3.close();
         wb2.close();
         wb1.close();
-    }
-    
-    @Test
-    public void autoSizeDate() throws IOException {
-       HSSFWorkbook wb = new HSSFWorkbook();
-       HSSFSheet s = wb.createSheet("Sheet1");
-       HSSFRow r = s.createRow(0);
-       r.createCell(0).setCellValue(1);
-       r.createCell(1).setCellValue(123456);
-       
-       // Will be sized fairly small
-       s.autoSizeColumn((short)0);
-       s.autoSizeColumn((short)1);
-       
-       // Size ranges due to different fonts on different machines
-       assertTrue("Single number column too small: " + s.getColumnWidth(0), s.getColumnWidth(0) > 350); 
-       assertTrue("Single number column too big: " + s.getColumnWidth(0),   s.getColumnWidth(0) < 550); 
-       assertTrue("6 digit number column too small: " + s.getColumnWidth(1), s.getColumnWidth(1) > 1500); 
-       assertTrue("6 digit number column too big: " + s.getColumnWidth(1),   s.getColumnWidth(1) < 2000);
-       
-       // Set a date format
-       HSSFCellStyle cs = wb.createCellStyle();
-       HSSFDataFormat f = wb.createDataFormat();
-       cs.setDataFormat(f.getFormat("yyyy-mm-dd MMMM hh:mm:ss"));
-       r.getCell(0).setCellStyle(cs);
-       r.getCell(1).setCellStyle(cs);
-       
-       assertTrue(DateUtil.isCellDateFormatted(r.getCell(0)));
-       assertTrue(DateUtil.isCellDateFormatted(r.getCell(1)));
-       
-       // Should get much bigger now
-       s.autoSizeColumn((short)0);
-       s.autoSizeColumn((short)1);
-
-       assertTrue("Date column too small: " + s.getColumnWidth(0), s.getColumnWidth(0) > 4750); 
-       assertTrue("Date column too small: " + s.getColumnWidth(1), s.getColumnWidth(1) > 4750); 
-       assertTrue("Date column too big: " + s.getColumnWidth(0), s.getColumnWidth(0) < 6500); 
-       assertTrue("Date column too big: " + s.getColumnWidth(0), s.getColumnWidth(0) < 6500);
-       
-       wb.close();
     }
 
     /**
@@ -922,19 +876,18 @@ public final class TestHSSFSheet extends BaseTestSheet {
 
         HSSFSheet sheet1 = wb1.getSheetAt(0);
 
-        wb1.getWorkbook().findDrawingGroup();
-        DrawingManager2 dm1 = wb1.getWorkbook().getDrawingManager();
-
+        DrawingManager2 dm1 = wb1.getWorkbook().findDrawingGroup();
+        int maxDrawingGroupId1 = dm1.getDgg().getMaxDrawingGroupId();
         wb1.cloneSheet(0);
+
+        //check EscherDggRecord - a workbook-level registry of drawing objects
+        assertEquals(maxDrawingGroupId1 + 1, dm1.getDgg().getMaxDrawingGroupId());
 
         HSSFWorkbook wb2 = HSSFTestDataSamples.writeOutAndReadBack(wb1);
         wb1.close();
         
-        wb2.getWorkbook().findDrawingGroup();
-        DrawingManager2 dm2 = wb2.getWorkbook().getDrawingManager();
-
-        //check EscherDggRecord - a workbook-level registry of drawing objects
-        assertEquals(dm1.getDgg().getMaxDrawingGroupId() + 1, dm2.getDgg().getMaxDrawingGroupId());
+        DrawingManager2 dm2 = wb2.getWorkbook().findDrawingGroup();
+        assertEquals(maxDrawingGroupId1 + 1, dm2.getDgg().getMaxDrawingGroupId());
 
         HSSFSheet sheet2 = wb2.getSheetAt(1);
 
@@ -964,7 +917,7 @@ public final class TestHSSFSheet extends BaseTestSheet {
             wb.createSheet(SAME_PREFIX + "Dyyyy"); // identical up to the 32nd char
             fail("Expected exception not thrown");
         } catch (IllegalArgumentException e) {
-            assertEquals("The workbook already contains a sheet of this name", e.getMessage());
+            assertEquals("The workbook already contains a sheet named 'A123456789B123456789C123456789Dyyyy'", e.getMessage());
         }
         wb.createSheet(SAME_PREFIX + "Exxxx"); // OK - differs in the 31st char
         wb.close();
@@ -991,23 +944,25 @@ public final class TestHSSFSheet extends BaseTestSheet {
 
         // Details checks
         HSSFCellStyle bs = wbSimple.getSheetAt(0).getColumnStyle(1);
+        assertNotNull(bs);
         assertEquals(62, bs.getIndex());
         assertEquals("#,##0.0_ ;\\-#,##0.0\\ ", bs.getDataFormatString());
         assertEquals("Calibri", bs.getFont(wbSimple).getFontName());
         assertEquals(11*20, bs.getFont(wbSimple).getFontHeight());
         assertEquals(8, bs.getFont(wbSimple).getColor());
         assertFalse(bs.getFont(wbSimple).getItalic());
-        assertEquals(HSSFFont.BOLDWEIGHT_NORMAL, bs.getFont(wbSimple).getBoldweight());
+        assertFalse(bs.getFont(wbSimple).getBold());
 
 
         HSSFCellStyle cs = wbComplex.getSheetAt(0).getColumnStyle(1);
+        assertNotNull(cs);
         assertEquals(62, cs.getIndex());
         assertEquals("#,##0.0_ ;\\-#,##0.0\\ ", cs.getDataFormatString());
         assertEquals("Arial", cs.getFont(wbComplex).getFontName());
         assertEquals(8*20, cs.getFont(wbComplex).getFontHeight());
         assertEquals(10, cs.getFont(wbComplex).getColor());
         assertFalse(cs.getFont(wbComplex).getItalic());
-        assertEquals(HSSFFont.BOLDWEIGHT_BOLD, cs.getFont(wbComplex).getBoldweight());
+        assertTrue(cs.getFont(wbComplex).getBold());
         
         wbComplex.close();
         wbSimple.close();
@@ -1072,6 +1027,7 @@ public final class TestHSSFSheet extends BaseTestSheet {
         sh = wb2.getSheetAt(0);
         ish = sh.getSheet();
         ObjRecord objRecord = (ObjRecord)ish.findFirstRecordBySid(ObjRecord.sid);
+        assertNotNull(objRecord);
         List<SubRecord> subRecords = objRecord.getSubRecords();
         assertEquals(3, subRecords.size());
         assertTrue(subRecords.get(0) instanceof CommonObjectDataSubRecord );
@@ -1221,5 +1177,24 @@ public final class TestHSSFSheet extends BaseTestSheet {
         assertEquals("second!A1", wb.getSheetAt(0).getRow(0).getCell(1).getCellFormula());
         
         wb.close();
+    }
+
+    @Test
+    public void bug59135() throws IOException {
+        HSSFWorkbook wb1 = new HSSFWorkbook();
+        wb1.createSheet().protectSheet("1111.2222.3333.1234");
+        HSSFWorkbook wb2 = HSSFTestDataSamples.writeOutAndReadBack(wb1);
+        wb1.close();
+        
+        assertEquals((short)0xb86b, wb2.getSheetAt(0).getPassword());
+        wb2.close();
+
+        HSSFWorkbook wb3 = new HSSFWorkbook();
+        wb3.createSheet().protectSheet("1111.2222.3333.12345");
+        HSSFWorkbook wb4 = HSSFTestDataSamples.writeOutAndReadBack(wb3);
+        wb3.close();
+        
+        assertEquals((short)0xbecc, wb4.getSheetAt(0).getPassword());
+        wb4.close();
     }
 }

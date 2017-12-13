@@ -17,20 +17,27 @@
 
 package org.apache.poi.xwpf.usermodel;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.apache.poi.POITestCase.assertContains;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import junit.framework.TestCase;
 import org.apache.poi.xwpf.XWPFTestDataSamples;
+import org.junit.Ignore;
+import org.junit.Test;
 
-public final class TestXWPFSDT extends TestCase {
+public final class TestXWPFSDT {
 
     /**
      * Test simple tag and title extraction from SDT
      *
      * @throws Exception
      */
+    @Test
     public void testTagTitle() throws Exception {
         XWPFDocument doc = XWPFTestDataSamples.openSampleDocument("Bug54849.docx");
         String tag = null;
@@ -50,7 +57,7 @@ public final class TestXWPFSDT extends TestCase {
         assertEquals("title", "MyTitle", title);
     }
 
-
+    @Test
     public void testGetSDTs() throws Exception {
         String[] contents = new String[]{
                 "header_rich_text",
@@ -82,6 +89,7 @@ public final class TestXWPFSDT extends TestCase {
     /**
      * POI-54771 and TIKA-1317
      */
+    @Test
     public void testSDTAsCell() throws Exception {
         //Bug54771a.docx and Bug54771b.docx test slightly 
         //different recursion patterns. Keep both!
@@ -89,30 +97,31 @@ public final class TestXWPFSDT extends TestCase {
         List<AbstractXWPFSDT> sdts = extractAllSDTs(doc);
         String text = sdts.get(0).getContent().getText();
         assertEquals(2, sdts.size());
-        assertTrue(text.indexOf("Test") > -1);
+        assertContains(text, "Test");
 
         text = sdts.get(1).getContent().getText();
-        assertTrue(text.indexOf("Test Subtitle") > -1);
-        assertTrue(text.indexOf("Test User") > -1);
+        assertContains(text, "Test Subtitle");
+        assertContains(text, "Test User");
         assertTrue(text.indexOf("Test") < text.indexOf("Test Subtitle"));
 
         doc = XWPFTestDataSamples.openSampleDocument("Bug54771b.docx");
         sdts = extractAllSDTs(doc);
         assertEquals(3, sdts.size());
-        assertTrue(sdts.get(0).getContent().getText().indexOf("Test") > -1);
+        assertContains(sdts.get(0).getContent().getText(), "Test");
 
-        assertTrue(sdts.get(1).getContent().getText().indexOf("Test Subtitle") > -1);
-        assertTrue(sdts.get(2).getContent().getText().indexOf("Test User") > -1);
+        assertContains(sdts.get(1).getContent().getText(), "Test Subtitle");
+        assertContains(sdts.get(2).getContent().getText(), "Test User");
 
     }
 
     /**
      * POI-55142 and Tika 1130
      */
+    @Test
     public void testNewLinesBetweenRuns() throws Exception {
         XWPFDocument doc = XWPFTestDataSamples.openSampleDocument("Bug55142.docx");
         List<AbstractXWPFSDT> sdts = extractAllSDTs(doc);
-        List<String> targs = new ArrayList<String>();
+        List<String> targs = new ArrayList<>();
         //these test newlines and tabs in paragraphs/body elements
         targs.add("Rich-text1 abcdefghi");
         targs.add("Rich-text2 abcd\t\tefgh");
@@ -131,9 +140,19 @@ public final class TestXWPFSDT extends TestCase {
         }
     }
 
+    @Test
+    public void test60341() throws IOException {
+        //handle sdtbody without an sdtpr
+        XWPFDocument doc = XWPFTestDataSamples.openSampleDocument("Bug60341.docx");
+        List<AbstractXWPFSDT> sdts = extractAllSDTs(doc);
+        assertEquals(1, sdts.size());
+        assertEquals("", sdts.get(0).getTag());
+        assertEquals("", sdts.get(0).getTitle());
+    }
+
     private List<AbstractXWPFSDT> extractAllSDTs(XWPFDocument doc) {
 
-        List<AbstractXWPFSDT> sdts = new ArrayList<AbstractXWPFSDT>();
+        List<AbstractXWPFSDT> sdts = new ArrayList<>();
 
         List<XWPFHeader> headers = doc.getHeaderList();
         for (XWPFHeader header : headers) {
@@ -156,7 +175,7 @@ public final class TestXWPFSDT extends TestCase {
     }
 
     private List<AbstractXWPFSDT> extractSDTsFromBodyElements(List<IBodyElement> elements) {
-        List<AbstractXWPFSDT> sdts = new ArrayList<AbstractXWPFSDT>();
+        List<AbstractXWPFSDT> sdts = new ArrayList<>();
         for (IBodyElement e : elements) {
             if (e instanceof XWPFSDT) {
                 XWPFSDT sdt = (XWPFSDT) e;
@@ -180,7 +199,7 @@ public final class TestXWPFSDT extends TestCase {
 
     private List<AbstractXWPFSDT> extractSDTsFromTable(XWPFTable table) {
 
-        List<AbstractXWPFSDT> sdts = new ArrayList<AbstractXWPFSDT>();
+        List<AbstractXWPFSDT> sdts = new ArrayList<>();
         for (XWPFTableRow r : table.getRows()) {
             for (ICell c : r.getTableICells()) {
                 if (c instanceof XWPFSDTCell) {

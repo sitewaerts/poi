@@ -33,7 +33,7 @@ import org.apache.poi.hssf.usermodel.SanityChecker.CheckRecord;
 import org.junit.Test;
 
 /**
- * A Test case for a test utility class.<br/>
+ * A Test case for a test utility class.<br>
  * Okay, this may seem strange but I need to test my test logic.
  *
  * @author Glen Stampoultzis (glens at apache.org)
@@ -47,7 +47,7 @@ public final class TestSanityChecker {
 	@Test
 	public void testCheckRecordOrder() {
 		final SanityChecker c = new SanityChecker();
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		records.add(new BOFRecord());
 		records.add(INTERFACEHDR);
 		records.add(createBoundSheetRec());
@@ -124,7 +124,8 @@ public final class TestSanityChecker {
 		final List<Record> records = Arrays.asList(recs);
 		try {
 			new Runnable() {
-				public void run() {
+				@Override
+                public void run() {
 					c.checkRecordOrder(records, check);
 				}
 			}.run();

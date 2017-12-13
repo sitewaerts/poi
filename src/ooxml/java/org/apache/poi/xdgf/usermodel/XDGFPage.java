@@ -34,7 +34,7 @@ public class XDGFPage {
     private PageType _page;
     protected XDGFPageContents _content;
     protected XDGFPages _pages;
-    protected XDGFSheet _pageSheet = null;
+    protected XDGFSheet _pageSheet;
 
     public XDGFPage(PageType page, XDGFPageContents content,
             XDGFDocument document, XDGFPages pages) {
@@ -99,7 +99,7 @@ public class XDGFPage {
         if (xoffcell != null)
             xoffset = Double.parseDouble(xoffcell.getValue());
 
-        if (xoffcell != null)
+        if (yoffcell != null)
             yoffset = Double.parseDouble(yoffcell.getValue());
 
         return new Point2D.Double(xoffset, yoffset);

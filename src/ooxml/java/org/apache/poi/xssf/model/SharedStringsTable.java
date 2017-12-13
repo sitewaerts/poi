@@ -18,6 +18,7 @@
 package org.apache.poi.xssf.model;
 
 import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
+import static org.apache.poi.xssf.usermodel.XSSFRelation.NS_SPREADSHEETML;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,13 +31,11 @@ import java.util.Map;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlOptions;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRst;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTSst;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.SstDocument;
-
 
 /**
  * Table of strings shared across all sheets in a workbook.
@@ -58,21 +57,18 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.SstDocument;
  * The shared string table contains all the necessary information for displaying the string: the text, formatting
  * properties, and phonetic properties (for East Asian languages).
  * </p>
- *
- * @author Nick Birch
- * @author Yegor Kozlov
  */
 public class SharedStringsTable extends POIXMLDocumentPart {
 
     /**
      *  Array of individual string items in the Shared String table.
      */
-    private final List<CTRst> strings = new ArrayList<CTRst>();
+    private final List<CTRst> strings = new ArrayList<>();
 
     /**
      *  Maps strings and their indexes in the <code>strings</code> arrays
      */
-    private final Map<String, Integer> stmap = new HashMap<String, Integer>();
+    private final Map<String, Integer> stmap = new HashMap<>();
 
     /**
      * An integer representing the total count of strings in the workbook. This count does not
@@ -89,12 +85,12 @@ public class SharedStringsTable extends POIXMLDocumentPart {
 
     private SstDocument _sstDoc;
 
-    private final static XmlOptions options = new XmlOptions();
+    private static final XmlOptions options = new XmlOptions();
     static {
         options.put( XmlOptions.SAVE_INNER );
      	options.put( XmlOptions.SAVE_AGGRESSIVE_NAMESPACES );
      	options.put( XmlOptions.SAVE_USE_DEFAULT_NAMESPACE );
-        options.setSaveImplicitNamespaces(Collections.singletonMap("", "http://schemas.openxmlformats.org/spreadsheetml/2006/main"));
+        options.setSaveImplicitNamespaces(Collections.singletonMap("", NS_SPREADSHEETML));
     }
 
     public SharedStringsTable() {
@@ -112,13 +108,6 @@ public class SharedStringsTable extends POIXMLDocumentPart {
     }    
     
     /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    public SharedStringsTable(PackagePart part, PackageRelationship rel) throws IOException {
-        this(part);
-    }
-
-    /**
      * Read this shared strings table from an XML file.
      * 
      * @param is The input stream containing the XML document.
@@ -131,13 +120,14 @@ public class SharedStringsTable extends POIXMLDocumentPart {
             CTSst sst = _sstDoc.getSst();
             count = (int)sst.getCount();
             uniqueCount = (int)sst.getUniqueCount();
+            //noinspection deprecation
             for (CTRst st : sst.getSiArray()) {
                 stmap.put(getKey(st), cnt);
                 strings.add(st);
                 cnt++;
             }
         } catch (XmlException e) {
-            throw new IOException(e);
+            throw new IOException("unable to parse shared strings table", e);
         }
     }
 
@@ -209,7 +199,7 @@ public class SharedStringsTable extends POIXMLDocumentPart {
      * @return array of CTRst beans
      */
     public List<CTRst> getItems() {
-        return strings;
+        return Collections.unmodifiableList(strings);
     }
 
     /**
@@ -219,18 +209,18 @@ public class SharedStringsTable extends POIXMLDocumentPart {
      * @throws IOException if an error occurs while writing.
      */
     public void writeTo(OutputStream out) throws IOException {
-        XmlOptions options = new XmlOptions(DEFAULT_XML_OPTIONS);
+        XmlOptions xmlOptions = new XmlOptions(DEFAULT_XML_OPTIONS);
         // the following two lines turn off writing CDATA
         // see Bugzilla 48936
-        options.setSaveCDataLengthThreshold(1000000);
-        options.setSaveCDataEntityCountThreshold(-1);
+        xmlOptions.setSaveCDataLengthThreshold(1000000);
+        xmlOptions.setSaveCDataEntityCountThreshold(-1);
 
         //re-create the sst table every time saving a workbook
         CTSst sst = _sstDoc.getSst();
         sst.setCount(count);
         sst.setUniqueCount(uniqueCount);
 
-        _sstDoc.save(out, options);
+        _sstDoc.save(out, xmlOptions);
     }
 
     @Override

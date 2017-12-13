@@ -16,17 +16,20 @@
 ==================================================================== */
 package org.apache.poi.ss.usermodel;
 
+import org.apache.poi.common.usermodel.HyperlinkType;
+import org.apache.poi.ss.util.AreaReference;
+import org.apache.poi.ss.util.CellReference;
+
 /**
  * An object that handles instantiating concrete
  *  classes of the various instances one needs for
  *  HSSF and XSSF.
- * Works around a major shortcoming in Java, where we
- *  can't have static methods on interfaces or abstract
+ * Works around a limitation in Java where we
+ *  cannot have static methods on interfaces or abstract
  *  classes.
  * This allows you to get the appropriate class for
  *  a given interface, without you having to worry
- *  about if you're dealing with HSSF or XSSF, despite
- *  Java being quite rubbish.
+ *  about if you're dealing with HSSF or XSSF.
  */
 public interface CreationHelper {
     /**
@@ -39,11 +42,11 @@ public interface CreationHelper {
      * Creates a new DataFormat instance
      */
     DataFormat createDataFormat();
-
+    
     /**
      * Creates a new Hyperlink, of the given type
      */
-    Hyperlink createHyperlink(int type);
+    Hyperlink createHyperlink(HyperlinkType type);
 
     /**
      * Creates FormulaEvaluator - an object that evaluates formula cells.
@@ -58,5 +61,29 @@ public interface CreationHelper {
      */
     ExtendedColor createExtendedColor();
 
+    /**
+     * Creates a ClientAnchor. Use this object to position drawing object in a sheet
+     *
+     * @return a ClientAnchor instance
+     * @see org.apache.poi.ss.usermodel.Drawing
+     */
     ClientAnchor createClientAnchor();
+
+    /**
+     * Creates an AreaReference.
+     *
+     * @param reference cell reference
+     * @return an AreaReference instance
+     */
+    AreaReference createAreaReference(String reference);
+
+    /**
+     * Creates an area ref from a pair of Cell References..
+     *
+     * @param topLeft cell reference
+     * @param bottomRight cell reference
+     * @return an AreaReference instance
+     */
+    AreaReference createAreaReference(CellReference topLeft, CellReference bottomRight);
+
 }

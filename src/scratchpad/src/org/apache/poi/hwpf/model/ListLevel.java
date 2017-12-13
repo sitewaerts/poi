@@ -19,6 +19,7 @@ package org.apache.poi.hwpf.model;
 
 import java.util.Arrays;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
@@ -37,6 +38,10 @@ import org.apache.poi.util.POILogger;
 @Internal
 public final class ListLevel
 {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 10_485_760;
+
     private static final POILogger logger = POILogFactory
             .getLogger( ListLevel.class );
 
@@ -96,8 +101,8 @@ public final class ListLevel
         setStartAt( startAt );
         _lvlf.setNfc( (byte) numberFormatCode );
         _lvlf.setJc( (byte) alignment );
-        _grpprlChpx = numberProperties;
-        _grpprlPapx = entryProperties;
+        _grpprlChpx = numberProperties.clone();
+        _grpprlPapx = entryProperties.clone();
         _xst = new Xst(numberText);
     }
 
@@ -216,10 +221,12 @@ public final class ListLevel
         _lvlf = new LVLF( data, offset );
         offset += LVLF.getSize();
 
+        //short -- no need to safely allocate
         _grpprlPapx = new byte[_lvlf.getCbGrpprlPapx()];
         System.arraycopy( data, offset, _grpprlPapx, 0, _lvlf.getCbGrpprlPapx() );
         offset += _lvlf.getCbGrpprlPapx();
 
+        //short -- no need to safely allocate
         _grpprlChpx = new byte[_lvlf.getCbGrpprlChpx()];
         System.arraycopy( data, offset, _grpprlChpx, 0, _lvlf.getCbGrpprlChpx() );
         offset += _lvlf.getCbGrpprlChpx();
@@ -279,7 +286,7 @@ public final class ListLevel
 
     public byte[] toByteArray()
     {
-        byte[] buf = new byte[getSizeInBytes()];
+        byte[] buf = IOUtils.safelyAllocate(getSizeInBytes(), MAX_RECORD_LENGTH);
         int offset = 0;
 
         _lvlf.setCbGrpprlChpx( (short) _grpprlChpx.length );

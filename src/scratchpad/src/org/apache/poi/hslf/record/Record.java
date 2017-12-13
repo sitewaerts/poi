@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.poi.hslf.exceptions.CorruptPowerPointFileException;
+import org.apache.poi.hslf.exceptions.HSLFException;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
@@ -107,7 +108,7 @@ public abstract class Record
 	 * Default method for finding child records of a container record
 	 */
 	public static Record[] findChildRecords(byte[] b, int start, int len) {
-		List<Record> children = new ArrayList<Record>(5);
+		List<Record> children = new ArrayList<>(5);
 
 		// Jump our little way along, creating records as we go
 		int pos = start;
@@ -136,8 +137,7 @@ public abstract class Record
 		}
 
 		// Turn the vector into an array, and return
-		Record[] cRecords = children.toArray( new Record[children.size()] );
-		return cRecords;
+        return children.toArray( new Record[children.size()] );
 	}
 
 	/**
@@ -168,7 +168,7 @@ public abstract class Record
 		try {
 			c = RecordTypes.forTypeID((short)type).handlingClass;
 			if(c == null) {
-				// How odd. RecordTypes normally subsitutes in
+				// How odd. RecordTypes normally substitutes in
 				//  a default handler class if it has heard of the record
 				//  type but there's no support for it. Explicitly request
 				//  that now
@@ -180,13 +180,13 @@ public abstract class Record
 			// Instantiate
 			toReturn = con.newInstance(new Object[] { b, start, len });
 		} catch(InstantiationException ie) {
-			throw new RuntimeException("Couldn't instantiate the class for type with id " + type + " on class " + c + " : " + ie, ie);
+			throw new HSLFException("Couldn't instantiate the class for type with id " + type + " on class " + c + " : " + ie, ie);
 		} catch(java.lang.reflect.InvocationTargetException ite) {
-			throw new RuntimeException("Couldn't instantiate the class for type with id " + type + " on class " + c + " : " + ite + "\nCause was : " + ite.getCause(), ite);
+			throw new HSLFException("Couldn't instantiate the class for type with id " + type + " on class " + c + " : " + ite + "\nCause was : " + ite.getCause(), ite);
 		} catch(IllegalAccessException iae) {
-			throw new RuntimeException("Couldn't access the constructor for type with id " + type + " on class " + c + " : " + iae, iae);
+			throw new HSLFException("Couldn't access the constructor for type with id " + type + " on class " + c + " : " + iae, iae);
 		} catch(NoSuchMethodException nsme) {
-			throw new RuntimeException("Couldn't access the constructor for type with id " + type + " on class " + c + " : " + nsme, nsme);
+			throw new HSLFException("Couldn't access the constructor for type with id " + type + " on class " + c + " : " + nsme, nsme);
 		}
 
 		// Handling for special kinds of records follow

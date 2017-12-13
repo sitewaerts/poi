@@ -24,17 +24,24 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 
+import org.apache.poi.POIDataSamples;
 import org.apache.poi.POITextExtractor;
 import org.apache.poi.POIXMLException;
 import org.apache.poi.extractor.ExtractorFactory;
 import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.openxml4j.OpenXML4JTestDataSamples;
+import org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException;
+import org.apache.poi.sl.usermodel.SlideShow;
+import org.apache.poi.sl.usermodel.SlideShowFactory;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.xssf.XSSFTestDataSamples;
@@ -50,23 +57,27 @@ public class TestZipPackage {
         
         // Check we found the contents of it
         boolean foundCoreProps = false, foundDocument = false, foundTheme1 = false;
-        for (PackagePart part : p.getParts()) {
-            if (part.getPartName().toString().equals("/docProps/core.xml")) {
-                assertEquals(ContentTypes.CORE_PROPERTIES_PART, part.getContentType());
+        for (final PackagePart part : p.getParts()) {
+            final String partName = part.getPartName().toString();
+            final String contentType = part.getContentType();
+            if ("/docProps/core.xml".equals(partName)) {
+                assertEquals(ContentTypes.CORE_PROPERTIES_PART, contentType);
                 foundCoreProps = true;
             }
-            if (part.getPartName().toString().equals("/word/document.xml")) {
-                assertEquals(XWPFRelation.DOCUMENT.getContentType(), part.getContentType());
+            if ("/word/document.xml".equals(partName)) {
+                assertEquals(XWPFRelation.DOCUMENT.getContentType(), contentType);
                 foundDocument = true;
             }
-            if (part.getPartName().toString().equals("/word/theme/theme1.xml")) {
-                assertEquals(XWPFRelation.THEME.getContentType(), part.getContentType());
+            if ("/word/theme/theme1.xml".equals(partName)) {
+                assertEquals(XWPFRelation.THEME.getContentType(), contentType);
                 foundTheme1 = true;
             }
         }
         assertTrue("Core not found in " + p.getParts(), foundCoreProps);
         assertFalse("Document should not be found in " + p.getParts(), foundDocument);
         assertFalse("Theme1 should not found in " + p.getParts(), foundTheme1);
+        p.close();
+        is.close();
     }
 
     @Test
@@ -82,14 +93,11 @@ public class TestZipPackage {
 
     private void assertEntityLimitReached(Exception e) throws UnsupportedEncodingException {
         ByteArrayOutputStream str = new ByteArrayOutputStream();
-        PrintWriter writer = new PrintWriter(new OutputStreamWriter(str, "UTF-8"));
-        try {
+        try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(str, "UTF-8"))) {
             e.printStackTrace(writer);
-        } finally {
-            writer.close();
         }
         String string = new String(str.toByteArray(), "UTF-8");
-        assertTrue("Had: " + string, string.contains("Exceeded Entity dereference bytes limit"));
+        assertTrue("Had: " + string, string.contains("The parser has encountered more than"));
     }
 
     @Test
@@ -103,17 +111,14 @@ public class TestZipPackage {
         }
 
         try {
-            POITextExtractor extractor = ExtractorFactory.createExtractor(HSSFTestDataSamples.getSampleFile("poc-xmlbomb.xlsx"));
-            try  {
+            try (POITextExtractor extractor = ExtractorFactory.createExtractor(HSSFTestDataSamples.getSampleFile("poc-xmlbomb.xlsx"))) {
                 assertNotNull(extractor);
-    
+
                 try {
                     extractor.getText();
                 } catch (IllegalStateException e) {
                     // expected due to shared strings expansion
                 }
-            } finally {
-                extractor.close();
             }
         } catch (POIXMLException e) {
             assertEntityLimitReached(e);
@@ -124,9 +129,8 @@ public class TestZipPackage {
     public void testZipEntityExpansionSharedStringTable() throws Exception {
         Workbook wb = WorkbookFactory.create(XSSFTestDataSamples.openSamplePackage("poc-shared-strings.xlsx"));
         wb.close();
-        
-        POITextExtractor extractor = ExtractorFactory.createExtractor(HSSFTestDataSamples.getSampleFile("poc-shared-strings.xlsx"));
-        try  {
+
+        try (POITextExtractor extractor = ExtractorFactory.createExtractor(HSSFTestDataSamples.getSampleFile("poc-shared-strings.xlsx"))) {
             assertNotNull(extractor);
 
             try {
@@ -134,8 +138,6 @@ public class TestZipPackage {
             } catch (IllegalStateException e) {
                 // expected due to shared strings expansion
             }
-        } finally {
-            extractor.close();
         }
     }
 
@@ -144,22 +146,101 @@ public class TestZipPackage {
         boolean before = ExtractorFactory.getThreadPrefersEventExtractors();
         ExtractorFactory.setThreadPrefersEventExtractors(true);
         try {
-            POITextExtractor extractor = ExtractorFactory.createExtractor(HSSFTestDataSamples.getSampleFile("poc-shared-strings.xlsx"));
-            try  {
+            try (POITextExtractor extractor = ExtractorFactory.createExtractor(HSSFTestDataSamples.getSampleFile("poc-shared-strings.xlsx"))) {
                 assertNotNull(extractor);
-    
+
                 try {
                     extractor.getText();
                 } catch (IllegalStateException e) {
                     // expected due to shared strings expansion
                 }
-            } finally {
-                extractor.close();
             }
         } catch (XmlException e) {
             assertEntityLimitReached(e);
         } finally {
             ExtractorFactory.setThreadPrefersEventExtractors(before);
+        }
+    }
+    
+    @Test
+    public void unparseableCentralDirectory() throws IOException {
+        File f = OpenXML4JTestDataSamples.getSampleFile("at.pzp.www_uploads_media_PP_Scheinecker-jdk6error.pptx");
+        SlideShow<?,?> ppt = SlideShowFactory.create(f, null, true);
+        ppt.close();
+    }
+
+    @Test
+    public void testClosingStreamOnException() throws IOException {
+        InputStream is = OpenXML4JTestDataSamples.openSampleStream("dcterms_bug_56479.zip");
+        File tmp = File.createTempFile("poi-test-truncated-zip", "");
+        // create a corrupted zip file by truncating a valid zip file to the first 100 bytes
+        OutputStream os = new FileOutputStream(tmp);
+        for (int i = 0; i < 100; i++) {
+            os.write(is.read());
+        }
+        os.flush();
+        os.close();
+        is.close();
+
+        // feed the corrupted zip file to OPCPackage
+        try {
+            OPCPackage.open(tmp, PackageAccess.READ);
+        } catch (Exception e) {
+            // expected: the zip file is invalid
+            // this test does not care if open() throws an exception or not.
+        }
+        // If the stream is not closed on exception, it will keep a file descriptor to tmp,
+        // and requests to the OS to delete the file will fail.
+        assertTrue("Can't delete tmp file", tmp.delete());
+    }
+    
+    /**
+     * If ZipPackage is passed an invalid file, a call to close
+     *  (eg from the OPCPackage open method) should tidy up the
+     *  stream / file the broken file is being read from.
+     * See bug #60128 for more
+     */
+    @Test
+    public void testTidyStreamOnInvalidFile() throws Exception {
+        // Spreadsheet has a good mix of alternate file types
+        POIDataSamples files = POIDataSamples.getSpreadSheetInstance();
+        
+        File[] notValidF = new File[] {
+                files.getFile("SampleSS.ods"), files.getFile("SampleSS.txt")
+        };
+        InputStream[] notValidS = new InputStream[] {
+                files.openResourceAsStream("SampleSS.ods"), files.openResourceAsStream("SampleSS.txt")
+        };
+
+        for (File notValid : notValidF) {
+            ZipPackage pkg = new ZipPackage(notValid, PackageAccess.READ);
+            assertNotNull(pkg.getZipArchive());
+            assertFalse(pkg.getZipArchive().isClosed());
+            try {
+                pkg.getParts();
+                fail("Shouldn't work");
+            } catch (NotOfficeXmlFileException e) {
+                // expected here
+            }
+            pkg.close();
+            
+            assertNotNull(pkg.getZipArchive());
+            assertTrue(pkg.getZipArchive().isClosed());
+        }
+        for (InputStream notValid : notValidS) {
+            ZipPackage pkg = new ZipPackage(notValid, PackageAccess.READ);
+            assertNotNull(pkg.getZipArchive());
+            assertFalse(pkg.getZipArchive().isClosed());
+            try {
+                pkg.getParts();
+                fail("Shouldn't work");
+            } catch (NotOfficeXmlFileException e) {
+                // expected here
+            }
+            pkg.close();
+            
+            assertNotNull(pkg.getZipArchive());
+            assertTrue(pkg.getZipArchive().isClosed());
         }
     }
 }

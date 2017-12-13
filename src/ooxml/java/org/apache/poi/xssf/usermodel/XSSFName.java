@@ -16,11 +16,14 @@
 ==================================================================== */
 package org.apache.poi.xssf.usermodel;
 
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.ptg.Ptg;
+
 import org.apache.poi.ss.formula.FormulaParser;
 import org.apache.poi.ss.formula.FormulaType;
 import org.apache.poi.ss.usermodel.Name;
 import org.apache.poi.ss.util.AreaReference;
+import org.apache.poi.ss.util.CellReference;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTDefinedName;
 
 /**
@@ -52,23 +55,23 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTDefinedName;
  * @author Yegor Kozlov
  */
 public final class XSSFName implements Name {
-
+    
     /**
      * A built-in defined name that specifies the workbook's print area
      */
-    public final static String BUILTIN_PRINT_AREA = "_xlnm.Print_Area";
+    public static final String BUILTIN_PRINT_AREA = "_xlnm.Print_Area";
 
     /**
      * A built-in defined name that specifies the row(s) or column(s) to repeat
      * at the top of each printed page.
      */
-    public final static String BUILTIN_PRINT_TITLE = "_xlnm.Print_Titles";
+    public static final String BUILTIN_PRINT_TITLE = "_xlnm.Print_Titles";
 
     /**
      * A built-in defined name that refers to a range containing the criteria values
      * to be used in applying an advanced filter to a range of data
      */
-    public final static String BUILTIN_CRITERIA = "_xlnm.Criteria:";
+    public static final String BUILTIN_CRITERIA = "_xlnm.Criteria:";
 
 
     /**
@@ -76,7 +79,7 @@ public final class XSSFName implements Name {
      * output values resulting from applying an advanced filter criteria to a source
      * range
      */
-    public final static String BUILTIN_EXTRACT = "_xlnm.Extract:";
+    public static final String BUILTIN_EXTRACT = "_xlnm.Extract:";
 
     /**
      * ?an be one of the following
@@ -85,22 +88,22 @@ public final class XSSFName implements Name {
      * <li> This defined name refers to a range to which an AutoFilter has been
      * applied
      */
-    public final static String BUILTIN_FILTER_DB = "_xlnm._FilterDatabase";
+    public static final String BUILTIN_FILTER_DB = "_xlnm._FilterDatabase";
 
     /**
      * A built-in defined name that refers to a consolidation area
      */
-    public final static String BUILTIN_CONSOLIDATE_AREA = "_xlnm.Consolidate_Area";
+    public static final String BUILTIN_CONSOLIDATE_AREA = "_xlnm.Consolidate_Area";
 
     /**
      * A built-in defined name that specified that the range specified is from a database data source
      */
-    public final static String BUILTIN_DATABASE = "_xlnm.Database";
+    public static final String BUILTIN_DATABASE = "_xlnm.Database";
 
     /**
      * A built-in defined name that refers to a sheet title.
      */
-    public final static String BUILTIN_SHEET_TITLE = "_xlnm.Sheet_Title";
+    public static final String BUILTIN_SHEET_TITLE = "_xlnm.Sheet_Title";
 
     private XSSFWorkbook _workbook;
     private CTDefinedName _ctName;
@@ -166,19 +169,18 @@ public final class XSSFName implements Name {
     public void setNameName(String name) {
         validateName(name);
 
+        String oldName = getNameName();
         int sheetIndex = getSheetIndex();
-
-        //Check to ensure no other names have the same case-insensitive name
-        for (int i = 0; i < _workbook.getNumberOfNames(); i++) {
-            XSSFName nm = _workbook.getNameAt(i);
-            if (nm != this) {
-                if(name.equalsIgnoreCase(nm.getNameName()) && sheetIndex == nm.getSheetIndex()){
-                    String msg = "The "+(sheetIndex == -1 ? "workbook" : "sheet")+" already contains this name: " + name;
-                    throw new IllegalArgumentException(msg);
-               }
+        //Check to ensure no other names have the same case-insensitive name at the same scope
+        for (XSSFName foundName : _workbook.getNames(name)) {
+            if (foundName.getSheetIndex() == sheetIndex && foundName != this) {
+                String msg = "The "+(sheetIndex == -1 ? "workbook" : "sheet")+" already contains this name: " + name;
+                throw new IllegalArgumentException(msg);
             }
         }
         _ctName.setName(name);
+        //Need to update the name -> named ranges map
+        _workbook.updateName(this, oldName);
     }
 
     public String getRefersToFormula() {
@@ -192,7 +194,7 @@ public final class XSSFName implements Name {
     public void setRefersToFormula(String formulaText) {
         XSSFEvaluationWorkbook fpb = XSSFEvaluationWorkbook.create(_workbook);
         //validate through the FormulaParser
-        FormulaParser.parse(formulaText, fpb, FormulaType.NAMEDRANGE, getSheetIndex());
+        FormulaParser.parse(formulaText, fpb, FormulaType.NAMEDRANGE, getSheetIndex(), -1);
 
         _ctName.setStringValue(formulaText);
     }
@@ -203,7 +205,7 @@ public final class XSSFName implements Name {
             return false;
         }
         XSSFEvaluationWorkbook fpb = XSSFEvaluationWorkbook.create(_workbook);
-        Ptg[] ptgs = FormulaParser.parse(formulaText, fpb, FormulaType.NAMEDRANGE, getSheetIndex());
+        Ptg[] ptgs = FormulaParser.parse(formulaText, fpb, FormulaType.NAMEDRANGE, getSheetIndex(), -1);
         return Ptg.doesFormulaReferToDeletedCell(ptgs);
     }
 
@@ -281,7 +283,7 @@ public final class XSSFName implements Name {
      * Get the sheets name which this named range is referenced to
      *
      * @return sheet name, which this named range referred to.
-     * Empty string if the referenced sheet name weas not found.
+     * Empty string if the referenced sheet name was not found.
      */
     public String getSheetName() {
         if (_ctName.isSetLocalSheetId()) {
@@ -290,7 +292,7 @@ public final class XSSFName implements Name {
             return _workbook.getSheetName(sheetId);
         }
         String ref = getRefersToFormula();
-        AreaReference areaRef = new AreaReference(ref);
+        AreaReference areaRef = new AreaReference(ref, SpreadsheetVersion.EXCEL2007);
         return areaRef.getFirstCell().getSheetName();
     }
 
@@ -344,12 +346,76 @@ public final class XSSFName implements Name {
         XSSFName cf = (XSSFName) o;
         return _ctName.toString().equals(cf.getCTName().toString());
     }
-
-    private static void validateName(String name){
-        if(name.length() == 0)  throw new IllegalArgumentException("Name cannot be blank");
+    
+    /**
+     * https://support.office.com/en-us/article/Define-and-use-names-in-formulas-4D0F13AC-53B7-422E-AFD2-ABD7FF379C64#bmsyntax_rules_for_names
+     * 
+     * Valid characters:
+     *   First character: { letter | underscore | backslash }
+     *   Remaining characters: { letter | number | period | underscore }
+     *   
+     * Cell shorthand: cannot be { "C" | "c" | "R" | "r" }
+     * 
+     * Cell references disallowed: cannot be a cell reference $A$1 or R1C1
+     * 
+     * Spaces are not valid (follows from valid characters above)
+     * 
+     * Name length: (XSSF-specific?) 255 characters maximum
+     * 
+     * Case sensitivity: all names are case-insensitive
+     * 
+     * Uniqueness: must be unique (for names with the same scope)
+     *
+     * @param name
+     */
+    private static void validateName(String name) {
+        
+        if (name.length() == 0) {
+            throw new IllegalArgumentException("Name cannot be blank");
+        }
+        if (name.length() > 255) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': cannot exceed 255 characters in length");
+        }
+        if (name.equalsIgnoreCase("R") || name.equalsIgnoreCase("C")) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': cannot be special shorthand R or C");
+        }
+        
+        // is first character valid?
         char c = name.charAt(0);
-        if(!(c == '_' || Character.isLetter(c)) || name.indexOf(' ') != -1) {
-            throw new IllegalArgumentException("Invalid name: '"+name+"'; Names must begin with a letter or underscore and not contain spaces");
+        String allowedSymbols = "_\\";
+        boolean characterIsValid = (Character.isLetter(c) || allowedSymbols.indexOf(c) != -1);
+        if (!characterIsValid) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': first character must be underscore or a letter");
+        }
+        
+        // are all other characters valid?
+        allowedSymbols = "_.\\"; //backslashes needed for unicode escape
+        for (final char ch : name.toCharArray()) {
+            characterIsValid = (Character.isLetterOrDigit(ch) || allowedSymbols.indexOf(ch) != -1);
+            if (!characterIsValid) {
+                throw new IllegalArgumentException("Invalid name: '"+name+"': name must be letter, digit, period, or underscore");
+            }
+        }
+        
+        // Is the name a valid $A$1 cell reference
+        // Because $, :, and ! are disallowed characters, A1-style references become just a letter-number combination
+        if (name.matches("[A-Za-z]+\\d+")) {
+            String col = name.replaceAll("\\d", "");
+            String row = name.replaceAll("[A-Za-z]", "");
+            
+            try {
+                if (CellReference.cellReferenceIsWithinRange(col, row, SpreadsheetVersion.EXCEL2007)) {
+                    throw new IllegalArgumentException("Invalid name: '"+name+"': cannot be $A$1-style cell reference");
+                }
+            } catch (final NumberFormatException e) {
+                // row was not parseable as an Integer, such as a BigInt
+                // therefore name passes the not-a-cell-reference criteria
+            }
+        }
+        
+        // Is the name a valid R1C1 cell reference?
+        if (name.matches("[Rr]\\d+[Cc]\\d+")) {
+            throw new IllegalArgumentException("Invalid name: '"+name+"': cannot be R1C1-style cell reference");
         }
     }
 }

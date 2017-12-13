@@ -34,7 +34,7 @@ import org.w3c.dom.Node;
 /**
  * This class implements the Map element (Open Office XML Part 4:
  * chapter 3.16.2)
- * <p/>
+ * <p>
  * This element contains all of the properties related to the XML map,
  * and the behaviors expected during data refresh operations.
  *
@@ -76,7 +76,7 @@ public class XSSFMap {
      * @return the list of Single Xml Cells that provide a map rule to this mapping.
      */
     public List<XSSFSingleXmlCell> getRelatedSingleXMLCell() {
-        List<XSSFSingleXmlCell> relatedSimpleXmlCells = new ArrayList<XSSFSingleXmlCell>();
+        List<XSSFSingleXmlCell> relatedSimpleXmlCells = new ArrayList<>();
 
         int sheetNumber = mapInfo.getWorkbook().getNumberOfSheets();
         for (int i = 0; i < sheetNumber; i++) {
@@ -99,7 +99,7 @@ public class XSSFMap {
      * @return the list of all Tables that provide a map rule to this mapping
      */
     public List<XSSFTable> getRelatedTables() {
-        List<XSSFTable> tables = new ArrayList<XSSFTable>();
+        List<XSSFTable> tables = new ArrayList<>();
         for (Sheet sheet : mapInfo.getWorkbook()) {
             for (RelationPart rp : ((XSSFSheet)sheet).getRelationParts()) {
                 if (rp.getRelationship().getRelationshipType().equals(XSSFRelation.TABLE.getRelation())) {

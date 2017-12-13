@@ -18,7 +18,7 @@
 package org.apache.poi.poifs.crypt.cryptoapi;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.GeneralSecurityException;
@@ -32,10 +32,7 @@ import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 
 import org.apache.poi.EncryptedDocumentException;
-import org.apache.poi.hpsf.DocumentSummaryInformation;
-import org.apache.poi.hpsf.PropertySetFactory;
-import org.apache.poi.hpsf.SummaryInformation;
-import org.apache.poi.hpsf.WritingNotSupportedException;
+import org.apache.poi.poifs.crypt.ChunkedCipherOutputStream;
 import org.apache.poi.poifs.crypt.CryptoFunctions;
 import org.apache.poi.poifs.crypt.DataSpaceMapUtils;
 import org.apache.poi.poifs.crypt.EncryptionInfo;
@@ -45,18 +42,21 @@ import org.apache.poi.poifs.crypt.cryptoapi.CryptoAPIDecryptor.StreamDescriptorE
 import org.apache.poi.poifs.crypt.standard.EncryptionRecord;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.DocumentInputStream;
+import org.apache.poi.poifs.filesystem.Entry;
+import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianByteArrayOutputStream;
 import org.apache.poi.util.StringUtil;
 
-public class CryptoAPIEncryptor extends Encryptor {
-    private final CryptoAPIEncryptionInfoBuilder builder;
-
-    protected CryptoAPIEncryptor(CryptoAPIEncryptionInfoBuilder builder) {
-        this.builder = builder;
+public class CryptoAPIEncryptor extends Encryptor implements Cloneable {
+    
+    private int chunkSize = 512;
+    
+    protected CryptoAPIEncryptor() {
     }
 
+    @Override
     public void confirmPassword(String password) {
         Random r = new SecureRandom();
         byte salt[] = new byte[16];
@@ -66,11 +66,12 @@ public class CryptoAPIEncryptor extends Encryptor {
         confirmPassword(password, null, null, verifier, salt, null);
     }
 
+    @Override
     public void confirmPassword(String password, byte keySpec[],
             byte keySalt[], byte verifier[], byte verifierSalt[],
             byte integritySalt[]) {
         assert(verifier != null && verifierSalt != null);
-        CryptoAPIEncryptionVerifier ver = builder.getVerifier();
+        CryptoAPIEncryptionVerifier ver = (CryptoAPIEncryptionVerifier)getEncryptionInfo().getVerifier();
         ver.setSalt(verifierSalt);
         SecretKey skey = CryptoAPIDecryptor.generateSecretKey(password, ver);
         setSecretKey(skey);
@@ -99,8 +100,20 @@ public class CryptoAPIEncryptor extends Encryptor {
      */
     public Cipher initCipherForBlock(Cipher cipher, int block)
     throws GeneralSecurityException {
-        return CryptoAPIDecryptor.initCipherForBlock(cipher, block, builder, getSecretKey(), Cipher.ENCRYPT_MODE);
+        return CryptoAPIDecryptor.initCipherForBlock(cipher, block, getEncryptionInfo(), getSecretKey(), Cipher.ENCRYPT_MODE);
     }    
+
+    @Override
+    public ChunkedCipherOutputStream getDataStream(DirectoryNode dir)
+    throws IOException, GeneralSecurityException {
+        throw new IOException("not supported");
+    }
+    
+    @Override
+    public CryptoAPICipherOutputStream getDataStream(OutputStream stream, int initialOffset)
+    throws IOException, GeneralSecurityException {
+        return new CryptoAPICipherOutputStream(stream);
+    }
     
     /**
      * Encrypt the Document-/SummaryInformation and other optionally streams.
@@ -109,38 +122,33 @@ public class CryptoAPIEncryptor extends Encryptor {
      * 
      * @see <a href="http://msdn.microsoft.com/en-us/library/dd943321(v=office.12).aspx">2.3.5.4 RC4 CryptoAPI Encrypted Summary Stream</a>
      */
-    public OutputStream getDataStream(DirectoryNode dir)
+    public void setSummaryEntries(DirectoryNode dir, String encryptedStream, NPOIFSFileSystem entries)
     throws IOException, GeneralSecurityException {
-        CipherByteArrayOutputStream bos = new CipherByteArrayOutputStream();
+        CryptoAPIDocumentOutputStream bos = new CryptoAPIDocumentOutputStream(this); // NOSONAR
         byte buf[] = new byte[8];
         
         bos.write(buf, 0, 8); // skip header
-        String entryNames[] = {
-            SummaryInformation.DEFAULT_STREAM_NAME,
-            DocumentSummaryInformation.DEFAULT_STREAM_NAME
-        };
-        
-        List<StreamDescriptorEntry> descList = new ArrayList<StreamDescriptorEntry>();
+        List<StreamDescriptorEntry> descList = new ArrayList<>();
 
         int block = 0;
-        for (String entryName : entryNames) {
-            if (!dir.hasEntry(entryName)) continue;
+        for (Entry entry : entries.getRoot()) {
+            if (entry.isDirectoryEntry()) {
+                continue;
+            }
             StreamDescriptorEntry descEntry = new StreamDescriptorEntry();
             descEntry.block = block;
             descEntry.streamOffset = bos.size();
-            descEntry.streamName = entryName;
+            descEntry.streamName = entry.getName();
             descEntry.flags = StreamDescriptorEntry.flagStream.setValue(0, 1);
             descEntry.reserved2 = 0;
             
             bos.setBlock(block);
-            DocumentInputStream dis = dir.createDocumentInputStream(entryName);
+            DocumentInputStream dis = dir.createDocumentInputStream(entry);
             IOUtils.copy(dis, bos);
             dis.close();
             
             descEntry.streamSize = bos.size() - descEntry.streamOffset;
             descList.add(descEntry);
-            
-            dir.getEntry(entryName).delete();
             
             block++;
         }
@@ -180,28 +188,25 @@ public class CryptoAPIEncryptor extends Encryptor {
         bos.write(buf, 0, 8);
         bos.setSize(savedSize);
         
-        dir.createDocument("EncryptedSummary", new ByteArrayInputStream(bos.getBuf(), 0, savedSize));
-        DocumentSummaryInformation dsi = PropertySetFactory.newDocumentSummaryInformation();
-        
-        try {
-            dsi.write(dir, DocumentSummaryInformation.DEFAULT_STREAM_NAME);
-        } catch (WritingNotSupportedException e) {
-            throw new IOException(e);
-        }
-        
-        return bos;
+        dir.createDocument(encryptedStream, new ByteArrayInputStream(bos.getBuf(), 0, savedSize));
     }
 
     protected int getKeySizeInBytes() {
-        return builder.getHeader().getKeySize() / 8;
+        return getEncryptionInfo().getHeader().getKeySize() / 8;
     }
 
+    @Override
+    public void setChunkSize(int chunkSize) {
+        this.chunkSize = chunkSize;
+    }
+    
     protected void createEncryptionInfoEntry(DirectoryNode dir) throws IOException {
         DataSpaceMapUtils.addDefaultDataSpace(dir);
-        final EncryptionInfo info = builder.getEncryptionInfo();
-        final CryptoAPIEncryptionHeader header = builder.getHeader();
-        final CryptoAPIEncryptionVerifier verifier = builder.getVerifier();
+        final EncryptionInfo info = getEncryptionInfo();
+        final CryptoAPIEncryptionHeader header = (CryptoAPIEncryptionHeader)getEncryptionInfo().getHeader();
+        final CryptoAPIEncryptionVerifier verifier = (CryptoAPIEncryptionVerifier)getEncryptionInfo().getVerifier();
         EncryptionRecord er = new EncryptionRecord() {
+            @Override
             public void write(LittleEndianByteArrayOutputStream bos) {
                 bos.writeShort(info.getVersionMajor());
                 bos.writeShort(info.getVersionMinor());
@@ -212,44 +217,43 @@ public class CryptoAPIEncryptor extends Encryptor {
         DataSpaceMapUtils.createEncryptionEntry(dir, "EncryptionInfo", er);
     }
 
-    private class CipherByteArrayOutputStream extends ByteArrayOutputStream {
-        Cipher cipher;
-        byte oneByte[] = { 0 };
 
-        public CipherByteArrayOutputStream() throws GeneralSecurityException {
-            setBlock(0);
-        }
-        
-        public byte[] getBuf() {
-            return buf;
-        }
-        
-        public void setSize(int count) {
-            this.count = count;
-        }
-        
-        public void setBlock(int block) throws GeneralSecurityException {
-            cipher = initCipherForBlock(cipher, block);
-        }
-        
-        public void write(int b) {
-            try {
-                oneByte[0] = (byte)b;
-                cipher.update(oneByte, 0, 1, oneByte, 0);
-                super.write(oneByte);
-            } catch (Exception e) {
-                throw new EncryptedDocumentException(e);
-            }
-        }
-
-        public void write(byte[] b, int off, int len) {
-            try {
-                cipher.update(b, off, len, b, off);
-                super.write(b, off, len);
-            } catch (Exception e) {
-                throw new EncryptedDocumentException(e);
-            }
-        }
-
+    @Override
+    public CryptoAPIEncryptor clone() throws CloneNotSupportedException {
+        return (CryptoAPIEncryptor)super.clone();
     }
+
+    protected class CryptoAPICipherOutputStream extends ChunkedCipherOutputStream {
+
+        @Override
+        protected Cipher initCipherForBlock(Cipher cipher, int block, boolean lastChunk)
+        throws IOException, GeneralSecurityException {
+            flush();
+            EncryptionInfo ei = getEncryptionInfo();
+            SecretKey sk = getSecretKey();
+            return CryptoAPIDecryptor.initCipherForBlock(cipher, block, ei, sk, Cipher.ENCRYPT_MODE);
+        }
+
+        @Override
+        protected void calculateChecksum(File file, int i) {
+        }
+
+        @Override
+        protected void createEncryptionInfoEntry(DirectoryNode dir, File tmpFile)
+        throws IOException, GeneralSecurityException {
+            throw new EncryptedDocumentException("createEncryptionInfoEntry not supported");
+        }
+
+        public CryptoAPICipherOutputStream(OutputStream stream)
+        throws IOException, GeneralSecurityException {
+            super(stream, CryptoAPIEncryptor.this.chunkSize);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            writeChunk(false);
+            super.flush();
+        }
+    }
+
 }

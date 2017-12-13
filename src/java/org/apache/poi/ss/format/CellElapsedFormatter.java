@@ -132,7 +132,7 @@ public class CellElapsedFormatter extends CellFormatter {
     public CellElapsedFormatter(String pattern) {
         super(pattern);
 
-        specs = new ArrayList<TimeSpec>();
+        specs = new ArrayList<>();
 
         StringBuffer desc = CellFormatPart.parseFormat(pattern,
                 CellFormatType.ELAPSED, new ElapsedPartHandler());
@@ -211,7 +211,7 @@ public class CellElapsedFormatter extends CellFormatter {
 
     /**
      * {@inheritDoc}
-     * <p/>
+     * <p>
      * For a date, this is <tt>"mm/d/y"</tt>.
      */
     public void simpleValue(StringBuffer toAppendTo, Object value) {

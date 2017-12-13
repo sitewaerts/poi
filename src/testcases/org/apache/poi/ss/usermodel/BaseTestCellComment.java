@@ -23,11 +23,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.ss.ITestDataProvider;
+import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.util.Units;
 import org.junit.Test;
 
@@ -47,11 +49,11 @@ public abstract class BaseTestCellComment {
     public final void find() throws IOException {
         Workbook book = _testDataProvider.createWorkbook();
         Sheet sheet = book.createSheet();
-        assertNull(sheet.getCellComment(0, 0));
+        assertNull(sheet.getCellComment(new CellAddress(0, 0)));
 
         Row row = sheet.createRow(0);
         Cell cell = row.createCell(0);
-        assertNull(sheet.getCellComment(0, 0));
+        assertNull(sheet.getCellComment(new CellAddress(0, 0)));
         assertNull(cell.getCellComment());
         book.close();
     }
@@ -68,14 +70,14 @@ public abstract class BaseTestCellComment {
         CreationHelper factory = wb1.getCreationHelper();
 
         Sheet sheet = wb1.createSheet();
-        assertNull(sheet.getCellComment(cellRow, cellColumn));
+        assertNull(sheet.getCellComment(new CellAddress(cellRow, cellColumn)));
 
         Cell cell = sheet.createRow(cellRow).createCell(cellColumn);
         cell.setCellValue(factory.createRichTextString(cellText));
         assertNull(cell.getCellComment());
-        assertNull(sheet.getCellComment(cellRow, cellColumn));
+        assertNull(sheet.getCellComment(new CellAddress(cellRow, cellColumn)));
 
-        Drawing patr = sheet.createDrawingPatriarch();
+        Drawing<?> patr = sheet.createDrawingPatriarch();
         ClientAnchor anchor = factory.createClientAnchor();
         anchor.setCol1(2);
         anchor.setCol2(5);
@@ -90,7 +92,7 @@ public abstract class BaseTestCellComment {
         comment.setAuthor(commentAuthor);
         cell.setCellComment(comment);
         assertNotNull(cell.getCellComment());
-        assertNotNull(sheet.getCellComment(cellRow, cellColumn));
+        assertNotNull(sheet.getCellComment(new CellAddress(cellRow, cellColumn)));
 
         //verify our settings
         assertEquals(commentAuthor, comment.getAuthor());
@@ -129,6 +131,10 @@ public abstract class BaseTestCellComment {
         assertEquals(cellRow, comment.getRow());
         assertEquals(cellColumn, comment.getColumn());
         assertFalse(comment.isVisible());
+
+        // Test Comment.equals and Comment.hashCode
+        assertEquals(comment, cell.getCellComment());
+        assertEquals(comment.hashCode(), cell.getCellComment().hashCode());
         
         wb3.close();
     }
@@ -152,7 +158,7 @@ public abstract class BaseTestCellComment {
             cell = row.getCell(0);
             comment = cell.getCellComment();
             assertNull("Cells in the first column are not commented", comment);
-            assertNull(sheet.getCellComment(rownum, 0));
+            assertNull(sheet.getCellComment(new CellAddress(rownum, 0)));
         }
 
         for (int rownum = 0; rownum < 3; rownum++) {
@@ -160,11 +166,11 @@ public abstract class BaseTestCellComment {
             cell = row.getCell(1);
             comment = cell.getCellComment();
             assertNotNull("Cells in the second column have comments", comment);
-            assertNotNull("Cells in the second column have comments", sheet.getCellComment(rownum, 1));
+            assertNotNull("Cells in the second column have comments", sheet.getCellComment(new CellAddress(rownum, 1)));
 
             assertEquals("Yegor Kozlov", comment.getAuthor());
-            assertFalse("cells in the second column have not empyy notes",
-                    "".equals(comment.getString().getString()));
+            assertTrue("cells in the second column should have non-empty notes",
+                    !comment.getString().getString().isEmpty());
             assertEquals(rownum, comment.getRow());
             assertEquals(cell.getColumnIndex(), comment.getColumn());
         }
@@ -255,7 +261,7 @@ public abstract class BaseTestCellComment {
         Cell cell = sheet.createRow(3).createCell(5);
         cell.setCellValue("F4");
 
-        Drawing drawing = sheet.createDrawingPatriarch();
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
 
         ClientAnchor anchor = factory.createClientAnchor();
         Comment comment = drawing.createCellComment(anchor);
@@ -288,7 +294,7 @@ public abstract class BaseTestCellComment {
         Cell cell = row.createCell(5);
         CreationHelper factory = wb.getCreationHelper();
         
-        Drawing drawing = sheet.createDrawingPatriarch();
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
         
         double r_mul, c_mul;
         if (sheet instanceof HSSFSheet) {
@@ -352,5 +358,62 @@ public abstract class BaseTestCellComment {
         }
         
         wb.close();
+    }
+    
+    @Test
+    public void attemptToSave2CommentsWithSameCoordinates() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sh = wb.createSheet();
+        CreationHelper factory = wb.getCreationHelper();
+        Drawing<?> patriarch = sh.createDrawingPatriarch();
+        patriarch.createCellComment(factory.createClientAnchor());
+        
+        try {
+            patriarch.createCellComment(factory.createClientAnchor());
+            _testDataProvider.writeOutAndReadBack(wb);
+            fail("Should not be able to create a corrupted workbook with multiple cell comments in one cell");
+        } catch (IllegalStateException e) {
+            // HSSFWorkbooks fail when writing out workbook
+            assertEquals("found multiple cell comments for cell $A$1", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // XSSFWorkbooks fail when creating and setting the cell address of the comment
+            assertEquals("Multiple cell comments in one cell are not allowed, cell: A1", e.getMessage());
+        } finally {
+            wb.close();
+        }
+    }
+    
+    @Test
+    public void getAddress() {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sh = wb.createSheet();
+        CreationHelper factory = wb.getCreationHelper();
+        Drawing<?> patriarch = sh.createDrawingPatriarch();
+        Comment comment = patriarch.createCellComment(factory.createClientAnchor());
+        
+        assertEquals(CellAddress.A1, comment.getAddress());
+        Cell C2 = sh.createRow(1).createCell(2);
+        C2.setCellComment(comment);
+        assertEquals(new CellAddress("C2"), comment.getAddress());
+    }
+    
+    @Test
+    public void setAddress() {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sh = wb.createSheet();
+        CreationHelper factory = wb.getCreationHelper();
+        Drawing<?> patriarch = sh.createDrawingPatriarch();
+        Comment comment = patriarch.createCellComment(factory.createClientAnchor());
+        
+        assertEquals(CellAddress.A1, comment.getAddress());
+        CellAddress C2 = new CellAddress("C2");
+        assertEquals("C2", C2.formatAsString());
+        comment.setAddress(C2);
+        assertEquals(C2, comment.getAddress());
+        
+        CellAddress E10 = new CellAddress(9, 4);
+        assertEquals("E10", E10.formatAsString());
+        comment.setAddress(9, 4);
+        assertEquals(E10, comment.getAddress());
     }
 }

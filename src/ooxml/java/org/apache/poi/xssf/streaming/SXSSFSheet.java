@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.apache.poi.hssf.util.PaneInformation;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.AutoFilter;
 import org.apache.poi.ss.usermodel.Cell;
@@ -34,9 +33,9 @@ import org.apache.poi.ss.usermodel.CellRange;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.DataValidationHelper;
-import org.apache.poi.ss.usermodel.Drawing;
 import org.apache.poi.ss.usermodel.Footer;
 import org.apache.poi.ss.usermodel.Header;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.PrintSetup;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -44,30 +43,36 @@ import org.apache.poi.ss.usermodel.SheetConditionalFormatting;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.PaneInformation;
 import org.apache.poi.ss.util.SheetUtil;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.NotImplemented;
+import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFComment;
 import org.apache.poi.xssf.usermodel.XSSFDataValidation;
+import org.apache.poi.xssf.usermodel.XSSFDrawing;
 import org.apache.poi.xssf.usermodel.XSSFHyperlink;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColor;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTSheetFormatPr;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTSheetPr;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTSheetProtection;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTWorksheet;
 
 /**
  * Streaming version of XSSFSheet implementing the "BigGridDemo" strategy.
 */
-public class SXSSFSheet implements Sheet, Cloneable
+public class SXSSFSheet implements Sheet
 {
     /*package*/ final XSSFSheet _sh;
     private final SXSSFWorkbook _workbook;
-    private final TreeMap<Integer,SXSSFRow> _rows=new TreeMap<Integer,SXSSFRow>();
+    private final TreeMap<Integer,SXSSFRow> _rows= new TreeMap<>();
     private final SheetDataWriter _writer;
     private int _randomAccessWindowSize = SXSSFWorkbook.DEFAULT_WINDOW_SIZE;
     private final AutoSizeColumnTracker _autoSizeColumnTracker;
-    private int outlineLevelRow = 0;
+    private int outlineLevelRow;
     private int lastFlushedRowNumber = -1;
-    private boolean allFlushed = false;
+    private boolean allFlushed;
 
     public SXSSFSheet(SXSSFWorkbook workbook, XSSFSheet xSheet) throws IOException {
         _workbook = workbook;
@@ -133,19 +138,7 @@ public class SXSSFSheet implements Sheet, Cloneable
                             "in the range [0," + _sh.getLastRowNum() + "] that is already written to disk.");
         }
 
-//Make the initial allocation as big as the row above.
-        Row previousRow=rownum>0?getRow(rownum-1):null;
-        int initialAllocationSize=0;
-//have previous row in memory -> take that value.
-        if(previousRow!=null)
-            initialAllocationSize=previousRow.getLastCellNum();
-//are we called after a flush(0)? If yes, ask the writer for the value.
-        if(initialAllocationSize<=0&&_writer.getNumberOfFlushedRows()>0)
-            initialAllocationSize=_writer.getNumberOfCellsOfLastFlushedRow();
-//default to 10 on the first row.
-        if(initialAllocationSize<=0)
-            initialAllocationSize=10;
-        SXSSFRow newRow=new SXSSFRow(this,initialAllocationSize);
+        SXSSFRow newRow=new SXSSFRow(this);
         _rows.put(rownum,newRow);
         allFlushed = false;
         if(_randomAccessWindowSize>=0&&_rows.size()>_randomAccessWindowSize)
@@ -217,8 +210,9 @@ public class SXSSFSheet implements Sheet, Cloneable
     @Override
     public int getFirstRowNum()
     {
-        if(_writer.getNumberOfFlushedRows() > 0)
+        if(_writer.getNumberOfFlushedRows() > 0) {
             return _writer.getLowestIndexOfFlushedRows();
+        }
         return _rows.size() == 0 ? 0 : _rows.firstKey();
     }
 
@@ -401,6 +395,30 @@ public class SXSSFSheet implements Sheet, Cloneable
     }
 
     /**
+     * Adds a merged region of cells (hence those cells form one)
+     *
+     * @param region (rowfrom/colfrom-rowto/colto) to merge
+     * @return index of this region
+     */
+    @Override
+    public int addMergedRegionUnsafe(CellRangeAddress region)
+    {
+        return _sh.addMergedRegionUnsafe(region);
+    }
+
+    /**
+     * Verify that merged regions do not intersect multi-cell array formulas and
+     * no merged regions intersect another merged region in this sheet.
+     *
+     * @throws IllegalStateException if region intersects with a multi-cell array formula
+     * @throws IllegalStateException if at least one region intersects with another merged region in this sheet
+     */
+    @Override
+    public void validateMergedRegions() {
+        _sh.validateMergedRegions();
+    }
+
+    /**
      * Determines whether the output is vertically centered on the page.
      *
      * @param value true to vertically center, false otherwise.
@@ -449,6 +467,17 @@ public class SXSSFSheet implements Sheet, Cloneable
     public void removeMergedRegion(int index)
     {
         _sh.removeMergedRegion(index);
+    }
+    
+    /**
+     * Removes a merged region of cells (hence letting them free)
+     *
+     * @param indices of the regions to unmerge
+     */
+    @Override
+    public void removeMergedRegions(Collection<Integer> indices)
+    {
+        _sh.removeMergedRegions(indices);
     }
 
     /**
@@ -691,11 +720,9 @@ public class SXSSFSheet implements Sheet, Cloneable
     }
 
     /**
-     * Gets the flag indicating whether this sheet displays the lines
-     * between rows and columns to make editing and reading easier.
+     * Returns whether gridlines are printed.
      *
-     * @return <code>true</code> if this sheet displays gridlines.
-     * @see #isPrintGridlines() to check if printing of gridlines is turned on or off
+     * @return whether gridlines are printed
      */
     @Override
     public boolean isPrintGridlines()
@@ -704,18 +731,36 @@ public class SXSSFSheet implements Sheet, Cloneable
     }
 
     /**
-     * Sets the flag indicating whether this sheet should display the lines
-     * between rows and columns to make editing and reading easier.
-     * To turn printing of gridlines use {@link #setPrintGridlines(boolean)}
+     * Turns on or off the printing of gridlines.
      *
-     *
-     * @param show <code>true</code> if this sheet should display gridlines.
-     * @see #setPrintGridlines(boolean)
+     * @param show boolean to turn on or off the printing of gridlines
      */
     @Override
     public void setPrintGridlines(boolean show)
     {
         _sh.setPrintGridlines(show);
+    }
+    
+    /**
+     * Returns whether row and column headings are printed.
+     *
+     * @return whether row and column headings are printed
+     */
+    @Override
+    public boolean isPrintRowAndColumnHeadings()
+    {
+        return _sh.isPrintRowAndColumnHeadings();
+    }
+
+    /**
+     * Turns on or off the printing of row and column headings.
+     *
+     * @param show boolean to turn on or off the printing of row and column headings
+     */
+    @Override
+    public void setPrintRowAndColumnHeadings(boolean show)
+    {
+        _sh.setPrintRowAndColumnHeadings(show);
     }
 
     /**
@@ -731,7 +776,7 @@ public class SXSSFSheet implements Sheet, Cloneable
 
     /**
      * Gets the user model for the default document header.
-     * <p/>
+     * <p>
      * Note that XSSF offers more kinds of document headers than HSSF does
      * </p>
      * @return the document header. Never <code>null</code>
@@ -744,9 +789,9 @@ public class SXSSFSheet implements Sheet, Cloneable
 
     /**
      * Gets the user model for the default document footer.
-     * <p/>
+     * <p>
      * Note that XSSF offers more kinds of document footers than HSSF does.
-     *
+     * </p>
      * @return the document footer. Never <code>null</code>
      */
     @Override
@@ -757,9 +802,9 @@ public class SXSSFSheet implements Sheet, Cloneable
 
     /**
      * Sets a flag indicating whether this sheet is selected.
-     *<p>
+     * <p>
      * Note: multiple sheets can be selected, but only one sheet can be active at one time.
-     *</p>
+     * </p>
      * @param value <code>true</code> if this sheet is selected
      * @see Workbook#setActiveSheet(int)
      */
@@ -796,7 +841,7 @@ public class SXSSFSheet implements Sheet, Cloneable
     /**
      * Answer whether protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true means protection enabled; false means protection disabled
      */
     @Override
     public boolean getProtect()
@@ -817,32 +862,17 @@ public class SXSSFSheet implements Sheet, Cloneable
     /**
      * Answer whether scenario protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true means protection enabled; false means protection disabled
      */
     @Override
     public boolean getScenarioProtect()
     {
         return _sh.getScenarioProtect();
     }
-
-    /**
-     * Sets the zoom magnication for the sheet.  The zoom is expressed as a
-     * fraction.  For example to express a zoom of 75% use 3 for the numerator
-     * and 4 for the denominator.
-     *
-     * @param numerator     The numerator for the zoom magnification.
-     * @param denominator   The denominator for the zoom magnification.
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #setZoom(int)} instead.
-     */
-    @Override
-    public void setZoom(int numerator, int denominator)
-    {
-        _sh.setZoom(numerator,denominator);
-    }
     
     /**
      * Window zoom magnification for current view representing percent values.
-     * Valid values range from 10 to 400. Horizontal & Vertical scale together.
+     * Valid values range from 10 to 400. Horizontal and Vertical scale together.
      *
      * For example:
      * <pre>
@@ -954,7 +984,8 @@ public class SXSSFSheet implements Sheet, Cloneable
      *
      * <p>
      * Additionally shifts merged regions that are completely defined in these
-     * rows (ie. merged 2 cells on a row to be shifted).
+     * rows (ie. merged 2 cells on a row to be shifted). All merged regions that are
+     * completely overlaid by shifting will be deleted.
      * <p>
      * @param startRow the row to start shifting
      * @param endRow the row to end shifting
@@ -1213,7 +1244,7 @@ public class SXSSFSheet implements Sheet, Cloneable
      *     Please note the rows being grouped <em>must</em> be in the current window,
      *     if the rows are already flushed then groupRow has no effect.
      * </p>
-     * <p>
+     * 
      *      Correct code:
      *      <pre><code>
      *       Workbook wb = new SXSSFWorkbook(100);  // keep 100 rows in memory
@@ -1226,8 +1257,8 @@ public class SXSSFSheet implements Sheet, Cloneable
      *       }
      *
      *      </code></pre>
-     * </p>
-     * <p>
+     * 
+     * 
      *      Incorrect code:
      *      <pre><code>
      *       Workbook wb = new SXSSFWorkbook(100);  // keep 100 rows in memory
@@ -1238,7 +1269,7 @@ public class SXSSFSheet implements Sheet, Cloneable
      *       sh.groupRow(100, 200); // the rows in the range [100, 200] are already flushed and groupRows has no effect
      *
      *      </code></pre>
-     * </p>
+     * 
      *
      * @param fromRow   start row (0-based)
      * @param toRow     end row (0-based)
@@ -1250,7 +1281,9 @@ public class SXSSFSheet implements Sheet, Cloneable
             int level = row.getOutlineLevel() + 1;
             row.setOutlineLevel(level);
 
-            if(level > outlineLevelRow) outlineLevelRow = level;
+            if(level > outlineLevelRow) {
+                outlineLevelRow = level;
+            }
         }
 
         setWorksheetOutlineLevelRow();
@@ -1268,7 +1301,7 @@ public class SXSSFSheet implements Sheet, Cloneable
      * </p>
      *
      * @param rownum    index of row to update (0-based)
-     * @param level     outline level (> 0)
+     * @param level     outline level (greater than 0)
      */
     public void setRowOutlineLevel(int rownum, int level)
     {
@@ -1285,7 +1318,9 @@ public class SXSSFSheet implements Sheet, Cloneable
         CTSheetFormatPr pr = ct.isSetSheetFormatPr() ?
             ct.getSheetFormatPr() :
             ct.addNewSheetFormatPr();
-        if(outlineLevelRow > 0) pr.setOutlineLevelRow((short)outlineLevelRow);
+        if(outlineLevelRow > 0) {
+            pr.setOutlineLevelRow((short)outlineLevelRow);
+        }
     }
 
     /**
@@ -1301,10 +1336,13 @@ public class SXSSFSheet implements Sheet, Cloneable
     }
 
     /**
-     * Set view state of a groupped range of rows
+     * Set view state of a grouped range of rows.
+     *
+     * <i>Not implemented for expanding (i.e. collapse == false)</i>
      *
      * @param row   start row of a groupped range of rows (0-based)
      * @param collapse whether to expand/collapse the detail rows
+     * @throws RuntimeException if collapse is false as this is not implemented for SXSSF.
      */
     @Override
     public void setRowGroupCollapsed(int row, boolean collapse)
@@ -1345,14 +1383,15 @@ public class SXSSFSheet implements Sheet, Cloneable
     private int findStartOfRowOutlineGroup(int rowIndex) {
         // Find the start of the group.
         Row row = getRow(rowIndex);
-        int level = ((SXSSFRow) row).getOutlineLevel();
+        int level = row.getOutlineLevel();
         if(level == 0) {
             throw new IllegalArgumentException("Outline level is zero for the row (" + rowIndex + ").");
         }
         int currentRow = rowIndex;
         while (getRow(currentRow) != null) {
-            if (getRow(currentRow).getOutlineLevel() < level)
+            if (getRow(currentRow).getOutlineLevel() < level) {
                 return currentRow + 1;
+            }
             currentRow--;
         }
         return currentRow + 1;
@@ -1573,18 +1612,6 @@ public class SXSSFSheet implements Sheet, Cloneable
             setColumnWidth(column, width);
         }
     }
-
-    /**
-     * Returns cell comment for the specified row and column
-     *
-     * @return cell comment or <code>null</code> if not found
-     * @deprecated as of 2015-11-23 (circa POI 3.14beta1). Use {@link #getCellComment(CellAddress)} instead.
-     */
-    @Override
-    public XSSFComment getCellComment(int row, int column)
-    {
-        return getCellComment(new CellAddress(row, column));
-    }
     
     /**
      * Returns cell comment for the specified row and column
@@ -1620,6 +1647,18 @@ public class SXSSFSheet implements Sheet, Cloneable
     }
     
     /**
+     * Get a Hyperlink in this sheet located in a cell specified by {code addr}
+     *
+     * @param addr The address of the cell containing the hyperlink
+     * @return hyperlink if there is a hyperlink anchored at {@code addr}; otherwise returns {@code null}
+     * @since POI 3.15 beta 3
+     */
+    @Override
+    public XSSFHyperlink getHyperlink(CellAddress addr) {
+        return _sh.getHyperlink(addr);
+    }
+    
+    /**
      * Get a list of Hyperlinks in this sheet
      *
      * @return Hyperlinks for the sheet
@@ -1633,7 +1672,7 @@ public class SXSSFSheet implements Sheet, Cloneable
      * {@inheritDoc}
      */
     @Override
-    public Drawing getDrawingPatriarch()
+    public XSSFDrawing getDrawingPatriarch()
     {
         return _sh.getDrawingPatriarch();
     }
@@ -1644,9 +1683,9 @@ public class SXSSFSheet implements Sheet, Cloneable
      * @return  The new drawing patriarch.
      */
     @Override
-    public Drawing createDrawingPatriarch()
+    public SXSSFDrawing createDrawingPatriarch()
     {
-        return _sh.createDrawingPatriarch();
+        return new SXSSFDrawing(getWorkbook(), _sh.createDrawingPatriarch());
     }
 
 
@@ -1810,8 +1849,12 @@ public class SXSSFSheet implements Sheet, Cloneable
      */
     public void flushRows(int remaining) throws IOException
     {
-        while(_rows.size() > remaining) flushOneRow();
-        if (remaining == 0) allFlushed = true;
+        while(_rows.size() > remaining) {
+            flushOneRow();
+        }
+        if (remaining == 0) {
+            allFlushed = true;
+        }
     }
 
     /**
@@ -1849,8 +1892,9 @@ public class SXSSFSheet implements Sheet, Cloneable
         for(Iterator<Map.Entry<Integer,SXSSFRow>> iter=_rows.entrySet().iterator();iter.hasNext();)
         {
             Map.Entry<Integer,SXSSFRow> entry=iter.next();
-            if(entry.getValue()==row)
+            if(entry.getValue()==row) {
                 return entry.getKey().intValue();
+            }
         }
         return -1;
     }
@@ -1860,7 +1904,9 @@ public class SXSSFSheet implements Sheet, Cloneable
      * @return true if the file was deleted, false if it wasn't.
      */
     boolean dispose() throws IOException {
-        if (!allFlushed) flushRows();
+        if (!allFlushed) {
+            flushRows();
+        }
         return _writer.dispose();
     }
 
@@ -1883,5 +1929,190 @@ public class SXSSFSheet implements Sheet, Cloneable
     @Override
     public void setActiveCell(CellAddress address) {
         _sh.setActiveCell(address);
+    }
+
+    public XSSFColor getTabColor() {
+        return _sh.getTabColor();
+    }
+
+    public void setTabColor(XSSFColor color) {
+        _sh.setTabColor(color);
+    }
+    
+    /**
+     * Enable sheet protection
+     */
+    public void enableLocking() {
+        safeGetProtectionField().setSheet(true);
+    }
+    
+    /**
+     * Disable sheet protection
+     */
+    public void disableLocking() {
+        safeGetProtectionField().setSheet(false);
+    }
+    
+    /**
+     * Enable or disable Autofilters locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockAutoFilter(boolean enabled) {
+        safeGetProtectionField().setAutoFilter(enabled);
+    }
+    
+    /**
+     * Enable or disable Deleting columns locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockDeleteColumns(boolean enabled) {
+        safeGetProtectionField().setDeleteColumns(enabled);
+    }
+    
+    /**
+     * Enable or disable Deleting rows locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockDeleteRows(boolean enabled) {
+        safeGetProtectionField().setDeleteRows(enabled);
+    }
+    
+    /**
+     * Enable or disable Formatting cells locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockFormatCells(boolean enabled) {
+        safeGetProtectionField().setFormatCells(enabled);
+    }
+    
+    /**
+     * Enable or disable Formatting columns locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockFormatColumns(boolean enabled) {
+        safeGetProtectionField().setFormatColumns(enabled);
+    }
+    
+    /**
+     * Enable or disable Formatting rows locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockFormatRows(boolean enabled) {
+        safeGetProtectionField().setFormatRows(enabled);
+    }
+    
+    /**
+     * Enable or disable Inserting columns locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockInsertColumns(boolean enabled) {
+        safeGetProtectionField().setInsertColumns(enabled);
+    }
+    
+    /**
+     * Enable or disable Inserting hyperlinks locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockInsertHyperlinks(boolean enabled) {
+        safeGetProtectionField().setInsertHyperlinks(enabled);
+    }
+    
+    /**
+     * Enable or disable Inserting rows locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockInsertRows(boolean enabled) {
+        safeGetProtectionField().setInsertRows(enabled);
+    }
+    
+    /**
+     * Enable or disable Pivot Tables locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockPivotTables(boolean enabled) {
+        safeGetProtectionField().setPivotTables(enabled);
+    }
+    
+    /**
+     * Enable or disable Sort locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockSort(boolean enabled) {
+        safeGetProtectionField().setSort(enabled);
+    }
+    
+    /**
+     * Enable or disable Objects locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockObjects(boolean enabled) {
+        safeGetProtectionField().setObjects(enabled);
+    }
+    
+    /**
+     * Enable or disable Scenarios locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockScenarios(boolean enabled) {
+        safeGetProtectionField().setScenarios(enabled);
+    }
+    
+    /**
+     * Enable or disable Selection of locked cells locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockSelectLockedCells(boolean enabled) {
+        safeGetProtectionField().setSelectLockedCells(enabled);
+    }
+    
+    /**
+     * Enable or disable Selection of unlocked cells locking.
+     * This does not modify sheet protection status.
+     * To enforce this un-/locking, call {@link #disableLocking()} or {@link #enableLocking()}
+     */
+    public void lockSelectUnlockedCells(boolean enabled) {
+        safeGetProtectionField().setSelectUnlockedCells(enabled);
+    }
+
+    
+    private CTSheetProtection safeGetProtectionField() {
+        CTWorksheet ct = _sh.getCTWorksheet();
+        if (!isSheetProtectionEnabled()) {
+            return ct.addNewSheetProtection();
+        }
+        return ct.getSheetProtection();
+    }
+    
+    /* package */ boolean isSheetProtectionEnabled() {
+        CTWorksheet ct = _sh.getCTWorksheet();
+        return (ct.isSetSheetProtection());
+    }
+    
+    /**
+     * Set background color of the sheet tab
+     *
+     * @param colorIndex  the indexed color to set, must be a constant from {@link IndexedColors}
+     */
+    public void setTabColor(int colorIndex){
+        CTWorksheet ct = _sh.getCTWorksheet();
+        CTSheetPr pr = ct.getSheetPr();
+        if(pr == null) pr = ct.addNewSheetPr();
+        CTColor color = CTColor.Factory.newInstance();
+        color.setIndexed(colorIndex);
+        pr.setTabColor(color);
     }
 }

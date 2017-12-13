@@ -52,7 +52,7 @@ public final class TestSmallDocumentBlock extends TestCase {
         throws IOException
     {
         ByteArrayInputStream stream    = new ByteArrayInputStream(_testdata);
-        List<DocumentBlock> documents  = new ArrayList<DocumentBlock>();
+        List<DocumentBlock> documents  = new ArrayList<>();
 
         while (true)
         {
@@ -72,9 +72,8 @@ public final class TestSmallDocumentBlock extends TestCase {
                      (_testdata_size + 63) / 64, results.length);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-        for (int j = 0; j < results.length; j++)
-        {
-            results[ j ].writeBlocks(output);
+        for (SmallDocumentBlock result : results) {
+            result.writeBlocks(output);
         }
         byte[] output_array = output.toByteArray();
 
@@ -114,9 +113,8 @@ public final class TestSmallDocumentBlock extends TestCase {
             assertEquals(5, blocks.length);
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
 
-            for (int k = 0; k < blocks.length; k++)
-            {
-                blocks[ k ].writeBlocks(stream);
+            for (SmallDocumentBlock block : blocks) {
+                block.writeBlocks(stream);
             }
             stream.close();
             byte[] output = stream.toByteArray();
@@ -140,7 +138,7 @@ public final class TestSmallDocumentBlock extends TestCase {
     {
         for (int j = 0; j <= 8; j++)
         {
-            List<SmallDocumentBlock> blocks = new ArrayList<SmallDocumentBlock>();
+            List<SmallDocumentBlock> blocks = new ArrayList<>();
 
             for (int k = 0; k < j; k++)
             {
@@ -215,10 +213,9 @@ public final class TestSmallDocumentBlock extends TestCase {
 
             assertEquals("testing block at offset " + offset, 64,
                          out_data.length);
-            for (int j = 0; j < out_data.length; j++)
-            {
+            for (byte b : out_data) {
                 assertEquals("testing byte at offset " + offset,
-                             data[ offset ], out_data[ j ]);
+                             data[ offset ], b);
                 offset++;
             }
         }

@@ -19,15 +19,14 @@ package org.apache.poi.hssf.record;
 
 import org.apache.poi.util.IntList;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.RecordFormatException;
 
 /**
- * Title:        Index Record (0x020B)<p/>
+ * Title:        Index Record (0x020B)<p>
  * Description:  Occurs right after BOF, tells you where the DBCELL records are for a sheet
- *               Important for locating cells<p/>
- * NOT USED IN THIS RELEASE
- * REFERENCE:  PG 323 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)<p/>
- * @author Andrew C. Oliver (acoliver at apache dot org)
- * @author Jason Height (jheight at chariot dot net dot au)
+ *               Important for locating cells<p>
+ *               
+ * REFERENCE:  PG 323 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)
  */
 public final class IndexRecord extends StandardRecord implements Cloneable {
     public final static short sid = 0x020B;
@@ -105,6 +104,7 @@ public final class IndexRecord extends StandardRecord implements Cloneable {
         return field_5_dbcells.get(cellnum);
     }
 
+    @Override
     public String toString()
     {
         StringBuffer buffer = new StringBuffer();
@@ -122,6 +122,7 @@ public final class IndexRecord extends StandardRecord implements Cloneable {
         return buffer.toString();
     }
 
+    @Override
     public void serialize(LittleEndianOutput out) {
 
         out.writeInt(0);
@@ -133,18 +134,21 @@ public final class IndexRecord extends StandardRecord implements Cloneable {
         }
     }
 
+    @Override
     protected int getDataSize() {
         return 16 // 4 ints
         	+ getNumDbcells() * 4;
     }
     
     /** 
-     * @return the size of an INdexRecord when it needs to index the specified number of blocks
+     * @param blockCount the number of blocks to be indexed
+     * @return the size of an IndexRecord when it needs to index the specified number of blocks
      */
     public static int getRecordSizeForBlockCount(int blockCount) {
         return 20 + 4 * blockCount;
     }  
 
+    @Override
     public short getSid() {
         return sid;
     }

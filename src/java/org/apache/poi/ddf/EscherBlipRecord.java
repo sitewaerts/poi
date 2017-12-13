@@ -17,34 +17,37 @@
 
 package org.apache.poi.ddf;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
-import org.apache.poi.util.HexDump;
 
-/**
- * @author Glen Stampoultzis
- */
-public class EscherBlipRecord extends EscherRecord { // TODO - instantiable superclass
+public class EscherBlipRecord extends EscherRecord {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 104_857_600;
+
     public static final short  RECORD_ID_START    = (short) 0xF018;
     public static final short  RECORD_ID_END      = (short) 0xF117;
     public static final String RECORD_DESCRIPTION = "msofbtBlip";
 
     private static final int   HEADER_SIZE               = 8;
 
-    protected              byte[] field_pictureData;
+    private byte[] field_pictureData;
 
     public EscherBlipRecord() {
     }
 
+    @Override
     public int fillFields(byte[] data, int offset, EscherRecordFactory recordFactory) {
         int bytesAfterHeader = readHeader( data, offset );
         int pos              = offset + HEADER_SIZE;
 
-        field_pictureData = new byte[bytesAfterHeader];
+        field_pictureData = IOUtils.safelyAllocate(bytesAfterHeader, MAX_RECORD_LENGTH);
         System.arraycopy(data, pos, field_pictureData, 0, bytesAfterHeader);
 
         return bytesAfterHeader + 8;
     }
 
+    @Override
     public int serialize(int offset, byte[] data, EscherSerializationListener listener) {
         listener.beforeRecordSerialize(offset, getRecordId(), this);
 
@@ -57,41 +60,53 @@ public class EscherBlipRecord extends EscherRecord { // TODO - instantiable supe
         return field_pictureData.length + 4;
     }
 
+    @Override
     public int getRecordSize() {
         return field_pictureData.length + HEADER_SIZE;
     }
 
+    @Override
     public String getRecordName() {
         return "Blip";
     }
 
+    /**
+     * Gets the picture data bytes
+     *
+     * @return the picture data
+     */
     public byte[] getPicturedata() {
         return field_pictureData;
     }
 
+    /**
+     * Sets the picture data bytes
+     *
+     * @param pictureData the picture data
+     */
     public void setPictureData(byte[] pictureData) {
-        if (pictureData == null) {
-            throw new IllegalArgumentException("picture data can't be null");
-        }
-        field_pictureData = pictureData.clone();
+        setPictureData(pictureData, 0, (pictureData == null ? 0 : pictureData.length));
     }
 
-    public String toString() {
-        String extraData = HexDump.toHex(field_pictureData, 32);
-        return getClass().getName() + ":" + '\n' +
-                "  RecordId: 0x" + HexDump.toHex( getRecordId() ) + '\n' +
-                "  Version: 0x" + HexDump.toHex( getVersion() ) + '\n' +
-                "  Instance: 0x" + HexDump.toHex( getInstance() ) + '\n' +
-                "  Extra Data:" + '\n' + extraData;
+    /**
+     * Sets the picture data bytes
+     *
+     * @param pictureData the picture data
+     * @param offset the offset into the picture data
+     * @param length the amount of bytes to be used
+     */
+    public void setPictureData(byte[] pictureData, int offset, int length) {
+        if (pictureData == null || offset < 0 || length < 0 || pictureData.length < offset+length) {
+            throw new IllegalArgumentException("picture data can't be null");
+        }
+        field_pictureData = IOUtils.safelyAllocate(length, MAX_RECORD_LENGTH);
+        System.arraycopy(pictureData, offset, field_pictureData, 0, length);
     }
 
     @Override
-    public String toXml(String tab) {
-        String extraData = HexDump.toHex(field_pictureData, 32);
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())))
-                .append(tab).append("\t").append("<ExtraData>").append(extraData).append("</ExtraData>\n");
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
+    protected Object[][] getAttributeMap() {
+        return new Object[][] {
+            { "Extra Data", getPicturedata() }
+        };
     }
 }

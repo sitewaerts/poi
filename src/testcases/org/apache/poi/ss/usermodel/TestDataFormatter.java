@@ -28,13 +28,22 @@ import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.text.DateFormat;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
+import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.hssf.usermodel.TestHSSFDataFormatter;
+import org.apache.poi.ss.format.CellFormat;
+import org.apache.poi.ss.format.CellFormatResult;
+import org.apache.poi.ss.util.CellReference;
+import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.util.LocaleUtil;
+import org.apache.poi.util.SuppressForbidden;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -46,6 +55,30 @@ import org.junit.Test;
  */
 public class TestDataFormatter {
     private static final double _15_MINUTES = 0.041666667;
+
+    @BeforeClass
+    @SuppressForbidden
+    public static void setUpClass() {
+        // some pre-checks to hunt for a problem in the Maven build
+        // these checks ensure that the correct locale is set, so a failure here
+        // usually indicates an invalid locale during test-execution
+
+        assertFalse(DateUtil.isADateFormat(-1, "_-* #,##0.00_-;-* #,##0.00_-;_-* \"-\"??_-;_-@_-"));
+        Locale ul = LocaleUtil.getUserLocale();
+        assertTrue(Locale.ROOT.equals(ul) || Locale.getDefault().equals(ul));
+        final String textValue = NumberToTextConverter.toText(1234.56);
+        assertEquals(-1, textValue.indexOf('E'));
+        Object cellValueO = Double.valueOf(1234.56);
+
+        /*CellFormat cellFormat = new CellFormat("_-* #,##0.00_-;-* #,##0.00_-;_-* \"-\"??_-;_-@_-");
+        CellFormatResult result = cellFormat.apply(cellValueO);
+        assertEquals("    1,234.56 ", result.text);*/
+
+        CellFormat cfmt = CellFormat.getInstance("_-* #,##0.00_-;-* #,##0.00_-;_-* \"-\"??_-;_-@_-");
+        CellFormatResult result = cfmt.apply(cellValueO);
+        assertEquals("This failure can indicate that the wrong locale is used during test-execution, ensure you run with english/US via -Duser.language=en -Duser.country=US",
+                "    1,234.56 ", result.text);
+    }
 
     /**
      * Test that we use the specified locale when deciding
@@ -82,6 +115,25 @@ public class TestDataFormatter {
 
     }
 
+
+    /**
+     * Test that we use the specified locale when deciding
+     *   how to format normal numbers
+     */
+    @Test
+    public void testGrouping() {
+        DataFormatter dfUS = new DataFormatter(Locale.US);
+        DataFormatter dfDE = new DataFormatter(Locale.GERMAN);
+
+        assertEquals("1,234.57", dfUS.formatRawCellContents(1234.567, -1, "#,##0.00"));
+        assertEquals("1'234.57", dfUS.formatRawCellContents(1234.567, -1, "#'##0.00"));
+        assertEquals("1 234.57", dfUS.formatRawCellContents(1234.567, -1, "# ##0.00"));
+
+        assertEquals("1.234,57", dfDE.formatRawCellContents(1234.567, -1, "#,##0.00"));
+        assertEquals("1'234,57", dfDE.formatRawCellContents(1234.567, -1, "#'##0.00"));
+        assertEquals("1 234,57", dfDE.formatRawCellContents(1234.567, -1, "# ##0.00"));
+    }
+
     /**
      * Ensure that colours get correctly
      *  zapped from within the format strings
@@ -90,7 +142,7 @@ public class TestDataFormatter {
     public void testColours() {
         DataFormatter dfUS = new DataFormatter(Locale.US);
 
-        String[] formats = new String[] {
+        String[] formats = {
                 "##.##",
                 "[WHITE]##.##",
                 "[BLACK]##.##;[RED]-##.##",
@@ -119,7 +171,7 @@ public class TestDataFormatter {
         DataFormatter dfUS = new DataFormatter(Locale.US);
 
         // Without currency symbols
-        String[] formats = new String[] { "#,##0.00;[Blue](#,##0.00)" };
+        String[] formats = { "#,##0.00;[Blue](#,##0.00)" };
         for (String format : formats) {
             assertEquals(
                 "Wrong format for: " + format,
@@ -147,6 +199,15 @@ public class TestDataFormatter {
                 dfUS.formatRawCellContents(-12.343, -1, format)
             );
         }
+    }
+
+    @Test
+    public void testConditionalRanges() {
+        DataFormatter dfUS = new DataFormatter(Locale.US);
+
+        String format = "[>=10]#,##0;[<10]0.0";
+        assertEquals("Wrong format for " + format, "17,876", dfUS.formatRawCellContents(17876.000, -1, format));
+        assertEquals("Wrong format for " + format, "9.7", dfUS.formatRawCellContents(9.71, -1, format));
     }
 
     /**
@@ -254,12 +315,13 @@ public class TestDataFormatter {
         assertEquals("321 1/3",   dfUS.formatRawCellContents(321.321, -1, "# ?/? ?/?"));
         assertEquals("321 1/3",   dfUS.formatRawCellContents(321.321, -1, "# ?/? #/# #/#"));
 
-        // Where +ve has a fraction, but -ve doesnt, we currently show both
+        // Where +ve has a fraction, but -ve doesn't, we currently show both
         assertEquals("123 1/3", dfUS.formatRawCellContents( 123.321, -1, "0 ?/?;0"));
         //assertEquals("123",     dfUS.formatRawCellContents(-123.321, -1, "0 ?/?;0"));
 
         //Bug54868 patch has a hit on the first string before the ";"
         assertEquals("-123 1/3", dfUS.formatRawCellContents(-123.321, -1, "0 ?/?;0"));
+        assertEquals("123 1/3", dfUS.formatRawCellContents(123.321, -1, "0 ?/?;0"));
 
         //Bug53150 formatting a whole number with fractions should just give the number
         assertEquals("1",   dfUS.formatRawCellContents(1.0, -1, "# #/#"));
@@ -435,28 +497,21 @@ public class TestDataFormatter {
         assertEquals("120", dfUS.formatRawCellContents(120*second, -1, "[ss]"));
         assertEquals("121", dfUS.formatRawCellContents(121*second, -1, "[ss]"));
 
-        boolean jdk_1_5 = System.getProperty("java.vm.version").startsWith("1.5");
-        if(!jdk_1_5) {
-            // YK: the tests below were written under JDK 1.6 and assume that
-            // the rounding mode in the underlying decimal formatters is HALF_UP
-            // It is not so JDK 1.5 where the default rounding mode is HALV_EVEN and cannot be changed.
+        assertEquals("27:18:08", dfUS.formatRawCellContents(1.1376, -1, "[h]:mm:ss"));
+        assertEquals("28:48:00", dfUS.formatRawCellContents(1.2, -1,  "[h]:mm:ss"));
+        assertEquals("29:31:12", dfUS.formatRawCellContents(1.23, -1, "[h]:mm:ss"));
+        assertEquals("31:26:24", dfUS.formatRawCellContents(1.31, -1, "[h]:mm:ss"));
 
-            assertEquals("27:18:08", dfUS.formatRawCellContents(1.1376, -1, "[h]:mm:ss"));
-            assertEquals("28:48:00", dfUS.formatRawCellContents(1.2, -1,  "[h]:mm:ss"));
-            assertEquals("29:31:12", dfUS.formatRawCellContents(1.23, -1, "[h]:mm:ss"));
-            assertEquals("31:26:24", dfUS.formatRawCellContents(1.31, -1, "[h]:mm:ss"));
+        assertEquals("27:18:08", dfUS.formatRawCellContents(1.1376, -1, "[hh]:mm:ss"));
+        assertEquals("28:48:00", dfUS.formatRawCellContents(1.2, -1,  "[hh]:mm:ss"));
+        assertEquals("29:31:12", dfUS.formatRawCellContents(1.23, -1, "[hh]:mm:ss"));
+        assertEquals("31:26:24", dfUS.formatRawCellContents(1.31, -1, "[hh]:mm:ss"));
 
-            assertEquals("27:18:08", dfUS.formatRawCellContents(1.1376, -1, "[hh]:mm:ss"));
-            assertEquals("28:48:00", dfUS.formatRawCellContents(1.2, -1,  "[hh]:mm:ss"));
-            assertEquals("29:31:12", dfUS.formatRawCellContents(1.23, -1, "[hh]:mm:ss"));
-            assertEquals("31:26:24", dfUS.formatRawCellContents(1.31, -1, "[hh]:mm:ss"));
-
-            assertEquals("57:07.2", dfUS.formatRawCellContents(.123, -1, "mm:ss.0;@"));
-            assertEquals("57:41.8", dfUS.formatRawCellContents(.1234, -1, "mm:ss.0;@"));
-            assertEquals("57:41.76", dfUS.formatRawCellContents(.1234, -1, "mm:ss.00;@"));
-            assertEquals("57:41.760", dfUS.formatRawCellContents(.1234, -1, "mm:ss.000;@"));
-            assertEquals("24:00.0", dfUS.formatRawCellContents(123456.6, -1, "mm:ss.0"));
-        }
+        assertEquals("57:07.2", dfUS.formatRawCellContents(.123, -1, "mm:ss.0;@"));
+        assertEquals("57:41.8", dfUS.formatRawCellContents(.1234, -1, "mm:ss.0;@"));
+        assertEquals("57:41.76", dfUS.formatRawCellContents(.1234, -1, "mm:ss.00;@"));
+        assertEquals("57:41.760", dfUS.formatRawCellContents(.1234, -1, "mm:ss.000;@"));
+        assertEquals("24:00.0", dfUS.formatRawCellContents(123456.6, -1, "mm:ss.0"));
     }
 
     @Test
@@ -517,12 +572,12 @@ public class TestDataFormatter {
 
         assertEquals("    0.10 ", dfUS.formatRawCellContents( 0.1, -1, "_-* #,##0.00_-;-* #,##0.00_-;_-* \"-\"??_-;_-@_-"));
         assertEquals("-   0.10 ", dfUS.formatRawCellContents(-0.1, -1, "_-* #,##0.00_-;-* #,##0.00_-;_-* \"-\"??_-;_-@_-"));
-        // TODO Fix this, we are randomly adding a 0 at the end that souldn't be there
+        // TODO Fix this, we are randomly adding a 0 at the end that shouldn't be there
         //assertEquals("     -   ", dfUS.formatRawCellContents(0.0, -1, "_-* #,##0.00_-;-* #,##0.00_-;_-* \"-\"??_-;_-@_-"));
 
         assertEquals(" $   1.10 ", dfUS.formatRawCellContents( 1.1, -1, "_-$* #,##0.00_-;-$* #,##0.00_-;_-$* \"-\"??_-;_-@_-"));
         assertEquals("-$   1.10 ", dfUS.formatRawCellContents(-1.1, -1, "_-$* #,##0.00_-;-$* #,##0.00_-;_-$* \"-\"??_-;_-@_-"));
-        // TODO Fix this, we are randomly adding a 0 at the end that souldn't be there
+        // TODO Fix this, we are randomly adding a 0 at the end that shouldn't be there
         //assertEquals(" $    -   ", dfUS.formatRawCellContents( 0.0, -1, "_-$* #,##0.00_-;-$* #,##0.00_-;_-$* \"-\"??_-;_-@_-"));
     }
 
@@ -535,13 +590,34 @@ public class TestDataFormatter {
         try {
             Sheet s = wb.createSheet();
             Row r = s.createRow(0);
-            Cell c = r.createCell(0, Cell.CELL_TYPE_ERROR);
+            Cell c = r.createCell(0, CellType.ERROR);
 
             c.setCellErrorValue(FormulaError.DIV0.getCode());
             assertEquals(FormulaError.DIV0.getString(), dfUS.formatCellValue(c));
 
             c.setCellErrorValue(FormulaError.REF.getCode());
             assertEquals(FormulaError.REF.getString(), dfUS.formatCellValue(c));
+        } finally {
+            wb.close();
+        }
+    }
+
+    @Test
+    public void testBoolean() throws IOException {
+        DataFormatter formatter = new DataFormatter();
+
+        // Create a spreadsheet with some TRUE/FALSE boolean values in it
+        Workbook wb = new HSSFWorkbook();
+        try {
+            Sheet s = wb.createSheet();
+            Row r = s.createRow(0);
+            Cell c = r.createCell(0);
+
+            c.setCellValue(true);
+            assertEquals("TRUE", formatter.formatCellValue(c));
+
+            c.setCellValue(false);
+            assertEquals("FALSE", formatter.formatCellValue(c));
         } finally {
             wb.close();
         }
@@ -726,5 +802,127 @@ public class TestDataFormatter {
         finally {
             wb.close();
         }
+    }
+
+    @Test
+    public void testFormulaEvaluation() throws IOException {
+        Workbook wb = HSSFTestDataSamples.openSampleWorkbook("FormulaEvalTestData.xls");
+
+        CellReference ref = new CellReference("D47");
+
+        Cell cell = wb.getSheetAt(0).getRow(ref.getRow()).getCell(ref.getCol());
+        assertEquals(CellType.FORMULA, cell.getCellType());
+        assertEquals("G9:K9 I7:I12", cell.getCellFormula());
+
+        DataFormatter formatter = new DataFormatter();
+        FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        assertEquals("5.6789", formatter.formatCellValue(cell, evaluator));
+
+        wb.close();
+    }
+
+    @Test
+    public void testFormatWithTrailingDotsUS() {
+        DataFormatter dfUS = new DataFormatter(Locale.US);
+        assertEquals("1,000,000", dfUS.formatRawCellContents(1000000, -1, "#,##0"));
+        assertEquals("1,000", dfUS.formatRawCellContents(1000000, -1, "#,##0,"));
+        assertEquals("1", dfUS.formatRawCellContents(1000000, -1, "#,##0,,"));
+        assertEquals("1,000,000.0", dfUS.formatRawCellContents(1000000, -1, "#,##0.0"));
+        assertEquals("1,000.0", dfUS.formatRawCellContents(1000000, -1, "#,##0.0,"));
+        assertEquals("1.0", dfUS.formatRawCellContents(1000000, -1, "#,##0.0,,"));
+        assertEquals("1,000,000.00", dfUS.formatRawCellContents(1000000, -1, "#,##0.00"));
+        assertEquals("1,000.00", dfUS.formatRawCellContents(1000000, -1, "#,##0.00,"));
+        assertEquals("1.00", dfUS.formatRawCellContents(1000000, -1, "#,##0.00,,"));
+        assertEquals("1,000,000", dfUS.formatRawCellContents(1e24, -1, "#,##0,,,,,,"));
+    }
+
+    @Test
+    public void testFormatWithTrailingDotsOtherLocale() throws Exception {
+        DataFormatter dfIT = new DataFormatter(Locale.ITALY);
+        assertEquals("1.000.000", dfIT.formatRawCellContents(1000000, -1, "#,##0"));
+        assertEquals("1.000", dfIT.formatRawCellContents(1000000, -1, "#,##0,"));
+        assertEquals("1", dfIT.formatRawCellContents(1000000, -1, "#,##0,,"));
+        assertEquals("1.000.000,0", dfIT.formatRawCellContents(1000000, -1, "#,##0.0"));
+        assertEquals("1.000,0", dfIT.formatRawCellContents(1000000, -1, "#,##0.0,"));
+        assertEquals("1,0", dfIT.formatRawCellContents(1000000, -1, "#,##0.0,,"));
+        assertEquals("1.000.000,00", dfIT.formatRawCellContents(1000000, -1, "#,##0.00"));
+        assertEquals("1.000,00", dfIT.formatRawCellContents(1000000, -1, "#,##0.00,"));
+        assertEquals("1,00", dfIT.formatRawCellContents(1000000, -1, "#,##0.00,,"));
+        assertEquals("1.000.000", dfIT.formatRawCellContents(1e24, -1, "#,##0,,,,,,"));
+    }
+
+    /**
+     * bug 60031: DataFormatter parses months incorrectly when put at the end of date segment
+     */
+    @Test
+    public void testBug60031() {
+        // 23-08-2016 08:51:01 which is 42605.368761574071 as double was parsed
+        // with format "yyyy-dd-MM HH:mm:ss" into "2016-23-51 08:51:01".
+        DataFormatter dfUS = new DataFormatter(Locale.US);
+        assertEquals("2016-23-08 08:51:01", dfUS.formatRawCellContents(42605.368761574071, -1, "yyyy-dd-MM HH:mm:ss"));
+        assertEquals("2016-23 08:51:01 08", dfUS.formatRawCellContents(42605.368761574071, -1, "yyyy-dd HH:mm:ss MM"));
+        assertEquals("2017-12-01 January 09:54:33", dfUS.formatRawCellContents(42747.412892397523, -1, "yyyy-dd-MM MMMM HH:mm:ss"));
+        assertEquals("08", dfUS.formatRawCellContents(42605.368761574071, -1, "MM"));
+        assertEquals("01", dfUS.formatRawCellContents(42605.368761574071, -1, "ss"));
+
+        // From Excel help:
+        /*
+            The "m" or "mm" code must appear immediately after the "h" or"hh"
+            code or immediately before the "ss" code; otherwise, Microsoft
+            Excel displays the month instead of minutes."
+          */
+        assertEquals("08", dfUS.formatRawCellContents(42605.368761574071, -1, "mm"));
+        assertEquals("08:51", dfUS.formatRawCellContents(42605.368761574071, -1, "hh:mm"));
+        assertEquals("51:01", dfUS.formatRawCellContents(42605.368761574071, -1, "mm:ss"));
+    }
+
+    @Test
+    public void testDateFormattingWithLocales() {
+        // 2017-12-01 09:54:33 which is 42747.412892397523 as double
+        DataFormatter dfDE = new DataFormatter(Locale.GERMANY);
+        DataFormatter dfZH = new DataFormatter(Locale.PRC);
+        DataFormatter dfIE = new DataFormatter(new Locale("GA", "IE"));
+        double date = 42747.412892397523;
+        String format = "dd MMMM yyyy HH:mm:ss";
+        assertEquals("12 Januar 2017 09:54:33", dfDE.formatRawCellContents(date, -1, format));
+        assertEquals("12 \u4E00\u6708 2017 09:54:33", dfZH.formatRawCellContents(date, -1, format));
+        assertEquals("12 Ean\u00E1ir 2017 09:54:33", dfIE.formatRawCellContents(date, -1, format));
+    }
+
+    /**
+     * bug 60422 : simple number formats seem ok
+     */
+    @Test
+    public void testSimpleNumericFormatsInGermanyLocale() {
+        List<Locale> locales = Arrays.asList(new Locale[] {Locale.GERMANY, Locale.US, Locale.ROOT} );
+        for (Locale locale : locales) {
+            //show that LocaleUtil has no effect on these tests
+            LocaleUtil.setUserLocale(locale);
+            try {
+                char euro = '\u20AC';
+                DataFormatter df = new DataFormatter(Locale.GERMANY);
+                assertEquals("4,33", df.formatRawCellContents(4.33, -1, "#,##0.00"));
+                assertEquals("1.234,33", df.formatRawCellContents(1234.333, -1, "#,##0.00"));
+                assertEquals("-1.234,33", df.formatRawCellContents(-1234.333, -1, "#,##0.00"));
+                assertEquals("1.234,33 " + euro, df.formatRawCellContents(1234.33, -1, "#,##0.00 " + euro));
+                assertEquals("1.234,33 " + euro, df.formatRawCellContents(1234.33, -1, "#,##0.00 \"" + euro + "\""));
+            } finally {
+                LocaleUtil.resetUserLocale();
+            }
+        }
+    }
+
+    /**
+     * bug 60422 : DataFormatter has issues with a specific NumberFormat in Germany default locale
+≈    */
+    @Test
+    public void testBug60422() {
+        char euro = '\u20AC';
+        DataFormatter df = new DataFormatter(Locale.GERMANY);
+        String formatString = String.format(Locale.ROOT,
+                "_-* #,##0.00\\ \"%s\"_-;\\-* #,##0.00\\ \"%s\"_-;_-* \"-\"??\\ \"%s\"_-;_-@_-",
+                euro, euro, euro);
+        assertEquals("4,33 " + euro, df.formatRawCellContents(4.33, 178, formatString));
+        assertEquals("1.234,33 " + euro, df.formatRawCellContents(1234.33, 178, formatString));
     }
 }

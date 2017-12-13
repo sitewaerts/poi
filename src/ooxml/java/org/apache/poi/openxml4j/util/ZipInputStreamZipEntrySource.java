@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import org.apache.poi.openxml4j.util.ZipSecureFile.ThresholdInputStream;
 
@@ -46,7 +45,7 @@ public class ZipInputStreamZipEntrySource implements ZipEntrySource {
 	 *  work with the entries at-will.
 	 */
 	public ZipInputStreamZipEntrySource(ThresholdInputStream inp) throws IOException {
-		zipEntries = new ArrayList<FakeZipEntry>();
+		zipEntries = new ArrayList<>();
 		
 		boolean going = true;
 		while(going) {
@@ -76,6 +75,9 @@ public class ZipInputStreamZipEntrySource implements ZipEntrySource {
 	public void close() {
 		// Free the memory
 		zipEntries = null;
+	}
+	public boolean isClosed() {
+	    return (zipEntries == null);
 	}
 	
 	/**

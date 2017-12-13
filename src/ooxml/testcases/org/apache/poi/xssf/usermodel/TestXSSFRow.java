@@ -23,10 +23,10 @@ import static org.junit.Assert.assertSame;
 
 import java.io.IOException;
 
-import org.apache.poi.ss.SpreadsheetVersion;
-import org.apache.poi.ss.usermodel.BaseTestRow;
+import org.apache.poi.ss.usermodel.BaseTestXRow;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellCopyPolicy;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.XSSFITestDataProvider;
@@ -35,22 +35,13 @@ import org.junit.Test;
 /**
  * Tests for XSSFRow
  */
-public final class TestXSSFRow extends BaseTestRow {
+public final class TestXSSFRow extends BaseTestXRow {
 
     public TestXSSFRow() {
         super(XSSFITestDataProvider.instance);
     }
-
-    @Test
-    public void testRowBounds() throws IOException {
-        baseTestRowBounds(SpreadsheetVersion.EXCEL2007.getLastRowIndex());
-    }
-
-    @Test
-    public void testCellBounds() throws IOException {
-        baseTestCellBounds(SpreadsheetVersion.EXCEL2007.getLastColumnIndex());
-    }
     
+    @Test
     public void testCopyRowFrom() throws IOException {
         final XSSFWorkbook workbook = new XSSFWorkbook();
         final XSSFSheet sheet = workbook.createSheet("test");
@@ -65,6 +56,7 @@ public final class TestXSSFRow extends BaseTestRow {
         workbook.close();
     }
     
+    @Test
     public void testCopyRowFromExternalSheet() throws IOException {
         final XSSFWorkbook workbook = new XSSFWorkbook();
         final Sheet srcSheet = workbook.createSheet("src");
@@ -159,6 +151,7 @@ public final class TestXSSFRow extends BaseTestRow {
         workbook.close();
     }
     
+    @Test
     public void testCopyRowOverwritesExistingRow() throws IOException {
         final XSSFWorkbook workbook = new XSSFWorkbook();
         final XSSFSheet sheet1 = workbook.createSheet("Sheet1");
@@ -190,7 +183,7 @@ public final class TestXSSFRow extends BaseTestRow {
         assertSame("existing references to externObserverRow are still valid", externObserverRow, sheet2.getRow(0));
         
         // Make sure copyRowFrom actually copied row (this is tested elsewhere)
-        assertEquals(Cell.CELL_TYPE_STRING, destRow.getCell(0).getCellType());
+        assertEquals(CellType.STRING, destRow.getCell(0).getCellType());
         assertEquals("hello", destRow.getCell(0).getStringCellValue());
         
         // We don't want #REF! errors if we copy a row that contains cells that are referred to by other cells outside of copied region

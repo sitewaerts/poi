@@ -35,28 +35,24 @@ import com.microsoft.schemas.office.x2006.encryption.EncryptionDocument;
 
 public class AgileEncryptionInfoBuilder implements EncryptionInfoBuilder {
     
-    EncryptionInfo info;
-    AgileEncryptionHeader header;
-    AgileEncryptionVerifier verifier;
-    AgileDecryptor decryptor;
-    AgileEncryptor encryptor;
-
+    @Override
     public void initialize(EncryptionInfo info, LittleEndianInput dis) throws IOException {
-        this.info = info;
-        
         EncryptionDocument ed = parseDescriptor((InputStream)dis);
-        header = new AgileEncryptionHeader(ed);
-        verifier = new AgileEncryptionVerifier(ed);
+        info.setHeader(new AgileEncryptionHeader(ed));
+        info.setVerifier(new AgileEncryptionVerifier(ed));
         if (info.getVersionMajor() == EncryptionMode.agile.versionMajor
             && info.getVersionMinor() == EncryptionMode.agile.versionMinor) {
-            decryptor = new AgileDecryptor(this);
-            encryptor = new AgileEncryptor(this);
+            AgileDecryptor dec = new AgileDecryptor();
+            dec.setEncryptionInfo(info);
+            info.setDecryptor(dec);
+            AgileEncryptor enc = new AgileEncryptor();
+            enc.setEncryptionInfo(info);
+            info.setEncryptor(enc);
         }
     }
 
+    @Override
     public void initialize(EncryptionInfo info, CipherAlgorithm cipherAlgorithm, HashAlgorithm hashAlgorithm, int keyBits, int blockSize, ChainingMode chainingMode) {
-        this.info = info;
-
         if (cipherAlgorithm == null) {
             cipherAlgorithm = CipherAlgorithm.aes128;
         }
@@ -83,32 +79,16 @@ public class AgileEncryptionInfoBuilder implements EncryptionInfoBuilder {
             found |= (ks == keyBits);
         }
         if (!found) {
-            throw new EncryptedDocumentException("KeySize "+keyBits+" not allowed for Cipher "+cipherAlgorithm.toString());
+            throw new EncryptedDocumentException("KeySize "+keyBits+" not allowed for Cipher "+ cipherAlgorithm);
         }
-        header = new AgileEncryptionHeader(cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode);
-        verifier = new AgileEncryptionVerifier(cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode);
-        decryptor = new AgileDecryptor(this);
-        encryptor = new AgileEncryptor(this);
-    }
-    
-    public AgileEncryptionHeader getHeader() {
-        return header;
-    }
-
-    public AgileEncryptionVerifier getVerifier() {
-        return verifier;
-    }
-
-    public AgileDecryptor getDecryptor() {
-        return decryptor;
-    }
-
-    public AgileEncryptor getEncryptor() {
-        return encryptor;
-    }
-
-    protected EncryptionInfo getInfo() {
-        return info;
+        info.setHeader(new AgileEncryptionHeader(cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode));
+        info.setVerifier(new AgileEncryptionVerifier(cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode));
+        AgileDecryptor dec = new AgileDecryptor();
+        dec.setEncryptionInfo(info);
+        info.setDecryptor(dec);
+        AgileEncryptor enc = new AgileEncryptor();
+        enc.setEncryptionInfo(info);
+        info.setEncryptor(enc);
     }
     
     protected static EncryptionDocument parseDescriptor(String descriptor) {

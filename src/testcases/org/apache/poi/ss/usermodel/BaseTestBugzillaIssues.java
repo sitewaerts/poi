@@ -18,6 +18,7 @@
 package org.apache.poi.ss.usermodel;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -26,19 +27,22 @@ import static org.junit.Assert.fail;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextAttribute;
 import java.awt.font.TextLayout;
+import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.text.AttributedString;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import java.awt.geom.Rectangle2D;
-
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.hssf.util.PaneInformation;
 import org.apache.poi.ss.ITestDataProvider;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.CellRangeAddressList;
+import org.apache.poi.ss.util.PaneInformation;
 import org.apache.poi.ss.util.SheetUtil;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
 import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -49,15 +53,18 @@ import org.junit.Test;
  * @author Yegor Kozlov
  */
 public abstract class BaseTestBugzillaIssues {
+    private static final POILogger logger = POILogFactory.getLogger(BaseTestBugzillaIssues.class);
+
+    private static final String TEST_32 = "Some text with 32 characters to ";
+    private static final String TEST_255 = "Some very long text that is exactly 255 characters, which are allowed here, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla.....";
+    private static final String TEST_256 = "Some very long text that is longer than the 255 characters allowed in HSSF here, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla bla, bla1";
+    private static final String TEST_SPECIAL_TITLE = "special \n\t\r\u0002characters";
+    private static final String TEST_SPECIAL = "Some text with special \n\t\r\u0002characters to s";
 
     private final ITestDataProvider _testDataProvider;
 
     protected BaseTestBugzillaIssues(ITestDataProvider testDataProvider) {
         _testDataProvider = testDataProvider;
-    }
-    
-    protected void trackColumnsForAutoSizingIfSXSSF(Sheet sheet) {
-        // do nothing for Sheet base class. This will be overridden for SXSSFSheets.
     }
 
     /**
@@ -68,8 +75,9 @@ public abstract class BaseTestBugzillaIssues {
     public static void assertAlmostEquals(double expected, double actual, float factor) {
         double diff = Math.abs(expected - actual);
         double fuzz = expected * factor;
-        if (diff > fuzz)
+        if (diff > fuzz) {
             fail(actual + " not within " + fuzz + " of " + expected);
+        }
     }
 
     /**
@@ -108,14 +116,10 @@ public abstract class BaseTestBugzillaIssues {
         Sheet sheet = wb1.createSheet();
         CreationHelper factory = wb1.getCreationHelper();
 
-        String tmp1 = null;
-        String tmp2 = null;
-        String tmp3 = null;
-
         for (int i = 0; i < num; i++) {
-            tmp1 = "Test1" + i;
-            tmp2 = "Test2" + i;
-            tmp3 = "Test3" + i;
+            String tmp1 = "Test1" + i;
+            String tmp2 = "Test2" + i;
+            String tmp3 = "Test3" + i;
 
             Row row = sheet.createRow(i);
 
@@ -131,9 +135,9 @@ public abstract class BaseTestBugzillaIssues {
 
         sheet = wb2.getSheetAt(0);
         for (int i = 0; i < num; i++) {
-            tmp1 = "Test1" + i;
-            tmp2 = "Test2" + i;
-            tmp3 = "Test3" + i;
+            String tmp1 = "Test1" + i;
+            String tmp2 = "Test2" + i;
+            String tmp3 = "Test3" + i;
 
             Row row = sheet.getRow(i);
 
@@ -171,7 +175,7 @@ public abstract class BaseTestBugzillaIssues {
             // fetch the first merged region...EXCEPTION OCCURS HERE
             template.getMergedRegion(0);
        }
-       //make sure we dont exception
+
        wb.close();
     }
 
@@ -220,15 +224,11 @@ public abstract class BaseTestBugzillaIssues {
      *test opening the resulting file in Excel*/
     @Test
     public final void bug22568() throws IOException {
-        int r=2000;int c=3;
-
         Workbook wb1 = _testDataProvider.createWorkbook();
         Sheet sheet = wb1.createSheet("ExcelTest") ;
 
-        int col_cnt=0, rw_cnt=0 ;
-
-        col_cnt = c;
-        rw_cnt = r;
+        int col_cnt = 3;
+        int rw_cnt = 2000;
 
         Row rw ;
         rw = sheet.createRow(0) ;
@@ -361,11 +361,13 @@ public abstract class BaseTestBugzillaIssues {
     }
 
     private static String createFunction(String name, int maxArgs){
-        StringBuffer fmla = new StringBuffer();
+        StringBuilder fmla = new StringBuilder();
         fmla.append(name);
         fmla.append("(");
         for(int i=0; i < maxArgs; i++){
-            if(i > 0) fmla.append(',');
+            if(i > 0) {
+                fmla.append(',');
+            }
             fmla.append("A1");
         }
         fmla.append(")");
@@ -377,7 +379,7 @@ public abstract class BaseTestBugzillaIssues {
         Workbook wb = _testDataProvider.createWorkbook();
         BaseTestSheetAutosizeColumn.fixFonts(wb);
         Sheet sheet = wb.createSheet("Sheet1");
-        trackColumnsForAutoSizingIfSXSSF(sheet);
+        _testDataProvider.trackAllColumnsForAutosizing(sheet);
         Row row = sheet.createRow(0);
         Cell cell0 = row.createCell(0);
 
@@ -434,7 +436,7 @@ public abstract class BaseTestBugzillaIssues {
         Workbook wb = _testDataProvider.createWorkbook();
         BaseTestSheetAutosizeColumn.fixFonts(wb);
         Sheet sheet = wb.createSheet();
-        trackColumnsForAutoSizingIfSXSSF(sheet);
+        _testDataProvider.trackAllColumnsForAutosizing(sheet);
         Row row = sheet.createRow(0);
         Cell cell0 = row.createCell(0);
         Cell cell1 = row.createCell(1);
@@ -472,14 +474,9 @@ public abstract class BaseTestBugzillaIssues {
     
     /**
      * Test if a > b. Fails if false.
-     *
-     * @param message
-     * @param a
-     * @param b
      */
     private void assertGreaterThan(String message, double a, double b) {
-        if (a > b) { // expected
-        } else {
+        if (a <= b) {
             String msg = "Expected: " + a + " > " + b;
             fail(message + ": " + msg);
         }
@@ -495,11 +492,11 @@ public abstract class BaseTestBugzillaIssues {
         String txt = lines[0] + "0";
 
         AttributedString str = new AttributedString(txt);
-        copyAttributes(font, str, 0, txt.length());
+        copyAttributes(font, str, txt.length());
 
-        if (rt.numFormattingRuns() > 0) {
-            // TODO: support rich text fragments
-        }
+        // TODO: support rich text fragments
+        /*if (rt.numFormattingRuns() > 0) {
+        }*/
 
         TextLayout layout = new TextLayout(str.getIterator(), fontRenderContext);
         double frameWidth = getFrameWidth(layout);
@@ -508,26 +505,30 @@ public abstract class BaseTestBugzillaIssues {
     
     private double getFrameWidth(TextLayout layout) {
         Rectangle2D bounds = layout.getBounds();
-        double frameWidth = bounds.getX() + bounds.getWidth();
-        return frameWidth;
+        return bounds.getX() + bounds.getWidth();
     }
 
     private double computeCellWidthFixed(Font font, String txt) {
         final FontRenderContext fontRenderContext = new FontRenderContext(null, true, true);
         AttributedString str = new AttributedString(txt);
-        copyAttributes(font, str, 0, txt.length());
+        copyAttributes(font, str, txt.length());
 
         TextLayout layout = new TextLayout(str.getIterator(), fontRenderContext);
-        double frameWidth = getFrameWidth(layout);
-        return frameWidth;
+        return getFrameWidth(layout);
     }
 
-    private static void copyAttributes(Font font, AttributedString str, int startIdx, int endIdx) {
-        str.addAttribute(TextAttribute.FAMILY, font.getFontName(), startIdx, endIdx);
+    private static void copyAttributes(Font font, AttributedString str, int endIdx) {
+        str.addAttribute(TextAttribute.FAMILY, font.getFontName(), 0, endIdx);
         str.addAttribute(TextAttribute.SIZE, (float)font.getFontHeightInPoints());
-        if (font.getBoldweight() == Font.BOLDWEIGHT_BOLD) str.addAttribute(TextAttribute.WEIGHT, TextAttribute.WEIGHT_BOLD, startIdx, endIdx);
-        if (font.getItalic() ) str.addAttribute(TextAttribute.POSTURE, TextAttribute.POSTURE_OBLIQUE, startIdx, endIdx);
-        if (font.getUnderline() == Font.U_SINGLE ) str.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON, startIdx, endIdx);
+        if (font.getBold()) {
+            str.addAttribute(TextAttribute.WEIGHT, TextAttribute.WEIGHT_BOLD, 0, endIdx);
+        }
+        if (font.getItalic() ) {
+            str.addAttribute(TextAttribute.POSTURE, TextAttribute.POSTURE_OBLIQUE, 0, endIdx);
+        }
+        if (font.getUnderline() == Font.U_SINGLE ) {
+            str.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON, 0, endIdx);
+        }
     }
 
     /**
@@ -547,7 +548,7 @@ public abstract class BaseTestBugzillaIssues {
         for(int rn=0; rn<= topRow; rn++) {
            Row r = s.createRow(rn);
            for(int cn=0; cn<leftmostColumn; cn++) {
-              Cell c = r.createCell(cn, Cell.CELL_TYPE_NUMERIC);
+              Cell c = r.createCell(cn, CellType.NUMERIC);
               c.setCellValue(100*rn + cn);
            }
         }
@@ -670,23 +671,23 @@ public abstract class BaseTestBugzillaIssues {
         d2Percent.setDataFormat(format.getFormat("0.00%"));
 
         Sheet s = wb.createSheet();
-        trackColumnsForAutoSizingIfSXSSF(s);
+        _testDataProvider.trackAllColumnsForAutosizing(s);
         Row r1 = s.createRow(0);
 
         for (int i=0; i<3; i++) {
-            r1.createCell(i, Cell.CELL_TYPE_NUMERIC).setCellValue(0);
+            r1.createCell(i, CellType.NUMERIC).setCellValue(0);
         }
         for (int i=3; i<6; i++) {
-            r1.createCell(i, Cell.CELL_TYPE_NUMERIC).setCellValue(1);
+            r1.createCell(i, CellType.NUMERIC).setCellValue(1);
         }
         for (int i=6; i<9; i++) {
-            r1.createCell(i, Cell.CELL_TYPE_NUMERIC).setCellValue(0.12345);
+            r1.createCell(i, CellType.NUMERIC).setCellValue(0.12345);
         }
         for (int i=9; i<12; i++) {
-            r1.createCell(i, Cell.CELL_TYPE_NUMERIC).setCellValue(1.2345);
+            r1.createCell(i, CellType.NUMERIC).setCellValue(1.2345);
         }
         for (int i=0; i<12; i+=3) {
-            r1.getCell(i+0).setCellStyle(iPercent);
+            r1.getCell(i).setCellStyle(iPercent);
             r1.getCell(i+1).setCellStyle(d1Percent);
             r1.getCell(i+2).setCellStyle(d2Percent);
         }
@@ -734,11 +735,11 @@ public abstract class BaseTestBugzillaIssues {
         // C1 is a string, with different text
         r1.createCell(2).setCellValue("This some other text");
         // D1 is a blank cell
-        r1.createCell(3, Cell.CELL_TYPE_BLANK);
+        r1.createCell(3, CellType.BLANK);
         // E1 is null
 
         // A2 will hold our test formulas
-        Cell cf = r2.createCell(0, Cell.CELL_TYPE_FORMULA);
+        Cell cf = r2.createCell(0, CellType.FORMULA);
 
 
         // First up, check that TRUE and ISLOGICAL both behave
@@ -892,10 +893,10 @@ public abstract class BaseTestBugzillaIssues {
 
 
         // Create the references
-        Cell c1 = r1.createCell(0, Cell.CELL_TYPE_FORMULA);
+        Cell c1 = r1.createCell(0, CellType.FORMULA);
         c1.setCellFormula(refLocal);
 
-        Cell c2 = r1.createCell(1, Cell.CELL_TYPE_FORMULA);
+        Cell c2 = r1.createCell(1, CellType.FORMULA);
         c2.setCellFormula(refHttp);
 
 
@@ -920,18 +921,22 @@ public abstract class BaseTestBugzillaIssues {
         try {
             evaluateCell(wb2, c1);
             fail("Shouldn't be able to evaluate without the other file");
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            // expected here
+        }
         try {
             evaluateCell(wb2, c2);
             fail("Shouldn't be able to evaluate without the other file");
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            // expected here
+        }
 
 
         // Set up references to the other file
         Workbook wb3 = _testDataProvider.createWorkbook();
         wb3.createSheet().createRow(1).createCell(0).setCellValue(otherCellText);
 
-        Map<String,FormulaEvaluator> evaluators = new HashMap<String, FormulaEvaluator>();
+        Map<String,FormulaEvaluator> evaluators = new HashMap<>();
         evaluators.put(refLocal, wb3.getCreationHelper().createFormulaEvaluator());
         evaluators.put(refHttp,  wb3.getCreationHelper().createFormulaEvaluator());
 
@@ -968,7 +973,7 @@ public abstract class BaseTestBugzillaIssues {
             assertEquals(1, cArray.length);*/
 
             Cell cell = row.getCell(0);
-            assertEquals(Cell.CELL_TYPE_FORMULA, cell.getCellType());
+            assertEquals(CellType.FORMULA, cell.getCellType());
         }
 
         { // overwrite the row
@@ -1000,7 +1005,7 @@ public abstract class BaseTestBugzillaIssues {
      * With HSSF, if you create a font, don't change it, and
      *  create a 2nd, you really do get two fonts that you
      *  can alter as and when you want.
-     * With XSSF, that wasn't the case, but this verfies
+     * With XSSF, that wasn't the case, but this verifies
      *  that it now is again
      */
     @Test
@@ -1040,9 +1045,9 @@ public abstract class BaseTestBugzillaIssues {
     public void bug56981() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
         CellStyle vertTop = wb.createCellStyle();
-        vertTop.setVerticalAlignment(CellStyle.VERTICAL_TOP);
+        vertTop.setVerticalAlignment(VerticalAlignment.TOP);
         CellStyle vertBottom = wb.createCellStyle();
-        vertBottom.setVerticalAlignment(CellStyle.VERTICAL_BOTTOM);
+        vertBottom.setVerticalAlignment(VerticalAlignment.BOTTOM);
         Sheet sheet = wb.createSheet("Sheet 1");
         Row row = sheet.createRow(0);
         Cell top = row.createCell(0);
@@ -1071,7 +1076,7 @@ public abstract class BaseTestBugzillaIssues {
         CreationHelper factory = wb.getCreationHelper();
 
         Sheet sheet = wb.createSheet();
-        Drawing drawing = sheet.createDrawingPatriarch();
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
         ClientAnchor anchor = factory.createClientAnchor();
 
         Cell cell0 = sheet.createRow(0).createCell(0);
@@ -1111,7 +1116,7 @@ public abstract class BaseTestBugzillaIssues {
         Font font = wb.createFont();
         font.setFontName("Arial");
         font.setFontHeightInPoints((short)14);
-        font.setBoldweight(Font.BOLDWEIGHT_BOLD);
+        font.setBold(true);
         font.setColor(IndexedColors.RED.getIndex());
         str2.applyFont(font);
 
@@ -1135,54 +1140,62 @@ public abstract class BaseTestBugzillaIssues {
         Row r = s.createRow(0);
 
         // Setup
-        Cell cn = r.createCell(0, Cell.CELL_TYPE_NUMERIC);
+        Cell cn = r.createCell(0, CellType.NUMERIC);
         cn.setCellValue(1.2);
-        Cell cs = r.createCell(1, Cell.CELL_TYPE_STRING);
+        Cell cs = r.createCell(1, CellType.STRING);
         cs.setCellValue("Testing");
 
-        Cell cfn = r.createCell(2, Cell.CELL_TYPE_FORMULA);
+        Cell cfn = r.createCell(2, CellType.FORMULA);
         cfn.setCellFormula("A1");
-        Cell cfs = r.createCell(3, Cell.CELL_TYPE_FORMULA);
+        Cell cfs = r.createCell(3, CellType.FORMULA);
         cfs.setCellFormula("B1");
 
         FormulaEvaluator fe = wb.getCreationHelper().createFormulaEvaluator();
-        assertEquals(Cell.CELL_TYPE_NUMERIC, fe.evaluate(cfn).getCellType());
-        assertEquals(Cell.CELL_TYPE_STRING, fe.evaluate(cfs).getCellType());
+        assertEquals(CellType.NUMERIC, fe.evaluate(cfn).getCellType());
+        assertEquals(CellType.STRING, fe.evaluate(cfs).getCellType());
         fe.evaluateFormulaCell(cfn);
         fe.evaluateFormulaCell(cfs);
 
         // Now test
-        assertEquals(Cell.CELL_TYPE_NUMERIC, cn.getCellType());
-        assertEquals(Cell.CELL_TYPE_STRING, cs.getCellType());
-        assertEquals(Cell.CELL_TYPE_FORMULA, cfn.getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, cfn.getCachedFormulaResultType());
-        assertEquals(Cell.CELL_TYPE_FORMULA, cfs.getCellType());
-        assertEquals(Cell.CELL_TYPE_STRING, cfs.getCachedFormulaResultType());
+        assertEquals(CellType.NUMERIC, cn.getCellType());
+        assertEquals(CellType.STRING, cs.getCellType());
+        assertEquals(CellType.FORMULA, cfn.getCellType());
+        assertEquals(CellType.NUMERIC, cfn.getCachedFormulaResultType());
+        assertEquals(CellType.FORMULA, cfs.getCellType());
+        assertEquals(CellType.STRING, cfs.getCachedFormulaResultType());
 
         // Different ways of retrieving
         assertEquals(1.2, cn.getNumericCellValue(), 0);
         try {
             cn.getRichStringCellValue();
             fail();
-        } catch(IllegalStateException e) {}
+        } catch(IllegalStateException e) {
+            // expected here
+        }
 
         assertEquals("Testing", cs.getStringCellValue());
         try {
             cs.getNumericCellValue();
             fail();
-        } catch(IllegalStateException e) {}
+        } catch(IllegalStateException e) {
+            // expected here
+        }
 
         assertEquals(1.2, cfn.getNumericCellValue(), 0);
         try {
             cfn.getRichStringCellValue();
             fail();
-        } catch(IllegalStateException e) {}
+        } catch(IllegalStateException e) {
+            // expected here
+        }
 
         assertEquals("Testing", cfs.getStringCellValue());
         try {
             cfs.getNumericCellValue();
             fail();
-        } catch(IllegalStateException e) {}
+        } catch(IllegalStateException e) {
+            // expected here
+        }
         
         wb.close();
     }
@@ -1203,7 +1216,7 @@ public abstract class BaseTestBugzillaIssues {
 
         cell = row.createCell(1);
         // also verify that setting formulas to null works
-        cell.setCellType(Cell.CELL_TYPE_FORMULA);
+        cell.setCellType(CellType.FORMULA);
         cell.setCellValue((String)null);
 
         wb.getCreationHelper().createFormulaEvaluator().evaluateAll();
@@ -1213,7 +1226,7 @@ public abstract class BaseTestBugzillaIssues {
                 value == null || value.length() == 0);
 
         // set some value
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        cell.setCellType(CellType.STRING);
         cell.setCellValue("somevalue");
 
         value = cell.getStringCellValue();
@@ -1305,7 +1318,7 @@ public abstract class BaseTestBugzillaIssues {
             } catch (IllegalStateException e) {
                fail("Failed for row " + i);
             }
-            style.setAlignment(CellStyle.ALIGN_RIGHT);
+            style.setAlignment(HorizontalAlignment.RIGHT);
             if((wb instanceof HSSFWorkbook)) {
                 // there are some predefined styles
                 assertEquals(i+21, style.getIndex());
@@ -1368,7 +1381,9 @@ public abstract class BaseTestBugzillaIssues {
         wb.close();
     }
     
-    @Ignore
+    // Bug 58648: FormulaParser throws exception in parseSimpleFactor() when getCellFormula()
+    // is called on a cell and the formula contains spaces between closing parentheses ") )"
+    // https://bz.apache.org/bugzilla/show_bug.cgi?id=58648
     @Test
     public void test58648() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
@@ -1391,9 +1406,9 @@ public abstract class BaseTestBugzillaIssues {
         Sheet s = wb.createSheet();
         Cell cell = s.createRow(0).createCell(0);
         cell.setCellValue((String)null);
-        assertEquals(Cell.CELL_TYPE_BLANK, cell.getCellType());
+        assertEquals(CellType.BLANK, cell.getCellType());
         
-        _testDataProvider.trackColumnsForAutosizing(s, 0);
+        _testDataProvider.trackAllColumnsForAutosizing(s);
         
         s.autoSizeColumn(0);
         assertEquals(2048, s.getColumnWidth(0));
@@ -1402,5 +1417,499 @@ public abstract class BaseTestBugzillaIssues {
         assertEquals(2048, s.getColumnWidth(0));
 
         wb.close();
+    }
+
+    @Test
+    public void test52684() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+
+        Sheet sheet = wb.createSheet("test");
+        Row row = sheet.createRow(0);
+        Cell cell = row.createCell(0);
+
+        cell.setCellValue(12312345123L);
+
+        DataFormat format = wb.createDataFormat();
+        CellStyle style = wb.createCellStyle();
+        style.setDataFormat(format.getFormat("000-00000-000"));
+        cell.setCellStyle(style);
+
+        assertEquals("000-00000-000",
+                cell.getCellStyle().getDataFormatString());
+        assertEquals(164, cell.getCellStyle().getDataFormat());
+
+        DataFormatter formatter = new DataFormatter();
+
+        assertEquals("12-312-345-123", formatter.formatCellValue(cell));
+
+        wb.close();
+    }
+    
+    @Test
+    public void test58896() throws IOException {
+        final int nrows = 160;
+        final int ncols = 139;
+        
+        // Create a workbook
+        final Workbook wb = _testDataProvider.createWorkbook(nrows+1);
+        final Sheet sh = wb.createSheet();
+        if (logger.check(POILogger.DEBUG)) {
+            logger.log(POILogger.DEBUG, wb.getClass().getName() + " column autosizing timing...");
+        }
+
+        final long t0 = time();
+        _testDataProvider.trackAllColumnsForAutosizing(sh);
+        for (int r=0; r<nrows; r++) {
+            final Row row = sh.createRow(r);
+            for (int c=0; c<ncols; c++) {
+                final Cell cell = row.createCell(c);
+                cell.setCellValue("Cell[r="+r+",c="+c+"]");
+            }
+        }
+        final double populateSheetTime = delta(t0);
+        final double populateSheetTimePerCell_ns = (1000000 * populateSheetTime / (nrows*ncols));
+        if (logger.check(POILogger.DEBUG)) {
+            logger.log(POILogger.DEBUG, "Populate sheet time: " + populateSheetTime + " ms (" + populateSheetTimePerCell_ns + " ns/cell)");
+            
+            logger.log(POILogger.DEBUG, "Autosizing...");
+        }
+        final long t1 = time();
+        for (int c=0; c<ncols; c++) {
+            final long t2 = time();
+            sh.autoSizeColumn(c);
+            if (logger.check(POILogger.DEBUG)) {
+                logger.log(POILogger.DEBUG, "Column " + c + " took " + delta(t2) + " ms");
+            }
+            
+        }
+        final double autoSizeColumnsTime = delta(t1);
+        final double autoSizeColumnsTimePerColumn = autoSizeColumnsTime / ncols;
+        final double bestFitWidthTimePerCell_ns = 1000000 * autoSizeColumnsTime / (ncols * nrows);
+        
+        if (logger.check(POILogger.DEBUG)) {
+            logger.log(POILogger.DEBUG, "Auto sizing columns took a total of " + autoSizeColumnsTime + " ms (" + autoSizeColumnsTimePerColumn + " ms per column)");
+            logger.log(POILogger.DEBUG, "Best fit width time per cell: " + bestFitWidthTimePerCell_ns + " ns");
+        }
+        
+        final double totalTime_s = (populateSheetTime + autoSizeColumnsTime) / 1000;
+        if (logger.check(POILogger.DEBUG)) {
+            logger.log(POILogger.DEBUG, "Total time: " + totalTime_s + " s");
+        }
+        
+        wb.close();
+        
+        //if (bestFitWidthTimePerCell_ns > 50000) {
+        //    fail("Best fit width time per cell exceeded 50000 ns: " + bestFitWidthTimePerCell_ns + " ns");
+        //}
+        
+        //if (totalTime_s > 10) {
+        //    fail("Total time exceeded 10 seconds: " + totalTime_s + " s");
+        //}
+    }
+    
+    protected long time() {
+        return System.currentTimeMillis();
+    }
+
+    protected double delta(long startTimeMillis) {
+        return time() - startTimeMillis;
+    }
+    
+    @Ignore("bug 59393")
+    @Test
+    public void bug59393_commentsCanHaveSameAnchor() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        
+        Sheet sheet = wb.createSheet();
+        
+        CreationHelper helper = wb.getCreationHelper();
+        ClientAnchor anchor = helper.createClientAnchor();
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
+        
+        Row row = sheet.createRow(0);
+        
+        Cell cell1 = row.createCell(0);
+        Cell cell2 = row.createCell(1);
+        Cell cell3 = row.createCell(2);
+
+        Comment comment1 = drawing.createCellComment(anchor);
+        RichTextString richTextString1 = helper.createRichTextString("comment1");
+        comment1.setString(richTextString1);
+        cell1.setCellComment(comment1);
+         
+        // fails with IllegalArgumentException("Multiple cell comments in one cell are not allowed, cell: A1")
+        // because createCellComment tries to create a cell at A1
+        // (from CellAddress(anchor.getRow1(), anchor.getCell1())),
+        // but cell A1 already has a comment (comment1).
+        // Need to atomically create a comment and attach it to a cell.
+        // Current workaround: change anchor between each usage
+        // anchor.setCol1(1);
+        Comment comment2 = drawing.createCellComment(anchor);
+        RichTextString richTextString2 = helper.createRichTextString("comment2");
+        comment2.setString(richTextString2);
+        cell2.setCellComment(comment2);
+
+        // anchor.setCol1(2);
+        Comment comment3 = drawing.createCellComment(anchor);
+        RichTextString richTextString3 = helper.createRichTextString("comment3");
+        comment3.setString(richTextString3);
+        cell3.setCellComment(comment3);
+        
+        wb.close();
+    }
+
+
+    @Test
+    public void bug57798() throws Exception {
+        String fileName = "57798." + _testDataProvider.getStandardFileNameExtension();
+        Workbook workbook = _testDataProvider.openSampleWorkbook(fileName);
+
+        Sheet sheet = workbook.getSheet("Sheet1");
+
+        // *******************************
+        // First cell of array formula, OK
+        int rowId = 0;
+        int cellId = 1;
+
+        Row row = sheet.getRow(rowId);
+        Cell cell = row.getCell(cellId);
+
+        assertEquals("A1", cell.getCellFormula());
+        if (CellType.FORMULA == cell.getCellType()) {
+            CellType formulaResultType = cell.getCachedFormulaResultType();
+            assertEquals(CellType.STRING, formulaResultType);
+        }
+
+        // *******************************
+        // Second cell of array formula, NOT OK for xlsx files
+        rowId = 1;
+        cellId = 1;
+
+        row = sheet.getRow(rowId);
+        cell = row.getCell(cellId);
+        assertEquals("A1", cell.getCellFormula());
+
+        if (CellType.FORMULA == cell.getCellType()) {
+            CellType formulaResultType = cell.getCachedFormulaResultType();
+            assertEquals(CellType.STRING, formulaResultType);
+        }
+
+        workbook.close();
+    }
+
+    @Ignore
+    @Test
+    public void test57929() throws IOException {
+        // Create a workbook with print areas on 2 sheets
+        Workbook wb = _testDataProvider.createWorkbook();
+        wb.createSheet("Sheet0");
+        wb.createSheet("Sheet1");
+        wb.setPrintArea(0, "$A$1:$C$6");
+        wb.setPrintArea(1, "$B$1:$C$5");
+        
+        // Verify the print areas were set correctly
+        assertEquals("Sheet0!$A$1:$C$6", wb.getPrintArea(0));
+        assertEquals("Sheet1!$B$1:$C$5", wb.getPrintArea(1));
+        
+        // Remove the print area on Sheet0 and change the print area on Sheet1
+        wb.removePrintArea(0);
+        wb.setPrintArea(1, "$A$1:$A$1");
+        
+        // Verify that the changes were made
+        assertNull("Sheet0 before write", wb.getPrintArea(0));
+        assertEquals("Sheet1 before write", "Sheet1!$A$1:$A$1", wb.getPrintArea(1));
+        
+        // Verify that the changes are non-volatile
+        Workbook wb2 = _testDataProvider.writeOutAndReadBack(wb);
+        wb.close();
+        
+        assertNull("Sheet0 after write", wb2.getPrintArea(0)); // CURRENTLY FAILS with "Sheet0!$A$1:$C$6"
+        assertEquals("Sheet1 after write", "Sheet1!$A$1:$A$1", wb2.getPrintArea(1));
+    }
+
+
+    @Test
+    public void test55384() throws Exception {
+        try (Workbook wb = _testDataProvider.createWorkbook()) {
+            Sheet sh = wb.createSheet();
+            for (int rownum = 0; rownum < 10; rownum++) {
+                Row row = sh.createRow(rownum);
+                for (int cellnum = 0; cellnum < 3; cellnum++) {
+                    Cell cell = row.createCell(cellnum);
+                    cell.setCellValue(rownum + cellnum);
+                }
+            }
+            Row row = sh.createRow(10);
+            // setting no precalculated value works just fine.
+            Cell cell1 = row.createCell(0);
+            cell1.setCellFormula("SUM(A1:A10)");
+
+            // but setting a precalculated STRING value fails totally in SXSSF
+            Cell cell2 = row.createCell(1);
+            cell2.setCellFormula("SUM(B1:B10)");
+            cell2.setCellValue("55");
+
+            // setting a precalculated int value works as expected
+            Cell cell3 = row.createCell(2);
+            cell3.setCellFormula("SUM(C1:C10)");
+            cell3.setCellValue(65);
+
+            assertEquals(CellType.FORMULA, cell1.getCellType());
+            assertEquals(CellType.FORMULA, cell2.getCellType());
+            assertEquals(CellType.FORMULA, cell3.getCellType());
+
+            assertEquals("SUM(A1:A10)", cell1.getCellFormula());
+            assertEquals("SUM(B1:B10)", cell2.getCellFormula());
+            assertEquals("SUM(C1:C10)", cell3.getCellFormula());
+
+            /*String name = wb.getClass().getCanonicalName();
+            String ext = (wb instanceof HSSFWorkbook) ? ".xls" : ".xlsx";
+            OutputStream output = new FileOutputStream("/tmp" + name + ext);
+            try {
+                wb.write(output);
+            } finally {
+                output.close();
+            }*/
+
+            Workbook wbBack = _testDataProvider.writeOutAndReadBack(wb);
+            checkFormulaPreevaluatedString(wbBack);
+            wbBack.close();
+        }
+    }
+
+    private void checkFormulaPreevaluatedString(Workbook readFile) {
+        Sheet sheet = readFile.getSheetAt(0);
+        Row row = sheet.getRow(sheet.getLastRowNum());
+        assertEquals(10, row.getRowNum());
+
+        for (Cell cell : row) {
+            String cellValue;
+            switch (cell.getCellType()) {
+                case STRING:
+                    cellValue = cell.getRichStringCellValue().getString();
+                    break;
+                case FORMULA:
+                    cellValue = cell.getCellFormula();
+                    break;
+                default:
+                    fail("unexpected cell type");
+                    return;
+            }
+            assertNotNull(cellValue);
+            cellValue = cellValue.isEmpty() ? null : cellValue;
+            assertNotNull(cellValue);
+        }
+    }
+    
+    // bug 60197: setSheetOrder should update sheet-scoped named ranges to maintain references to the sheets before the re-order
+    @Test
+    public void bug60197_NamedRangesReferToCorrectSheetWhenSheetOrderIsChanged() throws Exception {
+        Workbook wb = _testDataProvider.createWorkbook();
+        Sheet sheet1 = wb.createSheet("Sheet1");
+        Sheet sheet2 = wb.createSheet("Sheet2");
+        Sheet sheet3 = wb.createSheet("Sheet3");
+    
+        Name nameOnSheet1 = wb.createName();
+        nameOnSheet1.setSheetIndex(wb.getSheetIndex(sheet1));
+        nameOnSheet1.setNameName("NameOnSheet1");
+        nameOnSheet1.setRefersToFormula("Sheet1!A1");
+        
+        Name nameOnSheet2 = wb.createName();
+        nameOnSheet2.setSheetIndex(wb.getSheetIndex(sheet2));
+        nameOnSheet2.setNameName("NameOnSheet2");
+        nameOnSheet2.setRefersToFormula("Sheet2!A1");
+        
+        Name nameOnSheet3 = wb.createName();
+        nameOnSheet3.setSheetIndex(wb.getSheetIndex(sheet3));
+        nameOnSheet3.setNameName("NameOnSheet3");
+        nameOnSheet3.setRefersToFormula("Sheet3!A1");
+        
+        // workbook-scoped name
+        Name name = wb.createName();
+        name.setNameName("WorkbookScopedName");
+        name.setRefersToFormula("Sheet2!A1");
+        
+        assertEquals("Sheet1", nameOnSheet1.getSheetName());
+        assertEquals("Sheet2", nameOnSheet2.getSheetName());
+        assertEquals("Sheet3", nameOnSheet3.getSheetName());
+        assertEquals(-1, name.getSheetIndex());
+        assertEquals("Sheet2!A1", name.getRefersToFormula());
+        
+        // rearrange the sheets several times to make sure the names always refer to the right sheet
+        for (int i=0; i<=9; i++) {
+            wb.setSheetOrder("Sheet3", i % 3);
+            
+            // Current bug in XSSF:
+            // Call stack:
+            //   XSSFWorkbook.write(OutputStream)
+            //   XSSFWorkbook.commit()
+            //   XSSFWorkbook.saveNamedRanges()
+            // This dumps the current namedRanges to CTDefinedName and writes these to the CTWorkbook
+            // Then the XSSFName namedRanges list is cleared and rebuilt
+            // Thus, any XSSFName object becomes invalid after a write
+            // This re-assignment to the XSSFNames is not necessary if wb.write is not called.
+            nameOnSheet1 = wb.getName("NameOnSheet1");
+            nameOnSheet2 = wb.getName("NameOnSheet2");
+            nameOnSheet3 = wb.getName("NameOnSheet3");
+            name = wb.getName("WorkbookScopedName");
+            
+            // The name should still refer to the same sheet after the sheets are re-ordered
+            assertEquals(i % 3, wb.getSheetIndex("Sheet3"));
+            assertEquals(nameOnSheet1.getNameName(), "Sheet1", nameOnSheet1.getSheetName());
+            assertEquals(nameOnSheet2.getNameName(), "Sheet2", nameOnSheet2.getSheetName());
+            assertEquals(nameOnSheet3.getNameName(), "Sheet3", nameOnSheet3.getSheetName());
+            assertEquals(name.getNameName(), -1, name.getSheetIndex());
+            assertEquals(name.getNameName(), "Sheet2!A1", name.getRefersToFormula());
+            
+            // make sure the changes to the names stick after writing out the workbook
+            Workbook wb2 = _testDataProvider.writeOutAndReadBack(wb);
+            
+            // See note above. XSSFNames become invalid after workbook write
+            // Without reassignment here, an XmlValueDisconnectedException may occur
+            nameOnSheet1 = wb.getName("NameOnSheet1");
+            nameOnSheet2 = wb.getName("NameOnSheet2");
+            nameOnSheet3 = wb.getName("NameOnSheet3");
+            name = wb.getName("WorkbookScopedName");
+            
+            // Saving the workbook should not change the sheet names
+            assertEquals(i % 3, wb.getSheetIndex("Sheet3"));
+            assertEquals(nameOnSheet1.getNameName(), "Sheet1", nameOnSheet1.getSheetName());
+            assertEquals(nameOnSheet2.getNameName(), "Sheet2", nameOnSheet2.getSheetName());
+            assertEquals(nameOnSheet3.getNameName(), "Sheet3", nameOnSheet3.getSheetName());
+            assertEquals(name.getNameName(), -1, name.getSheetIndex());
+            assertEquals(name.getNameName(), "Sheet2!A1", name.getRefersToFormula());
+            
+            // Verify names in wb2
+            nameOnSheet1 = wb2.getName("NameOnSheet1");
+            nameOnSheet2 = wb2.getName("NameOnSheet2");
+            nameOnSheet3 = wb2.getName("NameOnSheet3");
+            name = wb2.getName("WorkbookScopedName");
+            
+            assertEquals(i % 3, wb2.getSheetIndex("Sheet3"));
+            assertEquals(nameOnSheet1.getNameName(), "Sheet1", nameOnSheet1.getSheetName());
+            assertEquals(nameOnSheet2.getNameName(), "Sheet2", nameOnSheet2.getSheetName());
+            assertEquals(nameOnSheet3.getNameName(), "Sheet3", nameOnSheet3.getSheetName());
+            assertEquals(name.getNameName(), -1, name.getSheetIndex());
+            assertEquals(name.getNameName(), "Sheet2!A1", name.getRefersToFormula());
+            
+            wb2.close();
+        }
+        
+        wb.close();
+    }
+
+    @Test
+    public void test59200() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        final Sheet sheet = wb.createSheet();
+
+        DataValidation dataValidation;
+        CellRangeAddressList headerCell = new CellRangeAddressList(0, 1, 0, 1);
+        DataValidationConstraint constraint = sheet.getDataValidationHelper().createCustomConstraint("A1<>\"\"");
+
+        dataValidation = sheet.getDataValidationHelper().createValidation(constraint, headerCell);
+
+        // HSSF has 32/255 limits as part of the Spec, XSSF has no limit in the spec, but Excel applies a 255 length limit!
+        // more than 255 fail for all
+        checkFailures(dataValidation, TEST_256, TEST_32, true);
+        checkFailures(dataValidation, TEST_32, TEST_256, true);
+
+        // null does work
+        checkFailures(dataValidation, null, null, false);
+
+        // more than 32 title fail for HSSFWorkbook
+        checkFailures(dataValidation, TEST_255, TEST_32, wb instanceof HSSFWorkbook);
+
+        // special characters work
+        checkFailures(dataValidation, TEST_SPECIAL_TITLE, TEST_SPECIAL, false);
+
+        // 32 length title and 255 length text work for both
+        checkFailures(dataValidation, TEST_32, TEST_255, false);
+
+        dataValidation.setShowErrorBox(false);
+        sheet.addValidationData(dataValidation);
+
+        // write out and read back in to trigger some more validation
+        final Workbook wbBack = _testDataProvider.writeOutAndReadBack(wb);
+
+        final Sheet sheetBack = wbBack.getSheetAt(0);
+        final List<? extends DataValidation> dataValidations = sheetBack.getDataValidations();
+        assertEquals(1, dataValidations.size());
+
+        /*String ext = (wb instanceof HSSFWorkbook) ? ".xls" : ".xlsx";
+        OutputStream str = new FileOutputStream("C:\\temp\\59200" + ext);
+        try {
+            wb.write(str);
+        } finally {
+            str.close();
+        }*/
+
+        wb.close();
+    }
+
+    private void checkFailures(DataValidation dataValidation, String title, String text, boolean shouldFail) {
+        try {
+            dataValidation.createPromptBox(title, text);
+            assertFalse("Should fail in a length-check, had " + (title == null ? null : title.length()) + " and " + (text == null ? null : text.length()), shouldFail);
+        } catch (IllegalStateException e) {
+            assertTrue("Should not fail in a length-check, had " + (title == null ? null : title.length()) + " and " + (text == null ? null : text.length()), shouldFail);
+            // expected here
+        }
+        try {
+            dataValidation.createErrorBox(title, text);
+            assertFalse("Should fail in a length-check, had " + (title == null ? null : title.length()) + " and " + (text == null ? null : text.length()), shouldFail);
+        } catch (IllegalStateException e) {
+            assertTrue("Should not fail in a length-check, had " + (title == null ? null : title.length()) + " and " + (text == null ? null : text.length()), shouldFail);
+        }
+    }
+
+    @Test
+    public void test60370() throws IOException {
+        Workbook wb = _testDataProvider.createWorkbook();
+        final Sheet sheet = wb.createSheet();
+
+        DataValidation dataValidation;
+        CellRangeAddressList headerCell = new CellRangeAddressList(0, 1, 0, 1);
+        DataValidationConstraint constraint = sheet.getDataValidationHelper().createCustomConstraint("A1<>\"\"");
+
+        dataValidation = sheet.getDataValidationHelper().createValidation(constraint, headerCell);
+        checkFailures(dataValidation, TEST_SPECIAL_TITLE, TEST_SPECIAL, false);
+
+        dataValidation.setShowErrorBox(true);
+        dataValidation.setShowPromptBox(true);
+        sheet.addValidationData(dataValidation);
+
+        // write out and read back in to trigger some more validation
+        final Workbook wbBack = _testDataProvider.writeOutAndReadBack(wb);
+
+        final Sheet sheetBack = wbBack.getSheetAt(0);
+        final List<? extends DataValidation> dataValidations = sheetBack.getDataValidations();
+        assertEquals(1, dataValidations.size());
+
+        /*String ext = (wb instanceof HSSFWorkbook) ? ".xls" : ".xlsx";
+        OutputStream str = new FileOutputStream("/tmp/60370" + ext);
+        try {
+            wb.write(str);
+        } finally {
+            str.close();
+        }*/
+
+        wb.close();
+    }
+
+    protected void assertFormula(Workbook wb, Cell intF, String expectedFormula, String expectedResultOrNull) {
+        assertEquals(CellType.FORMULA, intF.getCellType());
+        if (null == expectedResultOrNull) {
+            assertEquals(CellType.ERROR, intF.getCachedFormulaResultType());
+            expectedResultOrNull = "#VALUE!";
+        } else {
+            assertEquals(CellType.NUMERIC, intF.getCachedFormulaResultType());
+        }
+
+        assertEquals(expectedFormula, intF.getCellFormula());
+
+        // Check we can evaluate it correctly
+        FormulaEvaluator eval = wb.getCreationHelper().createFormulaEvaluator();
+        assertEquals(expectedResultOrNull, eval.evaluate(intF).formatAsString());
     }
 }

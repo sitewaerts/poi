@@ -19,11 +19,12 @@ package org.apache.poi.hslf.usermodel;
 
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import org.apache.poi.ddf.AbstractEscherOptRecord;
 import org.apache.poi.ddf.EscherArrayProperty;
@@ -74,8 +75,12 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
     protected HSLFTable(int numRows, int numCols, ShapeContainer<HSLFShape,HSLFTextParagraph> parent) {
         super(parent);
 
-        if(numRows < 1) throw new IllegalArgumentException("The number of rows must be greater than 1");
-        if(numCols < 1) throw new IllegalArgumentException("The number of columns must be greater than 1");
+        if(numRows < 1) {
+            throw new IllegalArgumentException("The number of rows must be greater than 1");
+        }
+        if(numCols < 1) {
+            throw new IllegalArgumentException("The number of columns must be greater than 1");
+        }
 
         double x=0, y=0, tblWidth=0, tblHeight=0;
         cells = new HSLFTableCell[numRows][numCols];
@@ -147,10 +152,11 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
         return cells.length;
     }
 
+    @Override
     protected void afterInsert(HSLFSheet sh){
         super.afterInsert(sh);
 
-        Set<HSLFLine> lineSet = new HashSet<HSLFLine>();
+        Set<HSLFLine> lineSet = new HashSet<>();
         for (HSLFTableCell row[] : cells) {
             for (HSLFTableCell c : row) {
                 addShape(c);
@@ -169,25 +175,8 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
         updateRowHeightsProperty();
     }
 
-    private static class TableCellComparator implements Comparator<HSLFShape> {
-        public int compare( HSLFShape o1, HSLFShape o2 ) {
-            Rectangle2D anchor1 = o1.getAnchor();
-            Rectangle2D anchor2 = o2.getAnchor();
-            double delta = anchor1.getY() - anchor2.getY();
-            if (delta == 0) {
-                delta = anchor1.getX() - anchor2.getX();
-            }
-            // descending size
-            if (delta == 0) {
-                delta = (anchor2.getWidth()*anchor2.getHeight())-(anchor1.getWidth()*anchor1.getHeight());
-            }
-            
-            return (int)Math.signum(delta);
-        }
-    }
-
     private void cellListToArray() {
-        List<HSLFTableCell> htc = new ArrayList<HSLFTableCell>();
+        List<HSLFTableCell> htc = new ArrayList<>();
         for (HSLFShape h : getShapes()) {
             if (h instanceof HSLFTableCell) {
                 htc.add((HSLFTableCell)h);
@@ -197,28 +186,48 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
         if (htc.isEmpty()) {
             throw new IllegalStateException("HSLFTable without HSLFTableCells");
         }
-
-        Collections.sort(htc, new TableCellComparator());
-
-        List<HSLFTableCell[]> lst = new ArrayList<HSLFTableCell[]>();
-        List<HSLFTableCell> row = new ArrayList<HSLFTableCell>();
-
-        double y0 = htc.get(0).getAnchor().getY();
+        
+        SortedSet<Double> colSet = new TreeSet<>();
+        SortedSet<Double> rowSet = new TreeSet<>();
+        
+        // #1 pass - determine cols and rows
         for (HSLFTableCell sh : htc) {
             Rectangle2D anchor = sh.getAnchor();
-            boolean isNextRow = (anchor.getY() > y0);
-            if (isNextRow) {
-                y0 = anchor.getY();
-                lst.add(row.toArray(new HSLFTableCell[row.size()]));
-                row.clear();
-            }
-            row.add(sh);
+            colSet.add(anchor.getX());
+            rowSet.add(anchor.getY());
         }
-        lst.add(row.toArray(new HSLFTableCell[row.size()]));
-
-        cells = lst.toArray(new HSLFTableCell[lst.size()][]);
+        cells = new HSLFTableCell[rowSet.size()][colSet.size()];
+        
+        List<Double> colLst = new ArrayList<>(colSet);
+        List<Double> rowLst = new ArrayList<>(rowSet);
+        
+        // #2 pass - assign shape to table cells
+        for (HSLFTableCell sh : htc) {
+            Rectangle2D anchor = sh.getAnchor();
+            int row = rowLst.indexOf(anchor.getY());
+            int col = colLst.indexOf(anchor.getX());
+            assert(row != -1 && col != -1);
+            cells[row][col] = sh;
+            
+            // determine gridSpan / rowSpan
+            int gridSpan = calcSpan(colLst, anchor.getWidth(), col);
+            int rowSpan = calcSpan(rowLst, anchor.getHeight(), row);
+            
+            sh.setGridSpan(gridSpan);
+            sh.setRowSpan(rowSpan);
+        }        
     }
 
+    private int calcSpan(List<Double> spaces, double totalSpace, int idx) {
+        int span = 1;
+        ListIterator<Double> li = spaces.listIterator(idx);
+        double start = li.next();
+        while (li.hasNext() && li.next()-start < totalSpace) {
+            span++;
+        }
+        return span;
+    }
+    
     static class LineRect {
         final HSLFLine l;
         final double lx1, lx2, ly1, ly2;
@@ -245,7 +254,7 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
     }
 
     private void fitLinesToCells() {
-        List<LineRect> lines = new ArrayList<LineRect>();
+        List<LineRect> lines = new ArrayList<>();
         for (HSLFShape h : getShapes()) {
             if (h instanceof HSLFLine) {
                 lines.add(new LineRect((HSLFLine)h));
@@ -257,6 +266,9 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
         // TODO: this only works for non-rotated tables
         for (HSLFTableCell[] tca : cells) {
             for (HSLFTableCell tc : tca) {
+                if (tc == null) {
+                    continue;
+                }
                 final Rectangle2D cellAnchor = tc.getAnchor();
 
                 /**
@@ -299,16 +311,16 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
                     }
                 }
 
-                if (lfit < threshold) {
+                if (lfit < threshold && lline != null) {
                     tc.borderLeft = lline.l;
                 }
-                if (tfit < threshold) {
+                if (tfit < threshold && tline != null) {
                     tc.borderTop = tline.l;
                 }
-                if (rfit < threshold) {
+                if (rfit < threshold && rline != null) {
                     tc.borderRight = rline.l;
                 }
-                if (bfit < threshold) {
+                if (bfit < threshold && bline != null) {
                     tc.borderBottom = bline.l;
                 }
             }
@@ -325,6 +337,7 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
      *
      * @param sheet owner of this shape
      */
+    @Override
     public void setSheet(HSLFSheet sheet){
         super.setSheet(sheet);
         if (cells == null) {
@@ -348,30 +361,38 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
     }
     
     @Override
-    public void setRowHeight(int row, double height) {
+    public void setRowHeight(int row, final double height) {
         if (row < 0 || row >= cells.length) {
             throw new IllegalArgumentException("Row index '"+row+"' is not within range [0-"+(cells.length-1)+"]");
         }
 
-        int pxHeight = Units.pointsToPixel(height);
-        double currentHeight = cells[row][0].getAnchor().getHeight();
-        double dy = pxHeight - currentHeight;
-
+        // update row height in the table properties
+        AbstractEscherOptRecord opt = getEscherChild(RecordTypes.EscherUserDefined.typeID);
+        EscherArrayProperty p = opt.lookup(EscherProperties.GROUPSHAPE__TABLEROWPROPERTIES);
+        byte[] masterBytes = p.getElement(row);
+        double currentHeight = Units.masterToPoints(LittleEndian.getInt(masterBytes, 0));
+        LittleEndian.putInt(masterBytes, 0, Units.pointsToMaster(height));
+        p.setElement(row, masterBytes);
+        
+        // move the cells
+        double dy = height - currentHeight;
         for (int i = row; i < cells.length; i++) {
-            for (int j = 0; j < cells[i].length; j++) {
-                Rectangle2D anchor = cells[i][j].getAnchor();
-                if(i == row) {
-                    anchor.setRect(anchor.getX(), anchor.getY(), anchor.getWidth(), pxHeight);
-                } else {
-                    anchor.setRect(anchor.getX(), anchor.getY()+dy, anchor.getWidth(), pxHeight);
+            for (HSLFTableCell c : cells[i]) {
+                if (c == null) {
+                    continue;
                 }
-                cells[i][j].setAnchor(anchor);
+                Rectangle2D anchor = c.getAnchor();
+                if(i == row) {
+                    anchor.setRect(anchor.getX(), anchor.getY(), anchor.getWidth(), height);
+                } else {
+                    anchor.setRect(anchor.getX(), anchor.getY()+dy, anchor.getWidth(), anchor.getHeight());
+                }
+                c.setAnchor(anchor);
             }
         }
         Rectangle2D tblanchor = getAnchor();
         tblanchor.setRect(tblanchor.getX(), tblanchor.getY(), tblanchor.getWidth(), tblanchor.getHeight() + dy);
         setExteriorAnchor(tblanchor);
-
     }
 
     @Override
@@ -381,8 +402,7 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
         }
         
         // TODO: check for merged cols
-        double width = cells[0][col].getAnchor().getWidth();
-        return width;
+        return cells[0][col].getAnchor().getWidth();
     }
 
     @Override
@@ -440,7 +460,7 @@ implements HSLFShapeContainer, TableShape<HSLFShape,HSLFTextParagraph> {
     }
 
     private void updateRowHeightsProperty() {
-        AbstractEscherOptRecord opt = getEscherOptRecord();
+        AbstractEscherOptRecord opt = getEscherChild(RecordTypes.EscherUserDefined.typeID);
         EscherArrayProperty p = opt.lookup(EscherProperties.GROUPSHAPE__TABLEROWPROPERTIES);
         byte[] val = new byte[4];
         for (int rowIdx = 0; rowIdx < cells.length; rowIdx++) {

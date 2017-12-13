@@ -31,6 +31,15 @@ package org.apache.poi.ss.usermodel;
  */
 public enum IndexedColors {
 
+    // 0-7 duplicates of 8-15 for compatibility (OOXML spec pt.1 sec. 18.8.27)
+    BLACK1(0),
+    WHITE1(1),
+    RED1(2),
+    BRIGHT_GREEN1(3),
+    BLUE1(4),
+    YELLOW1(5),
+    PINK1(6),
+    TURQUOISE1(7),
     BLACK(8),
     WHITE(9),
     RED(10),
@@ -50,6 +59,7 @@ public enum IndexedColors {
     CORNFLOWER_BLUE(24),
     MAROON(25),
     LEMON_CHIFFON(26),
+    LIGHT_TURQUOISE1(27),
     ORCHID(28),
     CORAL(29),
     ROYAL_BLUE(30),
@@ -80,6 +90,13 @@ public enum IndexedColors {
     GREY_80_PERCENT(63),
     AUTOMATIC(64);
 
+    private final static IndexedColors[] _values = new IndexedColors[65];
+    static {
+        for (IndexedColors color : values()) {
+            _values[color.index] = color;
+        }
+    }
+    
     public final short index;
 
     IndexedColors(int idx){
@@ -93,5 +110,24 @@ public enum IndexedColors {
      */
     public short getIndex(){
         return index;
+    }
+    
+    /**
+     * 
+     *
+     * @param index the index of the color
+     * @return the corresponding IndexedColors enum
+     * @throws IllegalArgumentException if index is not a valid IndexedColors
+     * @since 3.15-beta2
+     */
+    public static IndexedColors fromInt(int index) {
+        if (index < 0 || index >= _values.length) {
+            throw new IllegalArgumentException("Illegal IndexedColor index: " + index);
+        }
+        IndexedColors color = _values[index];
+        if (color == null) {
+            throw new IllegalArgumentException("Illegal IndexedColor index: " + index);
+        }
+        return color;
     }
 }

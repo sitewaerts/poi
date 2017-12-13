@@ -40,8 +40,8 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
  */
 public class SViewer extends JApplet {
   private SViewerPanel panel;
-  boolean isStandalone = false;
-  String filename = null;
+  boolean isStandalone;
+  String filename;
 
   /**Get a parameter value*/
   public String getParameter(String key, String def) {
@@ -54,7 +54,8 @@ public class SViewer extends JApplet {
   }
 
   /**Initialize the applet*/
-  public void init() {
+  @Override
+public void init() {
     try {
       jbInit();
     }
@@ -104,20 +105,25 @@ public class SViewer extends JApplet {
   }
 
   /**Start the applet*/
-  public void start() {
+  @Override
+public void start() {
   }
   /**Stop the applet*/
-  public void stop() {
+  @Override
+public void stop() {
   }
   /**Destroy the applet*/
-  public void destroy() {
+  @Override
+public void destroy() {
   }
   /**Get Applet information*/
-  public String getAppletInfo() {
+  @Override
+public String getAppletInfo() {
     return "Applet Information";
   }
   /**Get parameter info*/
-  public String[][] getParameterInfo() {
+  @Override
+public String[][] getParameterInfo() {
     return null;
   }
 
@@ -133,8 +139,7 @@ public class SViewer extends JApplet {
       System.out.println(field);
       field = uc.getHeaderField(i);
   }
-    BufferedInputStream is = new BufferedInputStream(uc.getInputStream());
-    return is;
+      return new BufferedInputStream(uc.getInputStream());
   }
 
 
@@ -149,13 +154,15 @@ public class SViewer extends JApplet {
     applet.filename = args[0];
     Frame frame;
     frame = new Frame() {
-      protected void processWindowEvent(WindowEvent e) {
+      @Override
+    protected void processWindowEvent(WindowEvent e) {
         super.processWindowEvent(e);
         if (e.getID() == WindowEvent.WINDOW_CLOSING) {
           System.exit(0);
         }
       }
-      public synchronized void setTitle(String title) {
+      @Override
+    public synchronized void setTitle(String title) {
         super.setTitle(title);
         enableEvents(AWTEvent.WINDOW_EVENT_MASK);
       }

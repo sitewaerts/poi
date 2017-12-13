@@ -19,20 +19,35 @@ package org.apache.poi.xssf.streaming;
 
 import org.apache.poi.ss.formula.EvaluationCell;
 import org.apache.poi.ss.formula.EvaluationSheet;
+import org.apache.poi.util.Internal;
 
 /**
  * SXSSF wrapper for a sheet under evaluation
  */
+@Internal
 final class SXSSFEvaluationSheet implements EvaluationSheet {
     private final SXSSFSheet _xs;
+    private int _lastDefinedRow = -1;
 
     public SXSSFEvaluationSheet(SXSSFSheet sheet) {
         _xs = sheet;
+        _lastDefinedRow = _xs.getLastRowNum();
     }
 
     public SXSSFSheet getSXSSFSheet() {
         return _xs;
     }
+
+    /* (non-Javadoc)
+     * @see org.apache.poi.ss.formula.EvaluationSheet#getlastRowNum()
+     * @since POI 4.0.0
+     */
+    @Override
+    public int getLastRowNum() {
+        return _lastDefinedRow;
+    }
+    
+    @Override
     public EvaluationCell getCell(int rowIndex, int columnIndex) {
         SXSSFRow row = _xs.getRow(rowIndex);
         if (row == null) {
@@ -46,5 +61,13 @@ final class SXSSFEvaluationSheet implements EvaluationSheet {
             return null;
         }
         return new SXSSFEvaluationCell(cell, this);
+    }
+    
+    /* (non-JavaDoc), inherit JavaDoc from EvaluationSheet
+     * @since POI 3.15 beta 3
+     */
+    @Override
+    public void clearAllCachedResultValues() {
+        _lastDefinedRow = _xs.getLastRowNum();
     }
 }

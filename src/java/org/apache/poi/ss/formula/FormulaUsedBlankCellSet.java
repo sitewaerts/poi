@@ -25,9 +25,7 @@ import java.util.Map;
 import org.apache.poi.ss.util.CellReference;
 
 /**
- * Optimisation - compacts many blank cell references used by a single formula.
- *
- * @author Josh Micich
+ * Optimization - compacts many blank cell references used by a single formula.
  */
 final class FormulaUsedBlankCellSet {
 	public static final class BookSheetKey {
@@ -39,11 +37,15 @@ final class FormulaUsedBlankCellSet {
 			_bookIndex = bookIndex;
 			_sheetIndex = sheetIndex;
 		}
-		public int hashCode() {
+		@Override
+        public int hashCode() {
 			return _bookIndex * 17 + _sheetIndex;
 		}
-		public boolean equals(Object obj) {
-			assert obj instanceof BookSheetKey : "these private cache key instances are only compared to themselves";
+		@Override
+        public boolean equals(Object obj) {
+		    if (!(obj instanceof BookSheetKey)) {
+		        return false;
+		    }
 			BookSheetKey other = (BookSheetKey) obj;
 			return _bookIndex == other._bookIndex && _sheetIndex == other._sheetIndex;
 		}
@@ -55,13 +57,17 @@ final class FormulaUsedBlankCellSet {
 		private int _firstColumnIndex;
 		private int _lastColumnIndex;
 		private BlankCellRectangleGroup _currentRectangleGroup;
+        private int _lastDefinedRow;
 
-		public BlankCellSheetGroup() {
-			_rectangleGroups = new ArrayList<BlankCellRectangleGroup>();
+		public BlankCellSheetGroup(int lastDefinedRow) {
+			_rectangleGroups = new ArrayList<>();
 			_currentRowIndex = -1;
+			_lastDefinedRow = lastDefinedRow;
 		}
 
 		public void addCell(int rowIndex, int columnIndex) {
+		    if (rowIndex > _lastDefinedRow) return;
+		    
 			if (_currentRowIndex == -1) {
 				_currentRowIndex = rowIndex;
 				_firstColumnIndex = columnIndex;
@@ -87,6 +93,8 @@ final class FormulaUsedBlankCellSet {
 		}
 
 		public boolean containsCell(int rowIndex, int columnIndex) {
+		    if (rowIndex > _lastDefinedRow) return true;
+		    
 			for (int i=_rectangleGroups.size()-1; i>=0; i--) {
 				BlankCellRectangleGroup bcrg = _rectangleGroups.get(i);
 				if (bcrg.containsCell(rowIndex, columnIndex)) {
@@ -148,7 +156,8 @@ final class FormulaUsedBlankCellSet {
 			_lastRowIndex = rowIndex;
 			return true;
 		}
-		public String toString() {
+		@Override
+        public String toString() {
 			StringBuffer sb = new StringBuffer(64);
 			CellReference crA = new CellReference(_firstRowIndex, _firstColumnIndex, false, false);
 			CellReference crB = new CellReference(_lastRowIndex, _lastColumnIndex, false, false);
@@ -161,20 +170,20 @@ final class FormulaUsedBlankCellSet {
 	private final Map<BookSheetKey, BlankCellSheetGroup> _sheetGroupsByBookSheet;
 
 	public FormulaUsedBlankCellSet() {
-		_sheetGroupsByBookSheet = new HashMap<BookSheetKey, BlankCellSheetGroup>();
+		_sheetGroupsByBookSheet = new HashMap<>();
 	}
 
-	public void addCell(int bookIndex, int sheetIndex, int rowIndex, int columnIndex) {
-		BlankCellSheetGroup sbcg = getSheetGroup(bookIndex, sheetIndex);
+	public void addCell(EvaluationWorkbook evalWorkbook, int bookIndex, int sheetIndex, int rowIndex, int columnIndex) {
+		BlankCellSheetGroup sbcg = getSheetGroup(evalWorkbook, bookIndex, sheetIndex);
 		sbcg.addCell(rowIndex, columnIndex);
 	}
 
-	private BlankCellSheetGroup getSheetGroup(int bookIndex, int sheetIndex) {
+	private BlankCellSheetGroup getSheetGroup(EvaluationWorkbook evalWorkbook, int bookIndex, int sheetIndex) {
 		BookSheetKey key = new BookSheetKey(bookIndex, sheetIndex);
 
 		BlankCellSheetGroup result = _sheetGroupsByBookSheet.get(key);
 		if (result == null) {
-			result = new BlankCellSheetGroup();
+			result = new BlankCellSheetGroup(evalWorkbook.getSheet(sheetIndex).getLastRowNum());
 			_sheetGroupsByBookSheet.put(key, result);
 		}
 		return result;

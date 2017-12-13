@@ -17,9 +17,6 @@
 
 package org.apache.poi.ss.util;
 
-import org.apache.poi.ss.usermodel.Workbook;
-
-
 /**
  * Helper methods for when working with Usermodel Workbooks
  */
@@ -44,7 +41,7 @@ public class WorkbookUtil {
 	 *        allowed to be null
 	 * @return a valid string, "empty" if to short, "null" if null         
 	 */
-	public final static String createSafeSheetName(final String nameProposal) {
+	public static String createSafeSheetName(final String nameProposal) {
 		return createSafeSheetName(nameProposal, ' ');
 	}
 
@@ -67,7 +64,7 @@ public class WorkbookUtil {
      * @param replaceChar the char to replace invalid characters.
      * @return a valid string, "empty" if to short, "null" if null
      */
-    public final static String createSafeSheetName(final String nameProposal, char replaceChar) {
+    public static String createSafeSheetName(final String nameProposal, char replaceChar) {
         if (nameProposal == null) {
             return "null";
         }
@@ -160,23 +157,4 @@ public class WorkbookUtil {
         }
     }
 
-
-    /**
-     * Validates sheet state
-     *
-     * @param state the state to validate
-     * @throws IllegalArgumentException if state is not one of
-     *      {@link Workbook#SHEET_STATE_VISIBLE},
-     *      {@link Workbook#SHEET_STATE_HIDDEN} or
-     *      {@link Workbook#SHEET_STATE_VERY_HIDDEN}
-     */
-    public static void validateSheetState(int state) {
-        switch(state){
-            case Workbook.SHEET_STATE_VISIBLE: break;
-            case Workbook.SHEET_STATE_HIDDEN: break;
-            case Workbook.SHEET_STATE_VERY_HIDDEN: break;
-            default: throw new IllegalArgumentException("Ivalid sheet state : " + state + "\n" +
-                            "Sheet state must beone of the Workbook.SHEET_STATE_* constants");
-        }
-    }    
 }

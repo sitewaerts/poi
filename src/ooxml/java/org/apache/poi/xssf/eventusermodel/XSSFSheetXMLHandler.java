@@ -16,6 +16,8 @@
 ==================================================================== */
 package org.apache.poi.xssf.eventusermodel;
 
+import static org.apache.poi.xssf.usermodel.XSSFRelation.NS_SPREADSHEETML;
+
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -41,7 +43,7 @@ import org.xml.sax.helpers.DefaultHandler;
  */
 public class XSSFSheetXMLHandler extends DefaultHandler {
     private static final POILogger logger = POILogFactory.getLogger(XSSFSheetXMLHandler.class);
-    
+
     /**
     * These are the different kinds of cells we support.
     * We keep track of the current one between
@@ -100,9 +102,9 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
    private boolean formulasNotResults;
 
    // Gathers characters as they are seen.
-   private StringBuffer value = new StringBuffer();
-   private StringBuffer formula = new StringBuffer();
-   private StringBuffer headerFooter = new StringBuffer();
+   private StringBuilder value = new StringBuilder(64);
+   private StringBuilder formula = new StringBuilder(64);
+   private StringBuilder headerFooter = new StringBuilder(64);
 
    private Queue<CellAddress> commentCellRefs;
 
@@ -160,7 +162,8 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
    
    private void init() {
        if (commentsTable != null) {
-           commentCellRefs = new LinkedList<CellAddress>();
+           commentCellRefs = new LinkedList<>();
+           //noinspection deprecation
            for (CTComment comment : commentsTable.getCTComments().getCommentList().getCommentArray()) {
                commentCellRefs.add(new CellAddress(comment.getRef()));
            }
@@ -186,17 +189,21 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
    
    @Override
    @SuppressWarnings("unused")
-   public void startElement(String uri, String localName, String name,
+   public void startElement(String uri, String localName, String qName,
                             Attributes attributes) throws SAXException {
 
-       if (isTextTag(name)) {
+       if (uri != null && ! uri.equals(NS_SPREADSHEETML)) {
+           return;
+       }
+
+       if (isTextTag(localName)) {
            vIsOpen = true;
            // Clear contents cache
            value.setLength(0);
-       } else if ("is".equals(name)) {
+       } else if ("is".equals(localName)) {
           // Inline string outer tag
           isIsOpen = true;
-       } else if ("f".equals(name)) {
+       } else if ("f".equals(localName)) {
           // Clear contents cache
           formula.setLength(0);
           
@@ -222,23 +229,23 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
                 //  match the current cell
                 if(formulasNotResults) {
                     logger.log(POILogger.WARN, "shared formulas not yet supported!");
-                } else {
+                } /*else {
                    // It's a shared formula, so we can't get at the formula string yet
                    // However, they don't care about the formula string, so that's ok!
-                }
+                }*/
              }
           } else {
              fIsOpen = true;
           }
        }
-       else if("oddHeader".equals(name) || "evenHeader".equals(name) ||
-             "firstHeader".equals(name) || "firstFooter".equals(name) ||
-             "oddFooter".equals(name) || "evenFooter".equals(name)) {
+       else if("oddHeader".equals(localName) || "evenHeader".equals(localName) ||
+             "firstHeader".equals(localName) || "firstFooter".equals(localName) ||
+             "oddFooter".equals(localName) || "evenFooter".equals(localName)) {
           hfIsOpen = true;
           // Clear contents cache
           headerFooter.setLength(0);
        }
-       else if("row".equals(name)) {
+       else if("row".equals(localName)) {
            String rowNumStr = attributes.getValue("r");
            if(rowNumStr != null) {
                rowNum = Integer.parseInt(rowNumStr) - 1;
@@ -248,7 +255,7 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
            output.startRow(rowNum);
        }
        // c => cell
-       else if ("c".equals(name)) {
+       else if ("c".equals(localName)) {
            // Set up defaults.
            this.nextDataType = xssfDataType.NUMBER;
            this.formatIndex = -1;
@@ -269,11 +276,13 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
            else {
                // Number, but almost certainly with a special style or format
                XSSFCellStyle style = null;
-               if (cellStyleStr != null) {
-                   int styleIndex = Integer.parseInt(cellStyleStr);
-                   style = stylesTable.getStyleAt(styleIndex);
-               } else if (stylesTable.getNumCellStyles() > 0) {
-                   style = stylesTable.getStyleAt(0);
+               if (stylesTable != null) {
+                   if (cellStyleStr != null) {
+                       int styleIndex = Integer.parseInt(cellStyleStr);
+                       style = stylesTable.getStyleAt(styleIndex);
+                   } else if (stylesTable.getNumCellStyles() > 0) {
+                       style = stylesTable.getStyleAt(0);
+                   }
                }
                if (style != null) {
                    this.formatIndex = style.getDataFormat();
@@ -286,12 +295,17 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
    }
 
    @Override
-   public void endElement(String uri, String localName, String name)
+   public void endElement(String uri, String localName, String qName)
            throws SAXException {
+
+       if (uri != null && ! uri.equals(NS_SPREADSHEETML)) {
+           return;
+       }
+
        String thisStr = null;
 
        // v => contents of a cell
-       if (isTextTag(name)) {
+       if (isTextTag(localName)) {
            vIsOpen = false;
            
            // Process the value contents as required, now we have it all
@@ -302,7 +316,7 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
                    break;
 
                case ERROR:
-                   thisStr = "ERROR:" + value.toString();
+                   thisStr = "ERROR:" + value;
                    break;
 
                case FORMULA:
@@ -321,7 +335,7 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
                             thisStr = fv;
                          }
                       } else {
-                         // No formating applied, just do raw value in all cases
+                         // No formatting applied, just do raw value in all cases
                          thisStr = fv;
                       }
                    }
@@ -364,11 +378,11 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
            
            // Output
            output.cell(cellRef, thisStr, comment);
-       } else if ("f".equals(name)) {
+       } else if ("f".equals(localName)) {
           fIsOpen = false;
-       } else if ("is".equals(name)) {
+       } else if ("is".equals(localName)) {
           isIsOpen = false;
-       } else if ("row".equals(name)) {
+       } else if ("row".equals(localName)) {
           // Handle any "missing" cells which had comments attached
           checkForEmptyCellComments(EmptyCellCommentsCheckType.END_OF_ROW);
           
@@ -377,19 +391,22 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
           
           // some sheets do not have rowNum set in the XML, Excel can read them so we should try to read them as well
           nextRowNum = rowNum + 1;
-       } else if ("sheetData".equals(name)) {
+       } else if ("sheetData".equals(localName)) {
            // Handle any "missing" cells which had comments attached
            checkForEmptyCellComments(EmptyCellCommentsCheckType.END_OF_SHEET_DATA);
+
+           // indicate that this sheet is now done
+           output.endSheet();
        }
-       else if("oddHeader".equals(name) || "evenHeader".equals(name) ||
-             "firstHeader".equals(name)) {
+       else if("oddHeader".equals(localName) || "evenHeader".equals(localName) ||
+             "firstHeader".equals(localName)) {
           hfIsOpen = false;
-          output.headerFooter(headerFooter.toString(), true, name);
+          output.headerFooter(headerFooter.toString(), true, localName);
        }
-       else if("oddFooter".equals(name) || "evenFooter".equals(name) ||
-             "firstFooter".equals(name)) {
+       else if("oddFooter".equals(localName) || "evenFooter".equals(localName) ||
+             "firstFooter".equals(localName)) {
           hfIsOpen = false;
-          output.headerFooter(headerFooter.toString(), false, name);
+          output.headerFooter(headerFooter.toString(), false, localName);
        }
    }
 
@@ -488,13 +505,19 @@ public class XSSFSheetXMLHandler extends DefaultHandler {
    public interface SheetContentsHandler {
       /** A row with the (zero based) row number has started */
       public void startRow(int rowNum);
+
       /** A row with the (zero based) row number has ended */
       public void endRow(int rowNum);
-      /** 
+
+      /**
        * A cell, with the given formatted value (may be null), 
        *  and possibly a comment (may be null), was encountered */
       public void cell(String cellReference, String formattedValue, XSSFComment comment);
+
       /** A header or footer has been encountered */
-      public void headerFooter(String text, boolean isHeader, String tagName);
+      public default void headerFooter(String text, boolean isHeader, String tagName) {}
+
+      /** Signal that the end of a sheet was been reached */
+      public default void endSheet() {}
    }
 }

@@ -20,12 +20,16 @@ package org.apache.poi.hslf.record;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Hashtable;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.TreeMap;
 
 import org.apache.poi.hslf.exceptions.CorruptPowerPointFileException;
+import org.apache.poi.hslf.exceptions.HSLFException;
 import org.apache.poi.util.BitField;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.POILogger;
 
@@ -43,7 +47,11 @@ import org.apache.poi.util.POILogger;
 
 public final class PersistPtrHolder extends PositionDependentRecordAtom
 {
-	private byte[] _header;
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 100_000;
+
+	private final byte[] _header;
 	private byte[] _ptrData; // Will need to update this once we allow updates to _slideLocations
 	private long _type;
 
@@ -52,7 +60,7 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
 	 * You always need to check the most recent PersistPtrHolder
 	 *  that knows about a given slide to find the right location
 	 */
-	private Hashtable<Integer,Integer> _slideLocations;
+	private Map<Integer,Integer> _slideLocations;
 
 	private static final BitField persistIdFld = new BitField(0X000FFFFF);
 	private static final BitField cntPersistFld  = new BitField(0XFFF00000);
@@ -60,11 +68,12 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
     /**
      * Return the value we were given at creation, be it 6001 or 6002
      */
+    @Override
     public long getRecordType() { return _type; }
 
 	/**
 	 * Get the list of slides that this PersistPtrHolder knows about.
-	 * (They will be the keys in the hashtable for looking up the positions
+	 * (They will be the keys in the map for looking up the positions
 	 *  of these slides)
 	 */
 	public int[] getKnownSlideIDs() {
@@ -80,21 +89,10 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
 	 * Get the lookup from slide numbers to byte offsets, for the slides
 	 *  known about by this PersistPtrHolder.
 	 */
-	public Hashtable<Integer,Integer> getSlideLocationsLookup() {
-		return _slideLocations;
+	public Map<Integer,Integer> getSlideLocationsLookup() {
+		return Collections.unmodifiableMap(_slideLocations);
 	}
 	
-	/**
-	 * Get the lookup from slide numbers to their offsets inside
-	 *  _ptrData, used when adding or moving slides.
-	 * 
-	 * @deprecated since POI 3.11, not supported anymore
-	 */
-	@Deprecated
-	public Hashtable<Integer,Integer> getSlideOffsetDataLocationsLookup() {
-		throw new UnsupportedOperationException("PersistPtrHolder.getSlideOffsetDataLocationsLookup() is not supported since 3.12-Beta1");
-	}
-
 	/**
 	 * Create a new holder for a PersistPtr record
 	 */
@@ -115,8 +113,8 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
 		//      base number for these entries
 		//   count * 32 bit offsets
 		// Repeat as many times as you have data
-		_slideLocations = new Hashtable<Integer,Integer>();
-		_ptrData = new byte[len-8];
+		_slideLocations = new HashMap<>();
+		_ptrData = IOUtils.safelyAllocate(len-8, MAX_RECORD_LENGTH);
 		System.arraycopy(source,start+8,_ptrData,0,_ptrData.length);
 
 		int pos = 0;
@@ -168,10 +166,11 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
 	 * At write-out time, update the references to the sheets to their
 	 *  new positions
 	 */
-	public void updateOtherRecordReferences(Hashtable<Integer,Integer> oldToNewReferencesLookup) {
+	@Override
+	public void updateOtherRecordReferences(Map<Integer,Integer> oldToNewReferencesLookup) {
 		// Loop over all the slides we know about
 		// Find where they used to live, and where they now live
-	    for (Map.Entry<Integer,Integer> me : _slideLocations.entrySet()) {
+	    for (Entry<Integer,Integer> me : _slideLocations.entrySet()) {
 	        Integer oldPos = me.getValue();
 	        Integer newPos = oldToNewReferencesLookup.get(oldPos);
 
@@ -186,14 +185,14 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
 	}
 
 	private void normalizePersistDirectory() {
-        TreeMap<Integer,Integer> orderedSlideLocations = new TreeMap<Integer,Integer>(_slideLocations);
+        TreeMap<Integer,Integer> orderedSlideLocations = new TreeMap<>(_slideLocations);
         
         @SuppressWarnings("resource")
-        BufAccessBAOS bos = new BufAccessBAOS();
+        BufAccessBAOS bos = new BufAccessBAOS(); // NOSONAR
         byte intbuf[] = new byte[4];
         int lastPersistEntry = -1;
         int lastSlideId = -1;
-        for (Map.Entry<Integer,Integer> me : orderedSlideLocations.entrySet()) {
+        for (Entry<Integer,Integer> me : orderedSlideLocations.entrySet()) {
             int nextSlideId = me.getKey();
             int offset = me.getValue();
             try {
@@ -222,7 +221,7 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
                 lastSlideId = nextSlideId;
             } catch (IOException e) {
                 // ByteArrayOutputStream is very unlikely throwing a IO exception (maybe because of OOM ...)
-                throw new RuntimeException(e);
+                throw new HSLFException(e);
             }
         }
         
@@ -237,7 +236,8 @@ public final class PersistPtrHolder extends PositionDependentRecordAtom
 	 * Write the contents of the record back, so it can be written
 	 *  to disk
 	 */
-	public void writeOut(OutputStream out) throws IOException {
+	@Override
+    public void writeOut(OutputStream out) throws IOException {
 	    normalizePersistDirectory();
 		out.write(_header);
 		out.write(_ptrData);

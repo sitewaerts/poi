@@ -27,10 +27,13 @@ import javax.xml.namespace.QName;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Name;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.AreaReference;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.Beta;
@@ -40,6 +43,7 @@ import org.apache.xmlbeans.XmlOptions;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCacheField;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCacheFields;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPivotCacheDefinition;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTWorksheetSource;
 
 public class XSSFPivotCacheDefinition extends POIXMLDocumentPart{
 
@@ -65,14 +69,6 @@ public class XSSFPivotCacheDefinition extends POIXMLDocumentPart{
         super(part);
         readFrom(part.getInputStream());
     }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    protected XSSFPivotCacheDefinition(PackagePart part, PackageRelationship rel) throws IOException {
-        this(part);
-    }
     
     @Beta
     public void readFrom(InputStream is) throws IOException {
@@ -82,7 +78,7 @@ public class XSSFPivotCacheDefinition extends POIXMLDocumentPart{
             options.setLoadReplaceDocumentElement(null);
             ctPivotCacheDefinition = CTPivotCacheDefinition.Factory.parse(is, options);
         } catch (XmlException e) {
-            throw new IOException(e.getLocalizedMessage());
+            throw new IOException(e.getLocalizedMessage(), e);
         }
     }
 
@@ -116,13 +112,56 @@ public class XSSFPivotCacheDefinition extends POIXMLDocumentPart{
     }
 
     /**
+     * Find the 2D base data area for the pivot table, either from its direct reference or named table/range.
+     * @return AreaReference representing the current area defined by the pivot table
+     * @throws IllegalArgumentException if the ref attribute is not contiguous or the name attribute is not found.
+     */
+    @Beta
+    public AreaReference getPivotArea(Workbook wb) throws IllegalArgumentException {
+        final CTWorksheetSource wsSource = ctPivotCacheDefinition.getCacheSource().getWorksheetSource();
+        
+        final String ref = wsSource.getRef();
+        final String name = wsSource.getName();
+        
+        if (ref == null && name == null) {
+            throw new IllegalArgumentException("Pivot cache must reference an area, named range, or table.");
+        }
+        
+        // this is the XML format, so tell the reference that.
+        if (ref != null) {
+            return new AreaReference(ref, SpreadsheetVersion.EXCEL2007);
+        }
+        
+        assert (name != null);
+        
+        // named range or table?
+        final Name range = wb.getName(name);
+        if (range != null) {
+            return new AreaReference(range.getRefersToFormula(), SpreadsheetVersion.EXCEL2007);
+        }
+        
+        // not a named range, check for a table.
+        // do this second, as tables are sheet-specific, but named ranges are not, and may not have a sheet name given.
+        final XSSFSheet sheet = (XSSFSheet) wb.getSheet(wsSource.getSheet());
+        for (XSSFTable table : sheet.getTables()) {
+            // TODO: case-sensitive?
+            if (name.equals(table.getName())) {
+                return new AreaReference(table.getStartCellReference(), table.getEndCellReference(),
+                        SpreadsheetVersion.EXCEL2007);
+            }
+        }
+        
+        throw new IllegalArgumentException("Name '" + name + "' was not found.");
+    }
+    
+    /**
      * Generates a cache field for each column in the reference area for the pivot table.
      * @param sheet The sheet where the data i collected from
      */
     @Beta
     protected void createCacheFields(Sheet sheet) {
         //Get values for start row, start and end column
-        AreaReference ar = new AreaReference(ctPivotCacheDefinition.getCacheSource().getWorksheetSource().getRef());
+        AreaReference ar = getPivotArea(sheet.getWorkbook());
         CellReference firstCell = ar.getFirstCell();
         CellReference lastCell = ar.getLastCell();
         int columnStart = firstCell.getCol();
@@ -143,7 +182,7 @@ public class XSSFPivotCacheDefinition extends POIXMLDocumentPart{
             //General number format
             cf.setNumFmtId(0);
             Cell cell = row.getCell(i);
-            cell.setCellType(Cell.CELL_TYPE_STRING);
+            cell.setCellType(CellType.STRING);
             cf.setName(row.getCell(i).getStringCellValue());
             cf.addNewSharedItems();
         }

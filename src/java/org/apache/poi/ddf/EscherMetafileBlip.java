@@ -17,25 +17,24 @@
 
 package org.apache.poi.ddf;
 
-import org.apache.poi.util.HexDump;
-import org.apache.poi.util.LittleEndian;
-import org.apache.poi.util.POILogFactory;
-import org.apache.poi.util.POILogger;
-import org.apache.poi.hssf.usermodel.HSSFPictureData;
-
 import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.zip.InflaterInputStream;
 import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
 
-/**
- * @author Daniel Noll
- */
+import org.apache.poi.hssf.usermodel.HSSFPictureData;
+import org.apache.poi.util.IOUtils;
+import org.apache.poi.util.LittleEndian;
+import org.apache.poi.util.POILogFactory;
+import org.apache.poi.util.POILogger;
+
 public final class EscherMetafileBlip extends EscherBlipRecord {
     private static final POILogger log = POILogFactory.getLogger(EscherMetafileBlip.class);
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000_000;
 
     public static final short RECORD_ID_EMF = (short) 0xF018 + 2;
     public static final short RECORD_ID_WMF = (short) 0xF018 + 3;
@@ -62,6 +61,7 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
     private byte[] raw_pictureData;
     private byte[] remainingData;
 
+    @Override
     public int fillFields(byte[] data, int offset, EscherRecordFactory recordFactory) {
         int bytesAfterHeader = readHeader( data, offset );
         int pos = offset + HEADER_SIZE;
@@ -82,26 +82,27 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         field_6_fCompression = data[pos]; pos++;
         field_7_fFilter = data[pos]; pos++;
 
-        raw_pictureData = new byte[field_5_cbSave];
+        raw_pictureData = IOUtils.safelyAllocate(field_5_cbSave, MAX_RECORD_LENGTH);
         System.arraycopy( data, pos, raw_pictureData, 0, field_5_cbSave );
         pos += field_5_cbSave;
 
         // 0 means DEFLATE compression
         // 0xFE means no compression
         if (field_6_fCompression == 0) {
-            field_pictureData = inflatePictureData(raw_pictureData);
+            super.setPictureData(inflatePictureData(raw_pictureData));
         } else {
-            field_pictureData = raw_pictureData;
+            super.setPictureData(raw_pictureData);
         }
 
         int remaining = bytesAfterHeader - pos + offset + HEADER_SIZE;
         if(remaining > 0) {
-            remainingData = new byte[remaining];
+            remainingData = IOUtils.safelyAllocate(remaining, MAX_RECORD_LENGTH);
             System.arraycopy( data, pos, remainingData, 0, remaining );
         }
         return bytesAfterHeader + HEADER_SIZE;
     }
 
+    @Override
     public int serialize(int offset, byte[] data, EscherSerializationListener listener) {
         listener.beforeRecordSerialize(offset, getRecordId(), this);
 
@@ -157,19 +158,34 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         }
     }
 
+    @Override
     public int getRecordSize() {
         int size = 8 + 50 + raw_pictureData.length;
-        if(remainingData != null) size += remainingData.length;
+        if(remainingData != null) {
+            size += remainingData.length;
+        }
         if((getOptions() ^ getSignature()) == 0x10){
             size += field_2_UID.length;
         }
         return size;
     }
 
+    /**
+     * Gets the first MD4, that specifies the unique identifier of the
+     * uncompressed blip data
+     *
+     * @return the first MD4
+     */
     public byte[] getUID() {
         return field_1_UID;
     }
 
+    /**
+     * Sets the first MD4, that specifies the unique identifier of the
+     * uncompressed blip data
+     *
+     * @param uid the first MD4
+     */
     public void setUID(byte[] uid) {
         if (uid == null || uid.length != 16) {
             throw new IllegalArgumentException("uid must be byte[16]");
@@ -177,10 +193,22 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         System.arraycopy(uid, 0, field_1_UID, 0, field_1_UID.length);
     }
 
+    /**
+     * Gets the second MD4, that specifies the unique identifier of the
+     * uncompressed blip data
+     *
+     * @return the second MD4
+     */
     public byte[] getPrimaryUID() {
         return field_2_UID;
     }
 
+    /**
+     * Sets the second MD4, that specifies the unique identifier of the
+     * uncompressed blip data
+     *
+     * @param primaryUID the second MD4
+     */
     public void setPrimaryUID(byte[] primaryUID) {
         if (primaryUID == null || primaryUID.length != 16) {
             throw new IllegalArgumentException("primaryUID must be byte[16]");
@@ -188,14 +216,29 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         System.arraycopy(primaryUID, 0, field_2_UID, 0, field_2_UID.length);
     }
 
+    /**
+     * Gets the uncompressed size (in bytes)
+     *
+     * @return the uncompressed size
+     */
     public int getUncompressedSize() {
         return field_2_cb;
     }
 
+    /**
+     * Sets the uncompressed size (in bytes)
+     *
+     * @param uncompressedSize the uncompressed size
+     */
     public void setUncompressedSize(int uncompressedSize) {
         field_2_cb = uncompressedSize;
     }
 
+    /**
+     * Get the clipping region of the metafile
+     *
+     * @return the clipping region
+     */
     public Rectangle getBounds() {
         return new Rectangle(field_3_rcBounds_x1,
                              field_3_rcBounds_y1,
@@ -203,6 +246,11 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
                              field_3_rcBounds_y2 - field_3_rcBounds_y1);
     }
 
+    /**
+     * Sets the clipping region
+     *
+     * @param bounds the clipping region
+     */
     public void setBounds(Rectangle bounds) {
         field_3_rcBounds_x1 = bounds.x;
         field_3_rcBounds_y1 = bounds.y;
@@ -210,75 +258,90 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         field_3_rcBounds_y2 = bounds.y + bounds.height;
     }
 
+    /**
+     * Gets the dimensions of the metafile 
+     *
+     * @return the dimensions of the metafile
+     */
     public Dimension getSizeEMU() {
         return new Dimension(field_4_ptSize_w, field_4_ptSize_h);
     }
 
+    /**
+     * Gets the dimensions of the metafile
+     *
+     * @param sizeEMU the dimensions of the metafile
+     */
     public void setSizeEMU(Dimension sizeEMU) {
         field_4_ptSize_w = sizeEMU.width;
         field_4_ptSize_h = sizeEMU.height;
     }
 
+    /**
+     * Gets the compressed size of the metafile (in bytes)
+     * 
+     * @return the compressed size
+     */
     public int getCompressedSize() {
         return field_5_cbSave;
     }
 
+    /**
+     * Sets the compressed size of the metafile (in bytes)
+     *
+     * @param compressedSize the compressed size
+     */
     public void setCompressedSize(int compressedSize) {
         field_5_cbSave = compressedSize;
     }
 
+    /**
+     * Gets the compression of the metafile
+     *
+     * @return true, if the metafile is compressed
+     */
     public boolean isCompressed() {
         return (field_6_fCompression == 0);
     }
 
+    /**
+     * Sets the compression of the metafile
+     *
+     * @param compressed the compression state, true if it's compressed
+     */
     public void setCompressed(boolean compressed) {
         field_6_fCompression = compressed ? 0 : (byte)0xFE;
     }
 
+    /**
+     * Gets the filter byte - this is usually 0xFE
+     *
+     * @return the filter byte
+     */
+    public byte getFilter() {
+        return field_7_fFilter;
+    }
+    
+    /**
+     * Sets the filter byte - this is usually 0xFE
+     *
+     * @param filter the filter byte
+     */
+    public void setFilter(byte filter) {
+        field_7_fFilter = filter;
+    }
+
+    
+    
+    /**
+     * Returns any remaining bytes
+     *
+     * @return any remaining bytes
+     */
     public byte[] getRemainingData() {
         return remainingData;
     }
-
-    // filtering is always 254 according to available docs, so no point giving it a setter method.
-
-    public String toString() {
-        String extraData = "";//HexDump.toHex(field_pictureData, 32);
-        return getClass().getName() + ":" + '\n' +
-                "  RecordId: 0x" + HexDump.toHex( getRecordId() ) + '\n' +
-                "  Version: 0x" + HexDump.toHex( getVersion() ) + '\n' +
-                "  Instance: 0x" + HexDump.toHex( getInstance() ) + '\n' +
-                "  UID: 0x" + HexDump.toHex( field_1_UID ) + '\n' +
-                (field_2_UID == null ? "" : ("  UID2: 0x" + HexDump.toHex( field_2_UID ) + '\n')) +
-                "  Uncompressed Size: " + HexDump.toHex( field_2_cb ) + '\n' +
-                "  Bounds: " + getBounds() + '\n' +
-                "  Size in EMU: " + getSizeEMU() + '\n' +
-                "  Compressed Size: " + HexDump.toHex( field_5_cbSave ) + '\n' +
-                "  Compression: " + HexDump.toHex( field_6_fCompression ) + '\n' +
-                "  Filter: " + HexDump.toHex( field_7_fFilter ) + '\n' +
-                "  Extra Data:" + '\n' + extraData +
-                (remainingData == null ? null : ("\n" +
-                 " Remaining Data: " + HexDump.toHex(remainingData, 32)));
-    }
-
-    @Override
-    public String toXml(String tab) {
-        String extraData = "";
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())))
-                .append(tab).append("\t").append("<UID>0x").append(HexDump.toHex( field_1_UID ) + '\n' +
-                                (field_2_UID == null ? "" : ("  UID2: 0x" + HexDump.toHex( field_2_UID ) + '\n'))).append("</UID>\n")
-                .append(tab).append("\t").append("<UncompressedSize>0x").append(HexDump.toHex( field_2_cb )).append("</UncompressedSize>\n")
-                .append(tab).append("\t").append("<Bounds>").append(getBounds()).append("</Bounds>\n")
-                .append(tab).append("\t").append("<SizeInEMU>").append(getSizeEMU()).append("</SizeInEMU>\n")
-                .append(tab).append("\t").append("<CompressedSize>0x").append(HexDump.toHex( field_5_cbSave )).append("</CompressedSize>\n")
-                .append(tab).append("\t").append("<Compression>0x").append(HexDump.toHex( field_6_fCompression )).append("</Compression>\n")
-                .append(tab).append("\t").append("<Filter>0x").append(HexDump.toHex( field_7_fFilter )).append("</Filter>\n")
-                .append(tab).append("\t").append("<ExtraData>").append(extraData).append("</ExtraData>\n")
-                .append(tab).append("\t").append("<RemainingData>0x").append(HexDump.toHex(remainingData, 32)).append("</RemainingData>\n");
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
-    }
-
+    
     /**
      * Return the blip signature
      *
@@ -296,6 +359,7 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         return 0;
     }
 
+    @Override
     public void setPictureData(byte[] pictureData) {
     	super.setPictureData(pictureData);
         setUncompressedSize(pictureData.length);
@@ -318,7 +382,19 @@ public final class EscherMetafileBlip extends EscherBlipRecord {
         setCompressed(true);
     }
 
-    public void setFilter(byte filter) {
-    	field_7_fFilter = filter;
+    @Override
+    protected Object[][] getAttributeMap() {
+        return new Object[][]{
+            // record, version, instance are directly fetched
+            { "UID", field_1_UID, "UID2", field_2_UID },
+            { "Uncompressed Size", field_2_cb },
+            { "Bounds", getBounds().toString() },
+            { "Size in EMU", getSizeEMU().toString() },
+            { "Compressed Size", field_5_cbSave },
+            { "Compression", field_6_fCompression },
+            { "Filter", field_7_fFilter },
+            { "Extra Data", "" },
+            { "Remaining Data", remainingData }
+        };
     }
 }

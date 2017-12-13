@@ -16,40 +16,15 @@
 ==================================================================== */
 package org.apache.poi.hssf.record.crypto;
 
-import javax.crypto.SecretKey;
-
-import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.poifs.crypt.Decryptor;
 
-public abstract class Biff8EncryptionKey {
-	protected SecretKey _secretKey;
-
-	/**
-	 * Create using the default password and a specified docId
-	 * @param salt 16 bytes
-	 */
-	public static Biff8EncryptionKey create(byte[] salt) {
-	    return Biff8RC4Key.create(Decryptor.DEFAULT_PASSWORD, salt);
-	}
-	
-	public static Biff8EncryptionKey create(String password, byte[] salt) {
-        return Biff8RC4Key.create(password, salt);
-	}
-
-	/**
-	 * @return <code>true</code> if the keyDigest is compatible with the specified saltData and saltHash
-	 */
-	public boolean validate(byte[] saltData, byte[] saltHash) {
-	    throw new EncryptedDocumentException("validate is not supported (in super-class).");
-	}
-
+public final class Biff8EncryptionKey {
 	/**
 	 * Stores the BIFF8 encryption/decryption password for the current thread.  This has been done
 	 * using a {@link ThreadLocal} in order to avoid further overloading the various public APIs
 	 * (e.g. {@link HSSFWorkbook}) that need this functionality.
 	 */
-	private static final ThreadLocal<String> _userPasswordTLS = new ThreadLocal<String>();
+	private static final ThreadLocal<String> _userPasswordTLS = new ThreadLocal<>();
 
 	/**
 	 * Sets the BIFF8 encryption/decryption password for the current thread.
@@ -57,7 +32,11 @@ public abstract class Biff8EncryptionKey {
 	 * @param password pass <code>null</code> to clear user password (and use default)
 	 */
 	public static void setCurrentUserPassword(String password) {
-		_userPasswordTLS.set(password);
+	    if (password == null) {
+	        _userPasswordTLS.remove();
+	    } else {
+	        _userPasswordTLS.set(password);
+	    }
 	}
 
 	/**

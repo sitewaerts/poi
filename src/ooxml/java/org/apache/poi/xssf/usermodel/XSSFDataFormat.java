@@ -60,14 +60,6 @@ public class XSSFDataFormat implements DataFormat {
      */
     @Override
     public String getFormat(short index) {
-        return getFormat(index&0xffff);
-    }
-    /**
-     * get the format string that matches the given format index
-     * @param index of a format
-     * @return string represented at index of format or <code>null</code> if there is not a  format at that index
-     */
-    public String getFormat(int index) {
         // Indices used for built-in formats may be overridden with
         // custom formats, such as locale-specific currency.
         // See org.apache.poi.xssf.usermodel.TestXSSFDataFormat#test49928() 

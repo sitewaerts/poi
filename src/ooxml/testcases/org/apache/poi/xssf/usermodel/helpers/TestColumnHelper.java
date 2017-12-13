@@ -17,12 +17,19 @@
 
 package org.apache.poi.xssf.usermodel.helpers;
 
-import junit.framework.TestCase;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.io.IOException;
 
 import org.apache.poi.xssf.model.StylesTable;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.Test;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCol;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCols;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTWorksheet;
@@ -32,8 +39,9 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTXf;
  * Tests for {@link ColumnHelper}
  *
  */
-public final class TestColumnHelper extends TestCase {
+public final class TestColumnHelper {
 
+    @Test
     public void testCleanColumns() {
         CTWorksheet worksheet = CTWorksheet.Factory.newInstance();
 
@@ -67,6 +75,7 @@ public final class TestColumnHelper extends TestCase {
         assertFalse(helper.getColumn(1, false).getHidden());
     }
 
+    @Test
     public void testSortColumns() {
         CTCols cols1 = CTCols.Factory.newInstance();
         CTCol col1 = cols1.addNewCol();
@@ -112,6 +121,7 @@ public final class TestColumnHelper extends TestCase {
         assertEquals(27, cols1.getColArray(8).getMax());
     }
 
+    @Test
     public void testCloneCol() {
         CTWorksheet worksheet = CTWorksheet.Factory.newInstance();
         ColumnHelper helper = new ColumnHelper(worksheet);
@@ -129,6 +139,7 @@ public final class TestColumnHelper extends TestCase {
         assertEquals(13.4, newCol.getWidth(), 0.0);
     }
 
+    @Test
     public void testAddCleanColIntoCols() {
         CTWorksheet worksheet = CTWorksheet.Factory.newInstance();
         ColumnHelper helper = new ColumnHelper(worksheet);
@@ -180,12 +191,14 @@ public final class TestColumnHelper extends TestCase {
         assertEquals(16750, cols1.getColArray(11).getMax());
     }
 
+    @Test
     public void testAddCleanColIntoColsExactOverlap() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(1, 1, 1, 1);
         assertEquals(1, cols.sizeOfColArray());
         assertMinMaxHiddenBestFit(cols, 0, 1, 1, true, true);
     }
 
+    @Test
     public void testAddCleanColIntoColsOverlapsOverhangingBothSides() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(2, 2, 1, 3);
         assertEquals(3, cols.sizeOfColArray());
@@ -194,6 +207,7 @@ public final class TestColumnHelper extends TestCase {
         assertMinMaxHiddenBestFit(cols, 2, 3, 3, false, true);
     }
 
+    @Test
     public void testAddCleanColIntoColsOverlapsCompletelyNested() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(1, 3, 2, 2);
         assertEquals(3, cols.sizeOfColArray());
@@ -202,6 +216,7 @@ public final class TestColumnHelper extends TestCase {
         assertMinMaxHiddenBestFit(cols, 2, 3, 3, true, false);
     }
 
+    @Test
     public void testAddCleanColIntoColsNewOverlapsOverhangingLeftNotRightExactRight() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(2, 3, 1, 3);
         assertEquals(2, cols.sizeOfColArray());
@@ -209,6 +224,7 @@ public final class TestColumnHelper extends TestCase {
         assertMinMaxHiddenBestFit(cols, 1, 2, 3, true, true);
     }
 
+    @Test
     public void testAddCleanColIntoColsNewOverlapsOverhangingRightNotLeftExactLeft() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(1, 2, 1, 3);
         assertEquals(2, cols.sizeOfColArray());
@@ -216,6 +232,7 @@ public final class TestColumnHelper extends TestCase {
         assertMinMaxHiddenBestFit(cols, 1, 3, 3, false, true);
     }
 
+    @Test
     public void testAddCleanColIntoColsNewOverlapsOverhangingLeftNotRight() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(2, 3, 1, 2);
         assertEquals(3, cols.sizeOfColArray());
@@ -224,6 +241,7 @@ public final class TestColumnHelper extends TestCase {
         assertMinMaxHiddenBestFit(cols, 2, 3, 3, true, false);
     }
 
+    @Test
     public void testAddCleanColIntoColsNewOverlapsOverhangingRightNotLeft() throws Exception {
         CTCols cols = createHiddenAndBestFitColsWithHelper(1, 2, 2, 3);
         assertEquals(3, cols.sizeOfColArray());
@@ -236,7 +254,7 @@ public final class TestColumnHelper extends TestCase {
      * Creates and adds a hidden column and then a best fit column with the given min/max pairs.
      * Suitable for testing handling of overlap. 
      */
-    private CTCols createHiddenAndBestFitColsWithHelper(int hiddenMin, int hiddenMax, int bestFitMin, int bestFitMax) {
+    private static CTCols createHiddenAndBestFitColsWithHelper(int hiddenMin, int hiddenMax, int bestFitMin, int bestFitMax) {
         CTWorksheet worksheet = CTWorksheet.Factory.newInstance();
         ColumnHelper helper = new ColumnHelper(worksheet);
         CTCols cols = worksheet.getColsArray(0);
@@ -251,7 +269,7 @@ public final class TestColumnHelper extends TestCase {
         return cols;
     }
 
-    private void assertMinMaxHiddenBestFit(CTCols cols, int index, int min, int max, boolean hidden, boolean bestFit) {
+    private static void assertMinMaxHiddenBestFit(CTCols cols, int index, int min, int max, boolean hidden, boolean bestFit) {
         CTCol col = cols.getColArray(index);
         assertEquals(min, col.getMin());
         assertEquals(max, col.getMax());
@@ -259,13 +277,14 @@ public final class TestColumnHelper extends TestCase {
         assertEquals(bestFit, col.getBestFit());
     }
 
-    private CTCol createCol(int min, int max) {
+    private static CTCol createCol(int min, int max) {
         CTCol col = CTCol.Factory.newInstance();
         col.setMin(min);
         col.setMax(max);
         return col;
     }
 
+    @Test
     public void testGetColumn() {
         CTWorksheet worksheet = CTWorksheet.Factory.newInstance();
 
@@ -295,6 +314,7 @@ public final class TestColumnHelper extends TestCase {
         assertNotNull(helper.getColumn(5, false));
     }
 
+    @Test
     public void testSetColumnAttributes() {
         CTCol col = CTCol.Factory.newInstance();
         col.setWidth(12);
@@ -309,7 +329,8 @@ public final class TestColumnHelper extends TestCase {
         assertTrue(newCol.getHidden());
     }
 
-    public void testGetOrCreateColumn() {
+    @Test
+    public void testGetOrCreateColumn() throws IOException {
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet("Sheet 1");
         ColumnHelper columnHelper = sheet.getColumnHelper();
@@ -328,9 +349,12 @@ public final class TestColumnHelper extends TestCase {
         assertNotNull(columnHelper.getColumn(29, false));
         assertNotNull(columnHelper.getColumn1Based(30, false));
         assertNull(columnHelper.getColumn(30, false));
+
+        workbook.close();
     }
 
-    public void testGetSetColDefaultStyle() {
+    @Test
+    public void testGetSetColDefaultStyle() throws IOException {
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet();
         CTWorksheet ctWorksheet = sheet.getCTWorksheet();
@@ -361,6 +385,8 @@ public final class TestColumnHelper extends TestCase {
         columnHelper.setColDefaultStyle(11, cellStyle);
         assertEquals(0, col_2.getStyle());
         assertEquals(1, columnHelper.getColDefaultStyle(10));
+        
+        workbook.close();
     }
 
     private static int countColumns(CTWorksheet worksheet) {

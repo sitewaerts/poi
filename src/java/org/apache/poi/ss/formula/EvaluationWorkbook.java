@@ -17,18 +17,21 @@
 
 package org.apache.poi.ss.formula;
 
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.ptg.NamePtg;
 import org.apache.poi.ss.formula.ptg.NameXPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.udf.UDFFinder;
+import org.apache.poi.util.Internal;
 
 /**
- * Abstracts a workbook for the purpose of formula evaluation.<br/>
+ * Abstracts a workbook for the purpose of formula evaluation.<br>
  *
  * For POI internal use only
  *
  * @author Josh Micich
  */
+@Internal
 public interface EvaluationWorkbook {
     String getSheetName(int sheetIndex);
     /**
@@ -73,6 +76,16 @@ public interface EvaluationWorkbook {
     String resolveNameXText(NameXPtg ptg);
     Ptg[] getFormulaTokens(EvaluationCell cell);
     UDFFinder getUDFFinder();
+    SpreadsheetVersion getSpreadsheetVersion();
+    
+    /**
+     * Propagated from {@link WorkbookEvaluator#clearAllCachedResultValues()} to clear locally cached data.
+     * Implementations must call the same method on all referenced {@link EvaluationSheet} instances, as well as clearing local caches.
+     * @see WorkbookEvaluator#clearAllCachedResultValues()
+     * 
+     * @since POI 3.15 beta 3
+     */
+    public void clearAllCachedResultValues();
 
     class ExternalSheet {
         private final String _workbookName;

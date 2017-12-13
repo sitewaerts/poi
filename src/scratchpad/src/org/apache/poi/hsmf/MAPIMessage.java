@@ -18,10 +18,8 @@
 package org.apache.poi.hsmf;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +28,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.poi.POIDocument;
+import org.apache.poi.POIReadOnlyDocument;
 import org.apache.poi.hmef.attribute.MAPIRtfAttribute;
 import org.apache.poi.hsmf.datatypes.AttachmentChunks;
 import org.apache.poi.hsmf.datatypes.AttachmentChunks.AttachmentChunksSorter;
@@ -51,7 +49,6 @@ import org.apache.poi.hsmf.exceptions.ChunkNotFoundException;
 import org.apache.poi.hsmf.parsers.POIFSChunkParser;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
-import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 import org.apache.poi.util.CodePageUtil;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
@@ -60,11 +57,26 @@ import org.apache.poi.util.POILogger;
  * Reads an Outlook MSG File in and provides hooks into its data structure.
  * 
  * If you want to develop with HSMF, you might find it worth getting
- *  some of the microsoft public documentation, such as:
+ *  some of the Microsoft public documentation, such as:
  *  
  * [MS-OXCMSG]: Message and Attachment Object Protocol Specification
  */
-public class MAPIMessage extends POIDocument {
+public class MAPIMessage extends POIReadOnlyDocument {
+
+   /**
+    * A MAPI file can be an email (NOTE) or a number of other types
+    */
+   public enum MESSAGE_CLASS {
+      APPOINTMENT,
+      CONTACT,
+      NOTE,
+      POST,
+      STICKY_NOTE,
+      TASK,
+      UNKNOWN,
+      UNSPECIFIED
+   }
+
    /** For logging problems we spot with the file */
    private POILogger logger = POILogFactory.getLogger(MAPIMessage.class);
    
@@ -73,11 +85,10 @@ public class MAPIMessage extends POIDocument {
    private RecipientChunks[] recipientChunks;
    private AttachmentChunks[] attachmentChunks;
 
-   private boolean returnNullOnMissingChunk = false;
+   private boolean returnNullOnMissingChunk;
 
    /**
     * Constructor for creating new files.
-    *
     */
    public MAPIMessage() {
       // TODO - make writing possible
@@ -87,41 +98,49 @@ public class MAPIMessage extends POIDocument {
 
    /**
     * Constructor for reading MSG Files from the file system.
-    * @param filename
-    * @throws IOException
+    * 
+    * @param filename Name of the file to read
+    * @exception IOException on errors reading, or invalid data
     */
    public MAPIMessage(String filename) throws IOException {
-      this(new NPOIFSFileSystem(new File(filename)));
+      this(new File(filename));
+   }
+   /**
+    * Constructor for reading MSG Files from the file system.
+    * 
+    * @param file The file to read from
+    * @exception IOException on errors reading, or invalid data
+    */
+   public MAPIMessage(File file) throws IOException {
+      this(new NPOIFSFileSystem(file));
    }
 
    /**
     * Constructor for reading MSG Files from an input stream.
-    * @param in
-    * @throws IOException
+    * 
+    * <p>Note - this will buffer the whole message into memory
+    *  in order to process. For lower memory use, use {@link #MAPIMessage(File)}
+    *  
+    * @param in The InputStream to buffer then read from
+    * @exception IOException on errors reading, or invalid data
     */
    public MAPIMessage(InputStream in) throws IOException {
       this(new NPOIFSFileSystem(in));
    }
    /**
     * Constructor for reading MSG Files from a POIFS filesystem
-    * @param fs
-    * @throws IOException
+    * 
+    * @param fs Open POIFS FileSystem containing the message
+    * @exception IOException on errors reading, or invalid data
     */
    public MAPIMessage(NPOIFSFileSystem fs) throws IOException {
       this(fs.getRoot());
    }
    /**
-    * @deprecated Use {@link #MAPIMessage(DirectoryNode)} instead
-    */
-   @Deprecated
-   public MAPIMessage(DirectoryNode poifsDir, POIFSFileSystem fs) throws IOException {
-      this(poifsDir);
-   }
-   /**
     * Constructor for reading MSG Files from a certain
     *  point within a POIFS filesystem
-    * @param poifsDir
-    * @throws IOException
+    * @param poifsDir Directory containing the message
+    * @exception IOException on errors reading, or invalid data
     */
    public MAPIMessage(DirectoryNode poifsDir) throws IOException {
       super(poifsDir);
@@ -130,10 +149,10 @@ public class MAPIMessage extends POIDocument {
       ChunkGroup[] chunkGroups = POIFSChunkParser.parse(poifsDir);
 
       // Grab interesting bits
-      ArrayList<AttachmentChunks> attachments = new ArrayList<AttachmentChunks>();
-      ArrayList<RecipientChunks>  recipients  = new ArrayList<RecipientChunks>();
+      ArrayList<AttachmentChunks> attachments = new ArrayList<>();
+      ArrayList<RecipientChunks>  recipients  = new ArrayList<>();
       for(ChunkGroup group : chunkGroups) {
-         // Should only ever be one of these
+         // Should only ever be one of each of these
          if(group instanceof Chunks) {
             mainChunks = (Chunks)group;
          } else if(group instanceof NameIdChunks) {
@@ -142,7 +161,7 @@ public class MAPIMessage extends POIDocument {
             recipients.add( (RecipientChunks)group );
          }
 
-         // Add to list(s)
+         // Can be multiple of these - add to list(s)
          if(group instanceof AttachmentChunks) {
             attachments.add( (AttachmentChunks)group );
          }
@@ -176,37 +195,36 @@ public class MAPIMessage extends POIDocument {
    /**
     * Gets the plain text body of this Outlook Message
     * @return The string representation of the 'text' version of the body, if available.
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the text-body chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getTextBody() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.textBodyChunk);
+      return getStringFromChunk(mainChunks.getTextBodyChunk());
    }
 
    /**
     * Gets the html body of this Outlook Message, if this email
     *  contains a html version.
     * @return The string representation of the 'html' version of the body, if available.
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the html-body chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getHtmlBody() throws ChunkNotFoundException {
-      if(mainChunks.htmlBodyChunkBinary != null) {
-         return mainChunks.htmlBodyChunkBinary.getAs7bitString();
+      if(mainChunks.getHtmlBodyChunkBinary() != null) {
+         return mainChunks.getHtmlBodyChunkBinary().getAs7bitString();
       }
-      return getStringFromChunk(mainChunks.htmlBodyChunkString);
-   }
-   @Deprecated
-   public String getHmtlBody() throws ChunkNotFoundException {
-      return getHtmlBody();
+      return getStringFromChunk(mainChunks.getHtmlBodyChunkString());
    }
 
    /**
     * Gets the RTF Rich Message body of this Outlook Message, if this email
     *  contains a RTF (rich) version.
     * @return The string representation of the 'RTF' version of the body, if available.
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the rtf-body chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getRtfBody() throws ChunkNotFoundException {
-      ByteChunk chunk = mainChunks.rtfBodyChunk;
+      ByteChunk chunk = mainChunks.getRtfBodyChunk();
       if(chunk == null) {
          if(returnNullOnMissingChunk) {
             return null;
@@ -227,19 +245,21 @@ public class MAPIMessage extends POIDocument {
 
    /**
     * Gets the subject line of the Outlook Message
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the subject-chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getSubject() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.subjectChunk);
+      return getStringFromChunk(mainChunks.getSubjectChunk());
    }
 
    /**
     * Gets the display value of the "FROM" line of the outlook message
     * This is not the actual address that was sent from but the formated display of the user name.
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the from-chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getDisplayFrom() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.displayFromChunk);
+      return getStringFromChunk(mainChunks.getDisplayFromChunk());
    }
 
    /**
@@ -249,10 +269,11 @@ public class MAPIMessage extends POIDocument {
     * This is not the actual list of addresses/values that will be 
     *  sent to if you click Reply in the email - those are stored
     *  in {@link RecipientChunks}.
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the to-chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getDisplayTo() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.displayToChunk);
+      return getStringFromChunk(mainChunks.getDisplayToChunk());
    }
 
    /**
@@ -262,10 +283,11 @@ public class MAPIMessage extends POIDocument {
     * This is not the actual list of addresses/values that will be 
     *  sent to if you click Reply in the email - those are stored
     *  in {@link RecipientChunks}.
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the cc-chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getDisplayCC() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.displayCCChunk);
+      return getStringFromChunk(mainChunks.getDisplayCCChunk());
    }
 
    /**
@@ -276,10 +298,11 @@ public class MAPIMessage extends POIDocument {
     *  sent to if you click Reply in the email - those are stored
     *  in {@link RecipientChunks}.
     * This will only be present in sent emails, not received ones!
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the bcc-chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getDisplayBCC() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.displayBCCChunk);
+      return getStringFromChunk(mainChunks.getDisplayBCCChunk());
    }
 
    /**
@@ -414,7 +437,7 @@ public class MAPIMessage extends POIDocument {
       
       // Nothing suitable in the headers, try HTML
       try {
-         String html = getHmtlBody();
+         String html = getHtmlBody();
          if(html != null && html.length() > 0) {
             // Look for a content type in the meta headers
             Pattern p = Pattern.compile(
@@ -425,7 +448,6 @@ public class MAPIMessage extends POIDocument {
                // Found it! Tell all the string chunks
                String charset = m.group(1);
                set7BitEncoding(charset);
-               return;
             }
          }
       } catch(ChunkNotFoundException e) {}
@@ -472,7 +494,7 @@ public class MAPIMessage extends POIDocument {
    public boolean has7BitEncodingStrings() {
       for(Chunk c : mainChunks.getChunks()) {
          if(c instanceof StringChunk) {
-            if( ((StringChunk)c).getType() == Types.ASCII_STRING ) {
+            if( c.getType() == Types.ASCII_STRING ) {
                return true;
             }
          }
@@ -481,7 +503,7 @@ public class MAPIMessage extends POIDocument {
       if (nameIdChunks!=null) {
          for(Chunk c : nameIdChunks.getChunks()) {
             if(c instanceof StringChunk) {
-               if( ((StringChunk)c).getType() == Types.ASCII_STRING ) {
+               if( c.getType() == Types.ASCII_STRING ) {
                   return true;
                }
             }
@@ -491,7 +513,7 @@ public class MAPIMessage extends POIDocument {
       for(RecipientChunks rc : recipientChunks) {
          for(Chunk c : rc.getAll()) {
             if(c instanceof StringChunk) {
-               if( ((StringChunk)c).getType() == Types.ASCII_STRING ) {
+               if( c.getType() == Types.ASCII_STRING ) {
                   return true;
                }
             }
@@ -504,7 +526,7 @@ public class MAPIMessage extends POIDocument {
     * Returns all the headers, one entry per line
     */
    public String[] getHeaders() throws ChunkNotFoundException {
-      String headers = getStringFromChunk(mainChunks.messageHeaders);
+      String headers = getStringFromChunk(mainChunks.getMessageHeaders());
       if(headers == null) {
          return null;
       }
@@ -514,31 +536,51 @@ public class MAPIMessage extends POIDocument {
    /**
     * Gets the conversation topic of the parsed Outlook Message.
     * This is the part of the subject line that is after the RE: and FWD:
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the conversation-topic chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
    public String getConversationTopic() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.conversationTopic);
+      return getStringFromChunk(mainChunks.getConversationTopic());
    }
 
    /**
     * Gets the message class of the parsed Outlook Message.
-    * (Yes, you can use this to determine if a message is a calendar 
+    * (Yes, you can use this to determine if a message is a calendar
     *  item, note, or actual outlook Message)
     * For emails the class will be IPM.Note
     *
-    * @throws ChunkNotFoundException
+    * @throws ChunkNotFoundException If the message-class chunk does not exist and
+    *       returnNullOnMissingChunk is set
     */
-   public String getMessageClass() throws ChunkNotFoundException {
-      return getStringFromChunk(mainChunks.messageClass);
+   public MESSAGE_CLASS getMessageClassEnum() throws ChunkNotFoundException {
+      String mc = getStringFromChunk(mainChunks.getMessageClass());
+      if (mc == null || mc.trim().length() == 0) {
+         return MESSAGE_CLASS.UNSPECIFIED;
+      } else if (mc.equalsIgnoreCase("IPM.Note")) {
+         return MESSAGE_CLASS.NOTE;
+      } else if (mc.equalsIgnoreCase("IPM.Contact")) {
+         return MESSAGE_CLASS.CONTACT;
+      } else if (mc.equalsIgnoreCase("IPM.Appointment")) {
+         return MESSAGE_CLASS.APPOINTMENT;
+      } else if (mc.equalsIgnoreCase("IPM.StickyNote")) {
+         return MESSAGE_CLASS.STICKY_NOTE;
+      } else if (mc.equalsIgnoreCase("IPM.Task")) {
+         return MESSAGE_CLASS.TASK;
+      } else if (mc.equalsIgnoreCase("IPM.Post")) {
+         return MESSAGE_CLASS.POST;
+      } else {
+         logger.log(POILogger.WARN, "I don't recognize message class '"+mc+"'. " +
+                 "Please open an issue on POI's bugzilla");
+         return MESSAGE_CLASS.UNKNOWN;
+      }
    }
-
    /**
     * Gets the date that the message was accepted by the
     *  server on.
     */
    public Calendar getMessageDate() throws ChunkNotFoundException {
-      if (mainChunks.submissionChunk != null) {
-         return mainChunks.submissionChunk.getAcceptedAtTime();
+      if (mainChunks.getSubmissionChunk() != null) {
+         return mainChunks.getSubmissionChunk().getAcceptedAtTime();
       }
       else {
          // Try a few likely suspects...
@@ -591,14 +633,6 @@ public class MAPIMessage extends POIDocument {
 
 
    /**
-    * Note - not yet supported, sorry.
-    */
-   public void write(OutputStream out) throws IOException {
-      throw new UnsupportedOperationException("Writing isn't yet supported for HSMF, sorry");
-   }
-
-
-   /**
     * Will you get a null on a missing chunk, or a 
     *  {@link ChunkNotFoundException} (default is the
     *  exception).
@@ -618,7 +652,7 @@ public class MAPIMessage extends POIDocument {
 
 
    private String toSemicolonList(String[] l) {
-      StringBuffer list = new StringBuffer();
+      StringBuilder list = new StringBuilder();
       boolean first = true;
 
       for(String s : l) {

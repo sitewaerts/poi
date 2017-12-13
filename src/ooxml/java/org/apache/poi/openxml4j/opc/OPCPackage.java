@@ -30,7 +30,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -39,7 +39,6 @@ import java.util.regex.Pattern;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.InvalidOperationException;
-import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JRuntimeException;
 import org.apache.poi.openxml4j.exceptions.PartAlreadyExistsException;
 import org.apache.poi.openxml4j.opc.internal.ContentType;
@@ -53,21 +52,21 @@ import org.apache.poi.openxml4j.opc.internal.marshallers.ZipPackagePropertiesMar
 import org.apache.poi.openxml4j.opc.internal.unmarshallers.PackagePropertiesUnmarshaller;
 import org.apache.poi.openxml4j.opc.internal.unmarshallers.UnmarshallContext;
 import org.apache.poi.openxml4j.util.Nullable;
+import org.apache.poi.openxml4j.util.ZipEntrySource;
+import org.apache.poi.util.IOUtils;
+import org.apache.poi.util.NotImplemented;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 
 /**
  * Represents a container that can store multiple data objects.
- *
- * @author Julien Chable, CDubet
- * @version 0.1
  */
 public abstract class OPCPackage implements RelationshipSource, Closeable {
 
 	/**
 	 * Logger.
 	 */
-    private static POILogger logger = POILogFactory.getLogger(OPCPackage.class);
+    private static final POILogger logger = POILogFactory.getLogger(OPCPackage.class);
 
 	/**
 	 * Default package access.
@@ -117,7 +116,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	/**
 	 * Flag if a modification is done to the document.
 	 */
-	protected boolean isDirty = false;
+	protected boolean isDirty;
 
 	/**
 	 * File path of this package.
@@ -147,8 +146,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * Initialize the package instance.
 	 */
 	private void init() {
-		this.partMarshallers = new Hashtable<ContentType, PartMarshaller>(5);
-		this.partUnmarshallers = new Hashtable<ContentType, PartUnmarshaller>(2);
+		this.partMarshallers = new HashMap<>(5);
+		this.partUnmarshallers = new HashMap<>(2);
 
 		try {
 			// Add 'default' unmarshaller
@@ -202,6 +201,31 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
       return open(file, defaultPackageAccess);
    }
 
+   /**
+    * Open an user provided {@link ZipEntrySource} with read-only permission.
+    * This method can be used to stream data into POI.
+    * Opposed to other open variants, the data is read as-is, e.g. there aren't
+    * any zip-bomb protection put in place.
+    *
+    * @param zipEntry the custom source
+    * @return A Package object
+    * @throws InvalidFormatException if a parsing error occur.
+    */
+   public static OPCPackage open(ZipEntrySource zipEntry)
+   throws InvalidFormatException {
+       OPCPackage pack = new ZipPackage(zipEntry, PackageAccess.READ);
+       try {
+           if (pack.partList == null) {
+               pack.getParts();
+           }
+           // pack.originalPackagePath = file.getAbsolutePath();
+           return pack;
+       } catch (InvalidFormatException | RuntimeException e) {
+		   IOUtils.closeQuietly(pack);
+           throw e;
+       }
+   }
+   
 	/**
 	 * Open a package.
 	 *
@@ -213,10 +237,12 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @throws InvalidFormatException
 	 *             If the specified file doesn't exist, and a parsing error
 	 *             occur.
+	 * @throws InvalidOperationException If the zip file cannot be opened.
+	 * @throws InvalidFormatException if the package is not valid.
 	 */
 	public static OPCPackage open(String path, PackageAccess access)
-			throws InvalidFormatException {
-		if (path == null || "".equals(path.trim())) {
+			throws InvalidFormatException, InvalidOperationException {
+		if (path == null || path.trim().isEmpty()) {
 			throw new IllegalArgumentException("'path' must be given");
 		}
 		
@@ -225,10 +251,19 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 			throw new IllegalArgumentException("path must not be a directory");
 		}
 
-		OPCPackage pack = new ZipPackage(path, access);
+		OPCPackage pack = new ZipPackage(path, access); // NOSONAR
+		boolean success = false;
 		if (pack.partList == null && access != PackageAccess.WRITE) {
-			pack.getParts();
+			try {
+				pack.getParts();
+				success = true;
+			} finally {
+				if (! success) {
+					IOUtils.closeQuietly(pack);
+				}
+			}
 		}
+
 		pack.originalPackagePath = new File(path).getAbsolutePath();
 		return pack;
 	}
@@ -255,11 +290,16 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
       }
 
       OPCPackage pack = new ZipPackage(file, access);
-      if (pack.partList == null && access != PackageAccess.WRITE) {
-         pack.getParts();
-      }
-      pack.originalPackagePath = file.getAbsolutePath();
-      return pack;
+	   try {
+		   if (pack.partList == null && access != PackageAccess.WRITE) {
+			   pack.getParts();
+		   }
+		   pack.originalPackagePath = file.getAbsolutePath();
+		   return pack;
+	   } catch (InvalidFormatException | RuntimeException e) {
+		   IOUtils.closeQuietly(pack);
+		   throw e;
+	   }
    }
 
 	/**
@@ -276,8 +316,13 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	public static OPCPackage open(InputStream in) throws InvalidFormatException,
 			IOException {
 		OPCPackage pack = new ZipPackage(in, PackageAccess.READ_WRITE);
-		if (pack.partList == null) {
-			pack.getParts();
+		try {
+			if (pack.partList == null) {
+				pack.getParts();
+			}
+		} catch (InvalidFormatException | RuntimeException e) {
+			IOUtils.closeQuietly(pack);
+			throw e;
 		}
 		return pack;
 	}
@@ -293,13 +338,11 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 *             Throws if the specified file exist and is not valid.
 	 */
 	public static OPCPackage openOrCreate(File file) throws InvalidFormatException {
-		OPCPackage retPackage = null;
 		if (file.exists()) {
-			retPackage = open(file.getAbsolutePath());
+			return open(file.getAbsolutePath());
 		} else {
-			retPackage = create(file);
+			return create(file);
 		}
-		return retPackage;
 	}
 
 	/**
@@ -331,8 +374,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 		}
 
 		// Creates a new package
-		OPCPackage pkg = null;
-		pkg = new ZipPackage();
+		OPCPackage pkg = new ZipPackage();
 		pkg.originalPackagePath = file.getAbsolutePath();
 
 		configurePackage(pkg);
@@ -340,8 +382,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	}
 
 	public static OPCPackage create(OutputStream output) {
-		OPCPackage pkg = null;
-		pkg = new ZipPackage();
+		OPCPackage pkg = new ZipPackage();
 		pkg.originalPackagePath = null;
 		pkg.output = output;
 
@@ -349,11 +390,6 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 		return pkg;
 	}
 
-	/**
-	 * Configure the package.
-	 *
-	 * @param pkg
-	 */
 	private static void configurePackage(OPCPackage pkg) {
 		try {
 			// Content type manager
@@ -372,7 +408,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 			pkg.packageProperties = new PackagePropertiesPart(pkg,
 					PackagingURIHelper.CORE_PROPERTIES_PART_NAME);
 			pkg.packageProperties.setCreatorProperty("Generated by Apache POI OpenXML4J");
-			pkg.packageProperties.setCreatedProperty(new Nullable<Date>(new Date()));
+			pkg.packageProperties.setCreatedProperty(new Nullable<>(new Date()));
 		} catch (InvalidFormatException e) {
 			// Should never happen
 			throw new IllegalStateException(e);
@@ -403,7 +439,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @throws IOException
 	 *             If an IO exception occur during the saving process.
 	 */
-	public void close() throws IOException {
+	@Override
+    public void close() throws IOException {
 		if (this.packageAccess == PackageAccess.READ) {
 			logger.log(POILogger.WARN, 
 			        "The close() method is intended to SAVE a package. This package is open in READ ONLY mode, use the revert() method instead !");
@@ -413,6 +450,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 		if (this.contentTypeManager == null) {
 		    logger.log(POILogger.WARN,
 		            "Unable to call close() on a package that hasn't been fully opened yet");
+			revert();
 		    return;
 		}
 
@@ -421,7 +459,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 		try {
 			l.writeLock().lock();
 			if (this.originalPackagePath != null
-					&& !"".equals(this.originalPackagePath.trim())) {
+					&& !this.originalPackagePath.trim().isEmpty()) {
 				File targetFile = new File(this.originalPackagePath);
 				if (!targetFile.exists()
 						|| !(this.originalPackagePath
@@ -443,92 +481,103 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 		this.contentTypeManager.clearAll();
 	}
 
-	/**
-	 * Close the package WITHOUT saving its content. Reinitialize this package
-	 * and cancel all changes done to it.
-	 */
-	public void revert() {
-		revertImpl();
-	}
+    /**
+     * Close the package WITHOUT saving its content. Reinitialize this package
+     * and cancel all changes done to it.
+     */
+    public void revert() {
+        revertImpl();
+    }
 
-	/**
-	 * Add a thumbnail to the package. This method is provided to make easier
-	 * the addition of a thumbnail in a package. You can do the same work by
-	 * using the traditionnal relationship and part mechanism.
-	 *
-	 * @param path
-	 *            The full path to the image file.
-	 */
-	public void addThumbnail(String path) throws IOException {
-		// Check parameter
-		if ("".equals(path)) {
-			throw new IllegalArgumentException("path");
+    /**
+     * Add a thumbnail to the package. This method is provided to make easier
+     * the addition of a thumbnail in a package. You can do the same work by
+     * using the traditionnal relationship and part mechanism.
+     *
+     * @param path The full path to the image file.
+     */
+    public void addThumbnail(String path) throws IOException {
+        // Check parameter
+        if (path == null || path.isEmpty()) {
+            throw new IllegalArgumentException("path");
+        }
+        String name = path.substring(path.lastIndexOf(File.separatorChar) + 1);
+
+		try (FileInputStream is = new FileInputStream(path)) {
+			addThumbnail(name, is);
 		}
+    }
+    /**
+     * Add a thumbnail to the package. This method is provided to make easier
+     * the addition of a thumbnail in a package. You can do the same work by
+     * using the traditionnal relationship and part mechanism.
+     *
+     * @param filename The full path to the image file.
+     * @param data the image data
+     */
+    public void addThumbnail(String filename, InputStream data) throws IOException {
+        // Check parameter
+        if (filename == null || filename.isEmpty()) {
+            throw new IllegalArgumentException("filename");
+        }
 
-		// Get the filename from the path
-		String filename = path
-				.substring(path.lastIndexOf(File.separatorChar) + 1);
+        // Create the thumbnail part name
+        String contentType = ContentTypes
+                .getContentTypeFromFileExtension(filename);
+        PackagePartName thumbnailPartName;
+        try {
+            thumbnailPartName = PackagingURIHelper.createPartName("/docProps/"
+                    + filename);
+        } catch (InvalidFormatException e) {
+            String partName = "/docProps/thumbnail" +
+                    filename.substring(filename.lastIndexOf(".") + 1);
+            try {
+                thumbnailPartName = PackagingURIHelper.createPartName(partName);
+            } catch (InvalidFormatException e2) {
+                throw new InvalidOperationException(
+                        "Can't add a thumbnail file named '" + filename + "'", e2);
+            }
+        }
 
-		// Create the thumbnail part name
-		String contentType = ContentTypes
-				.getContentTypeFromFileExtension(filename);
-		PackagePartName thumbnailPartName = null;
-		try {
-			thumbnailPartName = PackagingURIHelper.createPartName("/docProps/"
-					+ filename);
-		} catch (InvalidFormatException e) {
-			try {
-				thumbnailPartName = PackagingURIHelper
-						.createPartName("/docProps/thumbnail"
-								+ path.substring(path.lastIndexOf(".") + 1));
-			} catch (InvalidFormatException e2) {
-				throw new InvalidOperationException(
-						"Can't add a thumbnail file named '" + filename + "'", e2);
-			}
-		}
+        // Check if part already exist
+        if (this.getPart(thumbnailPartName) != null) {
+            throw new InvalidOperationException(
+                    "You already add a thumbnail named '" + filename + "'");
+        }
 
-		// Check if part already exist
-		if (this.getPart(thumbnailPartName) != null)
-			throw new InvalidOperationException(
-					"You already add a thumbnail named '" + filename + "'");
+        // Add the thumbnail part to this package.
+        PackagePart thumbnailPart = this.createPart(thumbnailPartName,
+                contentType, false);
 
-		// Add the thumbnail part to this package.
-		PackagePart thumbnailPart = this.createPart(thumbnailPartName,
-				contentType, false);
+        // Add the relationship between the package and the thumbnail part
+        this.addRelationship(thumbnailPartName, TargetMode.INTERNAL,
+                PackageRelationshipTypes.THUMBNAIL);
 
-		// Add the relationship between the package and the thumbnail part
-		this.addRelationship(thumbnailPartName, TargetMode.INTERNAL,
-				PackageRelationshipTypes.THUMBNAIL);
+        // Copy file data to the newly created part
+        StreamHelper.copyStream(data, thumbnailPart.getOutputStream());
+    }
 
-		// Copy file data to the newly created part
-		FileInputStream is = new FileInputStream(path);
-		StreamHelper.copyStream(is, thumbnailPart
-				.getOutputStream());
-		is.close();
-	}
-
-	/**
-	 * Throws an exception if the package access mode is in read only mode
-	 * (PackageAccess.Read).
-	 *
-	 * @throws InvalidOperationException
-	 *             Throws if a writing operation is done on a read only package.
-	 * @see org.apache.poi.openxml4j.opc.PackageAccess
-	 */
-	void throwExceptionIfReadOnly() throws InvalidOperationException {
-		if (packageAccess == PackageAccess.READ) {
-			throw new InvalidOperationException(
-					"Operation not allowed, document open in read only mode!");
-		}
-	}
+    /**
+     * Throws an exception if the package access mode is in read only mode
+     * (PackageAccess.Read).
+     *
+     * @throws InvalidOperationException
+     *             Throws if a writing operation is done on a read only package.
+     * @see org.apache.poi.openxml4j.opc.PackageAccess
+     */
+    void throwExceptionIfReadOnly() throws InvalidOperationException {
+        if (packageAccess == PackageAccess.READ) {
+            throw new InvalidOperationException(
+                    "Operation not allowed, document open in read only mode!");
+        }
+    }
 
 	/**
 	 * Throws an exception if the package access mode is in write only mode
 	 * (PackageAccess.Write). This method is call when other methods need write
 	 * right.
 	 *
-	 * @throws InvalidOperationException
-	 *             Throws if a read operation is done on a write only package.
+	 * @throws InvalidOperationException if a read operation is done on a write only package.
 	 * @see org.apache.poi.openxml4j.opc.PackageAccess
 	 */
 	void throwExceptionIfWriteOnly() throws InvalidOperationException {
@@ -587,13 +636,12 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @return All part associated to the specified content type.
 	 */
 	public ArrayList<PackagePart> getPartsByContentType(String contentType) {
-		ArrayList<PackagePart> retArr = new ArrayList<PackagePart>();
-		for (PackagePart part : partList.values()) {
+		ArrayList<PackagePart> retArr = new ArrayList<>();
+		for (PackagePart part : partList.sortedValues()) {
 			if (part.getContentType().equals(contentType)) {
 				retArr.add(part);
 			}
 		}
-		Collections.sort(retArr);
 		return retArr;
 	}
 
@@ -611,7 +659,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 		if (relationshipType == null) {
 			throw new IllegalArgumentException("relationshipType");
 		}
-		ArrayList<PackagePart> retArr = new ArrayList<PackagePart>();
+		ArrayList<PackagePart> retArr = new ArrayList<>();
 		for (PackageRelationship rel : getRelationshipsByType(relationshipType)) {
 			PackagePart part = getPart(rel);
 			if (part != null) {
@@ -635,14 +683,13 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	        throw new IllegalArgumentException("name pattern must not be null");
 	    }
 	    Matcher matcher = namePattern.matcher("");
-	    ArrayList<PackagePart> result = new ArrayList<PackagePart>();
-	    for (PackagePart part : partList.values()) {
+	    ArrayList<PackagePart> result = new ArrayList<>();
+	    for (PackagePart part : partList.sortedValues()) {
 	        PackagePartName partName = part.getPartName();
 	        if (matcher.reset(partName.getName()).matches()) {
 	            result.add(part);
 	        }
 	    }
-	    Collections.sort(result);
 	    return result;
 	}
 
@@ -679,6 +726,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 *  Compliance with Rule M4.1, and ignore all others silently too. 
 	 *
 	 * @return All this package's parts.
+	 * @throws InvalidFormatException if the package is not valid.
 	 */
 	public ArrayList<PackagePart> getParts() throws InvalidFormatException {
 		throwExceptionIfWriteOnly();
@@ -751,9 +799,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 				}
 			}
 		}
-		ArrayList<PackagePart> result = new ArrayList<PackagePart>(partList.values());
-		java.util.Collections.sort(result);
-		return result;
+		return new ArrayList<>(partList.sortedValues());
 	}
 
 	/**
@@ -801,7 +847,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 			throw new IllegalArgumentException("partName");
 		}
 
-		if (contentType == null || contentType.equals("")) {
+		if (contentType == null || contentType.isEmpty()) {
 			throw new IllegalArgumentException("contentType");
 		}
 
@@ -889,7 +935,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @param part
 	 *            The part to add (or replace).
 	 * @return The part added to the package, the same as the one specified.
-	 * @throws InvalidFormatException
+	 * @throws InvalidOperationException
 	 *             If rule M1.12 is not verified : Packages shall not contain
 	 *             equivalent part names and package implementers shall neither
 	 *             create nor recognize packages with equivalent part names.
@@ -1121,7 +1167,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 *            ID of the relationship.
 	 * @see PackageRelationshipTypes
 	 */
-	public PackageRelationship addRelationship(PackagePartName targetPartName,
+	@Override
+    public PackageRelationship addRelationship(PackagePartName targetPartName,
 			TargetMode targetMode, String relationshipType, String relID) {
 		/* Check OPC compliance */
 
@@ -1168,7 +1215,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 *            Relationship type.
 	 * @see PackageRelationshipTypes
 	 */
-	public PackageRelationship addRelationship(PackagePartName targetPartName,
+	@Override
+    public PackageRelationship addRelationship(PackagePartName targetPartName,
 			TargetMode targetMode, String relationshipType) {
 		return this.addRelationship(targetPartName, targetMode,
 				relationshipType, null);
@@ -1189,7 +1237,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#addExternalRelationship(java.lang.String,
 	 *      java.lang.String)
 	 */
-	public PackageRelationship addExternalRelationship(String target,
+	@Override
+    public PackageRelationship addExternalRelationship(String target,
 			String relationshipType) {
 		return addExternalRelationship(target, relationshipType, null);
 	}
@@ -1211,7 +1260,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#addExternalRelationship(java.lang.String,
 	 *      java.lang.String)
 	 */
-	public PackageRelationship addExternalRelationship(String target,
+	@Override
+    public PackageRelationship addExternalRelationship(String target,
 			String relationshipType, String id) {
 		if (target == null) {
 			throw new IllegalArgumentException("target");
@@ -1240,7 +1290,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * @param id
 	 *            Id of the relationship to delete.
 	 */
-	public void removeRelationship(String id) {
+	@Override
+    public void removeRelationship(String id) {
 		if (relationships != null) {
 			relationships.removeRelationship(id);
 			this.isDirty = true;
@@ -1251,10 +1302,11 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 * Retrieves all package relationships.
 	 *
 	 * @return All package relationships of this package.
-	 * @throws OpenXML4JException
+     * @throws InvalidOperationException if a read operation is done on a write only package.
 	 * @see #getRelationshipsHelper(String)
 	 */
-	public PackageRelationshipCollection getRelationships() {
+	@Override
+    public PackageRelationshipCollection getRelationships() {
 		return getRelationshipsHelper(null);
 	}
 
@@ -1265,7 +1317,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 *            The filter specifying the relationship type.
 	 * @return All relationships with the specified relationship type.
 	 */
-	public PackageRelationshipCollection getRelationshipsByType(
+	@Override
+    public PackageRelationshipCollection getRelationshipsByType(
 			String relationshipType) {
 		throwExceptionIfWriteOnly();
 		if (relationshipType == null) {
@@ -1290,7 +1343,8 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	/**
 	 * Clear package relationships.
 	 */
-	public void clearRelationships() {
+	@Override
+    public void clearRelationships() {
 		if (relationships != null) {
 			relationships.clear();
 			this.isDirty = true;
@@ -1313,22 +1367,25 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	/**
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#getRelationship(java.lang.String)
 	 */
-	public PackageRelationship getRelationship(String id) {
+	@Override
+    public PackageRelationship getRelationship(String id) {
 		return this.relationships.getRelationshipByID(id);
 	}
 
 	/**
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#hasRelationships()
 	 */
-	public boolean hasRelationships() {
+	@Override
+    public boolean hasRelationships() {
 		return (relationships.size() > 0);
 	}
 
 	/**
 	 * @see org.apache.poi.openxml4j.opc.RelationshipSource#isRelationshipExists(org.apache.poi.openxml4j.opc.PackageRelationship)
 	 */
-	public boolean isRelationshipExists(PackageRelationship rel) {
-        for (PackageRelationship r : this.getRelationships()) {
+	@Override
+    public boolean isRelationshipExists(PackageRelationship rel) {
+        for (PackageRelationship r : relationships) {
             if (r == rel) {
                 return true;
             }
@@ -1416,6 +1473,7 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 	 *
 	 * @return <b>true</b> if the package is valid else <b>false</b>
 	 */
+	@NotImplemented
 	public boolean validatePackage(OPCPackage pkg) throws InvalidFormatException {
 		throw new InvalidOperationException("Not implemented yet !!!");
 	}
@@ -1451,7 +1509,9 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
 			fos = new FileOutputStream(targetFile);
 			this.save(fos);
 		} finally {
-			if (fos != null) fos.close();
+			if (fos != null) {
+                fos.close();
+            }
 		}
 	}
 
@@ -1572,7 +1632,13 @@ public abstract class OPCPackage implements RelationshipSource, Closeable {
             if (packagePart.getContentType().equals(oldContentType)) {
                 PackagePartName partName = packagePart.getPartName();
                 contentTypeManager.addContentType(partName, newContentType);
+                try {
+                    packagePart.setContentType(newContentType);
+                } catch (InvalidFormatException e) {
+                    throw new OpenXML4JRuntimeException("invalid content type - "+newContentType, e);
+                }
                 success = true;
+                this.isDirty = true;
             }
         }
         return success;

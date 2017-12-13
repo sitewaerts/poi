@@ -22,8 +22,12 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.apache.poi.ss.formula.DataValidationEvaluator;
+import org.apache.poi.ss.formula.WorkbookEvaluator;
+import org.apache.poi.ss.formula.eval.ValueEval;
 import org.apache.poi.ss.usermodel.BaseTestDataValidation;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.DataValidationConstraint;
 import org.apache.poi.ss.usermodel.DataValidationConstraint.OperatorType;
@@ -141,7 +145,7 @@ public class TestXSSFDataValidation extends BaseTestDataValidation {
 				Cell cell_13 = row1.createCell(3);
 				
 				
-				cell_13.setCellType(Cell.CELL_TYPE_NUMERIC);				
+				cell_13.setCellType(CellType.NUMERIC);				
 				cell_13.setCellValue(validationType==ValidationType.DECIMAL ? dvalue.doubleValue() : value.intValue());
 
 				
@@ -189,8 +193,7 @@ public class TestXSSFDataValidation extends BaseTestDataValidation {
 				}
 			}
 
-			for (int j = 0; j < doubleOperandOperatorTypes.length; j++) {
-				int operatorType = doubleOperandOperatorTypes[j];
+			for (int operatorType : doubleOperandOperatorTypes) {
 				final Row row1 = sheet.createRow(offset++);
 				
 				cell_10 = row1.createCell(0);
@@ -204,11 +207,11 @@ public class TestXSSFDataValidation extends BaseTestDataValidation {
 				
 				
 				String value1String = validationType==ValidationType.DECIMAL ? dvalue.toString() : value.toString();
-				cell_13.setCellType(Cell.CELL_TYPE_NUMERIC);				
+				cell_13.setCellType(CellType.NUMERIC);				
 				cell_13.setCellValue(validationType==ValidationType.DECIMAL ? dvalue.doubleValue() : value.intValue());
 
 				String value2String = validationType==ValidationType.DECIMAL ? dvalue2.toString() : value2.toString();
-				cell_14.setCellType(Cell.CELL_TYPE_NUMERIC);
+				cell_14.setCellType(CellType.NUMERIC);
 				cell_14.setCellValue(validationType==ValidationType.DECIMAL ? dvalue2.doubleValue() : value2.intValue());
 				
 				
@@ -338,7 +341,15 @@ public class TestXSSFDataValidation extends BaseTestDataValidation {
         DataValidationHelper dataValidationHelper = sheet.getDataValidationHelper();
 
         DataValidationConstraint constraint = dataValidationHelper.createCustomConstraint("true");
-        final XSSFDataValidation validation = (XSSFDataValidation) dataValidationHelper.createValidation(constraint, new CellRangeAddressList(0, 0, 0, 0));
-        return validation;
+        return (XSSFDataValidation) dataValidationHelper.createValidation(constraint, new CellRangeAddressList(0, 0, 0, 0));
+    }
+    
+    @Test
+    public void testTableBasedValidationList() {
+        XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("dataValidationTableRange.xlsx");
+        XSSFFormulaEvaluator fEval = wb.getCreationHelper().createFormulaEvaluator();
+        DataValidationEvaluator dve = new DataValidationEvaluator(wb, fEval);
+        List<ValueEval> values = dve.getValidationValuesForCell(new CellReference("County Ranking", 8, 6, false, false));
+        assertEquals("wrong # of valid values", 32, values.size());
     }
 }

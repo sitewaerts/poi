@@ -20,6 +20,7 @@ package org.apache.poi.hslf.record;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.POILogger;
 
@@ -27,6 +28,10 @@ import org.apache.poi.util.POILogger;
  * Ruler of a text as it differs from the style's ruler settings.
  */
 public final class TextRulerAtom extends RecordAtom {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
     /**
      * Record header.
      */
@@ -69,7 +74,7 @@ public final class TextRulerAtom extends RecordAtom {
         System.arraycopy(source,start,_header,0,8);
 
         // Get the record data.
-        _data = new byte[len-8];
+        _data = IOUtils.safelyAllocate(len-8, MAX_RECORD_LENGTH);
         System.arraycopy(source,start+8,_data,0,len-8);
 
         try {
@@ -192,8 +197,7 @@ public final class TextRulerAtom extends RecordAtom {
             0x00, 0x00, (byte)0xA6, 0x0F, 0x0A, 0x00, 0x00, 0x00,
             0x10, 0x03, 0x00, 0x00, (byte)0xF9, 0x00, 0x41, 0x01, 0x41, 0x01
         };
-        TextRulerAtom ruler = new TextRulerAtom(data, 0, data.length);
-        return ruler;
+        return new TextRulerAtom(data, 0, data.length);
     }
 
     public void setParagraphIndent(short tetxOffset, short bulletOffset){

@@ -20,7 +20,6 @@ package org.apache.poi.hssf.usermodel;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Vector;
 
 import org.apache.poi.hssf.model.InternalWorkbook;
@@ -29,10 +28,10 @@ import org.apache.poi.ss.usermodel.BuiltinFormats;
 import org.apache.poi.ss.usermodel.DataFormat;
 
 /**
- * Identifies both built-in and user defined formats within a workbook.<p/>
- * See {@link BuiltinFormats} for a list of supported built-in formats.<p/>
+ * Identifies both built-in and user defined formats within a workbook.<p>
+ * See {@link BuiltinFormats} for a list of supported built-in formats.<p>
  *
- * <b>International Formats</b><br/>
+ * <b>International Formats</b><br>
  * Since version 2003 Excel has supported international formats.  These are denoted
  * with a prefix "[$-xxx]" (where xxx is a 1-7 digit hexadecimal number).
  * See the Microsoft article
@@ -43,9 +42,9 @@ import org.apache.poi.ss.usermodel.DataFormat;
 public final class HSSFDataFormat implements DataFormat {
 	private static final String[] _builtinFormats = BuiltinFormats.getAll();
 
-	private final Vector<String> _formats = new Vector<String>();
+	private final Vector<String> _formats = new Vector<>();
 	private final InternalWorkbook _workbook;
-	private boolean _movedBuiltins = false;  // Flag to see if need to
+	private boolean _movedBuiltins;  // Flag to see if need to
 	// check the built in list
 	// or if the regular list
 	// has all entries.
@@ -90,7 +89,7 @@ public final class HSSFDataFormat implements DataFormat {
 	public short getFormat(String pFormat) {
 	   // Normalise the format string
 		String format;
-		if (pFormat.toUpperCase(Locale.ROOT).equals("TEXT")) {
+		if (pFormat.equalsIgnoreCase("TEXT")) {
 			format = "@";
 		} else {
 			format = pFormat;

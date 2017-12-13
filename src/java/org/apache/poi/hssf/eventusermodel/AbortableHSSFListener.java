@@ -19,7 +19,6 @@
 package org.apache.poi.hssf.eventusermodel;
 
 import org.apache.poi.hssf.record.Record;
-import org.apache.poi.hssf.eventusermodel.HSSFUserException;
 
 /**
  * Abstract class for use with the HSSFRequest and HSSFEventFactory, which
@@ -42,7 +41,8 @@ public abstract class AbortableHSSFListener implements HSSFListener
      * It is never called by HSSFEventFactory or HSSFRequest.
      * You should implement #abortableProcessRecord instead
      */
-	public void processRecord(Record record)
+	@Override
+    public void processRecord(Record record)
 	{
 	}
 
@@ -59,6 +59,8 @@ public abstract class AbortableHSSFListener implements HSSFListener
 	 * Error termination can be done by throwing the HSSFUserException.
 	 *
 	 * Note that HSSFEventFactory will not call the inherited process 
+	 *
+	 * @param record the record to be processed
 	 *
      * @return result code of zero for continued processing.
      *

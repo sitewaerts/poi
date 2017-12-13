@@ -19,10 +19,12 @@ package org.apache.poi.hssf.usermodel;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 import org.apache.poi.ddf.EscherRecord;
 import org.apache.poi.hssf.model.DrawingManager2;
@@ -48,7 +50,7 @@ import org.apache.poi.hssf.record.aggregates.DataValidityTable;
 import org.apache.poi.hssf.record.aggregates.FormulaRecordAggregate;
 import org.apache.poi.hssf.record.aggregates.RecordAggregate.RecordVisitor;
 import org.apache.poi.hssf.record.aggregates.WorksheetProtectionBlock;
-import org.apache.poi.hssf.util.PaneInformation;
+import org.apache.poi.hssf.usermodel.helpers.HSSFRowShifter;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.FormulaShifter;
 import org.apache.poi.ss.formula.FormulaType;
@@ -59,13 +61,16 @@ import org.apache.poi.ss.formula.ptg.UnionPtg;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellRange;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.DataValidationHelper;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.helpers.RowShifter;
 import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.ss.util.CellReference;
+import org.apache.poi.ss.util.PaneInformation;
 import org.apache.poi.ss.util.SSCellRange;
 import org.apache.poi.ss.util.SheetUtil;
 import org.apache.poi.util.Configurator;
@@ -119,7 +124,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      */
     protected HSSFSheet(HSSFWorkbook workbook) {
         _sheet = InternalSheet.createSheet();
-        _rows = new TreeMap<Integer, HSSFRow>();
+        _rows = new TreeMap<>();
         this._workbook = workbook;
         this._book = workbook.getWorkbook();
     }
@@ -134,14 +139,15 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      */
     protected HSSFSheet(HSSFWorkbook workbook, InternalSheet sheet) {
         this._sheet = sheet;
-        _rows = new TreeMap<Integer, HSSFRow>();
+        _rows = new TreeMap<>();
         this._workbook = workbook;
         this._book = workbook.getWorkbook();
         setPropertiesFromSheet(sheet);
     }
 
     HSSFSheet cloneSheet(HSSFWorkbook workbook) {
-        this.getDrawingPatriarch();/**Aggregate drawing records**/
+        // Aggregate drawing records
+        this.getDrawingPatriarch();
         HSSFSheet sheet = new HSSFSheet(workbook, _sheet.cloneSheet());
         int pos = sheet._sheet.findFirstRecordLocBySid(DrawingRecord.sid);
         DrawingRecord dr = (DrawingRecord) sheet._sheet.findFirstRecordBySid(DrawingRecord.sid);
@@ -179,9 +185,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      * used internally to set the properties given a Sheet object
      */
     private void setPropertiesFromSheet(InternalSheet sheet) {
-
         RowRecord row = sheet.getNextRow();
-        boolean rowRecordsAlreadyPresent = row != null;
 
         while (row != null) {
             createRowFromRecord(row);
@@ -209,12 +213,14 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
                 hrow = getRow(cval.getRow());
                 lastrow = hrow;
                 if (hrow == null) {
+                    /* we removed this check, see bug 47245 for the discussion around this
                     // Some tools (like Perl module Spreadsheet::WriteExcel - bug 41187) skip the RowRecords
                     // Excel, OpenOffice.org and GoogleDocs are all OK with this, so POI should be too.
                     if (rowRecordsAlreadyPresent) {
                         // if at least one row record is present, all should be present.
                         throw new RuntimeException("Unexpected missing row when some rows already present");
-                    }
+                    }*/
+
                     // create the row record on the fly now.
                     RowRecord rowRec = new RowRecord(cval.getRow());
                     sheet.addRow(rowRec);
@@ -419,7 +425,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     @Override
     public List<HSSFDataValidation> getDataValidations() {
         DataValidityTable dvt = _sheet.getOrCreateDataValidityTable();
-        final List<HSSFDataValidation> hssfValidations = new ArrayList<HSSFDataValidation>();
+        final List<HSSFDataValidation> hssfValidations = new ArrayList<>();
         RecordVisitor visitor = new RecordVisitor() {
             private HSSFEvaluationWorkbook book = HSSFEvaluationWorkbook.create(getWorkbook());
 
@@ -486,32 +492,26 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     /**
-     * Set the width (in units of 1/256th of a character width)
-     * <p/>
-     * <p>
+     * Set the width (in units of 1/256th of a character width)<p>
+     * 
      * The maximum column width for an individual cell is 255 characters.
      * This value represents the number of characters that can be displayed
-     * in a cell that is formatted with the standard font (first font in the workbook).
-     * </p>
-     * <p/>
-     * <p>
+     * in a cell that is formatted with the standard font (first font in the workbook).<p>
+     * 
      * Character width is defined as the maximum digit width
      * of the numbers <code>0, 1, 2, ... 9</code> as rendered
-     * using the default font (first font in the workbook).
-     * <br/>
+     * using the default font (first font in the workbook).<p>
+     * 
      * Unless you are using a very special font, the default character is '0' (zero),
-     * this is true for Arial (default font font in HSSF) and Calibri (default font in XSSF)
-     * </p>
-     * <p/>
-     * <p>
+     * this is true for Arial (default font font in HSSF) and Calibri (default font in XSSF)<p>
+     * 
      * Please note, that the width set by this method includes 4 pixels of margin padding (two on each side),
      * plus 1 pixel padding for the gridlines (Section 3.3.1.12 of the OOXML spec).
-     * This results is a slightly less value of visible characters than passed to this method (approx. 1/2 of a character).
-     * </p>
-     * <p>
+     * This results is a slightly less value of visible characters than passed to this method (approx. 1/2 of a character).<p>
+     * 
      * To compute the actual number of visible characters,
-     * Excel uses the following formula (Section 3.3.1.12 of the OOXML spec):
-     * </p>
+     * Excel uses the following formula (Section 3.3.1.12 of the OOXML spec):<p>
+     * 
      * <code>
      * width = Truncate([{Number of Visible Characters} *
      * {Maximum Digit Width} + {5 pixel padding}]/{Maximum Digit Width}*256)/256
@@ -522,12 +522,12 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      * <code>
      * Truncate([numChars*7+5]/7*256)/256 = 8;
      * </code>
-     * <p/>
+     * <p>
      * which gives <code>7.29</code>.
      *
      * @param columnIndex - the column to set (0-based)
      * @param width       - the width in units of 1/256th of a character width
-     * @throws IllegalArgumentException if width > 255*256 (the maximum column width in Excel is 255 characters)
+     * @throws IllegalArgumentException if width &gt; 255*256 (the maximum column width in Excel is 255 characters)
      */
     @Override
     public void setColumnWidth(int columnIndex, int width) {
@@ -658,24 +658,75 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     /**
-     * adds a merged region of cells (hence those cells form one)
+     * Adds a merged region of cells on a sheet.
      *
-     * @param region (rowfrom/colfrom-rowto/colto) to merge
+     * @param region to merge
      * @return index of this region
-     * @throws IllegalStateException if region intersects with an existing merged region
-     * or multi-cell array formula on this sheet
+     * @throws IllegalArgumentException if region contains fewer than 2 cells
+     * @throws IllegalStateException if region intersects with a multi-cell array formula
+     * @throws IllegalStateException if region intersects with an existing region on this sheet
      */
     @Override
     public int addMergedRegion(CellRangeAddress region) {
+        return addMergedRegion(region, true);
+    }
+
+    /**
+     * Adds a merged region of cells (hence those cells form one).
+     * Skips validation. It is possible to create overlapping merged regions
+     * or create a merged region that intersects a multi-cell array formula
+     * with this formula, which may result in a corrupt workbook.
+     *
+     * To check for merged regions overlapping array formulas or other merged regions
+     * after addMergedRegionUnsafe has been called, call {@link #validateMergedRegions()}, which runs in O(n^2) time.
+     *
+     * @param region to merge
+     * @return index of this region
+     * @throws IllegalArgumentException if region contains fewer than 2 cells
+     */
+    @Override
+    public int addMergedRegionUnsafe(CellRangeAddress region) {
+        return addMergedRegion(region, false);
+    }
+
+    /**
+     * Verify that merged regions do not intersect multi-cell array formulas and
+     * no merged regions intersect another merged region in this sheet.
+     *
+     * @throws IllegalStateException if region intersects with a multi-cell array formula
+     * @throws IllegalStateException if at least one region intersects with another merged region in this sheet
+     */
+    @Override
+    public void validateMergedRegions() {
+        checkForMergedRegionsIntersectingArrayFormulas();
+        checkForIntersectingMergedRegions();
+    }
+
+    /**
+     * adds a merged region of cells (hence those cells form one)
+     *
+     * @param region (rowfrom/colfrom-rowto/colto) to merge
+     * @param validate whether to validate merged region
+     * @return index of this region
+     * @throws IllegalArgumentException if region contains fewer than 2 cells
+     * @throws IllegalStateException if region intersects with an existing merged region
+     * or multi-cell array formula on this sheet
+     */
+    private int addMergedRegion(CellRangeAddress region, boolean validate) {
+        if (region.getNumberOfCells() < 2) {
+            throw new IllegalArgumentException("Merged region " + region.formatAsString() + " must contain 2 or more cells");
+        }
         region.validate(SpreadsheetVersion.EXCEL97);
 
-        // throw IllegalStateException if the argument CellRangeAddress intersects with
-        // a multi-cell array formula defined in this sheet
-        validateArrayFormulas(region);
+        if (validate) {
+            // throw IllegalStateException if the argument CellRangeAddress intersects with
+            // a multi-cell array formula defined in this sheet
+            validateArrayFormulas(region);
         
-        // Throw IllegalStateException if the argument CellRangeAddress intersects with
-        // a merged region already in this sheet
-        validateMergedRegions(region);
+            // Throw IllegalStateException if the argument CellRangeAddress intersects with
+            // a merged region already in this sheet
+            validateMergedRegions(region);
+        }
 
         return _sheet.addMergedRegion(region.getFirstRow(),
                 region.getFirstColumn(),
@@ -684,23 +735,23 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     private void validateArrayFormulas(CellRangeAddress region) {
+        // FIXME: this may be faster if it looped over array formulas directly rather than looping over each cell in
+        // the region and searching if that cell belongs to an array formula
         int firstRow = region.getFirstRow();
         int firstColumn = region.getFirstColumn();
         int lastRow = region.getLastRow();
         int lastColumn = region.getLastColumn();
         for (int rowIn = firstRow; rowIn <= lastRow; rowIn++) {
+            HSSFRow row = getRow(rowIn);
+            if (row == null) continue;
+            
             for (int colIn = firstColumn; colIn <= lastColumn; colIn++) {
-                HSSFRow row = getRow(rowIn);
-                if (row == null) continue;
-
                 HSSFCell cell = row.getCell(colIn);
                 if (cell == null) continue;
 
                 if (cell.isPartOfArrayFormulaGroup()) {
                     CellRangeAddress arrayRange = cell.getArrayFormulaRange();
-                    if (arrayRange.getNumberOfCells() > 1 &&
-                            (arrayRange.isInRange(region.getFirstRow(), region.getFirstColumn()) ||
-                                    arrayRange.isInRange(region.getFirstRow(), region.getFirstColumn()))) {
+                    if (arrayRange.getNumberOfCells() > 1 && region.intersects(arrayRange)) {
                         String msg = "The range " + region.formatAsString() + " intersects with a multi-cell array formula. " +
                                 "You cannot merge cells of an array.";
                         throw new IllegalStateException(msg);
@@ -710,7 +761,18 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
         }
 
     }
-    
+
+    /**
+     * Verify that none of the merged regions intersect a multi-cell array formula in this sheet
+     *
+     * @throws IllegalStateException if candidate region intersects an existing array formula in this sheet
+     */
+    private void checkForMergedRegionsIntersectingArrayFormulas() {
+        for (CellRangeAddress region : getMergedRegions()) {
+            validateArrayFormulas(region);
+        }
+    }
+
     private void validateMergedRegions(CellRangeAddress candidateRegion) {
         for (final CellRangeAddress existingRegion : getMergedRegions()) {
             if (existingRegion.intersects(candidateRegion)) {
@@ -721,20 +783,37 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     /**
+     * Verify that no merged regions intersect another merged region in this sheet.
+     *
+     * @throws IllegalStateException if at least one region intersects with another merged region in this sheet
+     */
+    private void checkForIntersectingMergedRegions() {
+        final List<CellRangeAddress> regions = getMergedRegions();
+        final int size = regions.size();
+        for (int i=0; i < size; i++) {
+            final CellRangeAddress region = regions.get(i);
+            for (final CellRangeAddress other : regions.subList(i+1, regions.size())) {
+                if (region.intersects(other)) {
+                    String msg = "The range " + region.formatAsString() +
+                                " intersects with another merged region " +
+                                other.formatAsString() + " in this sheet";
+                    throw new IllegalStateException(msg);
+                }
+            }
+        }
+    }
+
+    /**
      * Control if Excel should be asked to recalculate all formulas on this sheet
-     * when the workbook is opened.
-     * <p/>
-     * <p>
+     * when the workbook is opened.<p>
+     * 
      * Calculating the formula values with {@link org.apache.poi.ss.usermodel.FormulaEvaluator} is the
      * recommended solution, but this may be used for certain cases where
-     * evaluation in POI is not possible.
-     * </p>
-     * <p/>
-     * <p>
+     * evaluation in POI is not possible.<p>
+     * 
      * It is recommended to force recalcuation of formulas on workbook level using
      * {@link org.apache.poi.ss.usermodel.Workbook#setForceFormulaRecalculation(boolean)}
      * to ensure that all cross-worksheet formuals and external dependencies are updated.
-     * </p>
      *
      * @param value true if the application will perform a full recalculation of
      *              this worksheet values when the workbook is opened
@@ -818,10 +897,21 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      *
      * @param index of the region to unmerge
      */
-
     @Override
     public void removeMergedRegion(int index) {
         _sheet.removeMergedRegion(index);
+    }
+    
+    /**
+     * Removes a number of merged regions of cells (hence letting them free)
+     *
+     * @param indices A set of the regions to unmerge
+     */
+    @Override
+    public void removeMergedRegions(Collection<Integer> indices) {
+        for (int i : (new TreeSet<>(indices)).descendingSet()) {
+            _sheet.removeMergedRegion(i);
+        }
     }
 
     /**
@@ -847,8 +937,9 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      */
     @Override
     public List<CellRangeAddress> getMergedRegions() {
-        List<CellRangeAddress> addresses = new ArrayList<CellRangeAddress>();
-        for (int i=0; i < _sheet.getNumMergedRegions(); i++) {
+        List<CellRangeAddress> addresses = new ArrayList<>();
+        int count = _sheet.getNumMergedRegions();
+        for (int i=0; i < count; i++) {
             addresses.add(_sheet.getMergedRegionAt(i));
         }
         return addresses;
@@ -1116,12 +1207,33 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Turns on or off the printing of gridlines.
      *
-     * @param newPrintGridlines boolean to turn on or off the printing of
+     * @param show boolean to turn on or off the printing of
      *                          gridlines
      */
     @Override
-    public void setPrintGridlines(boolean newPrintGridlines) {
-        getSheet().getPrintGridlines().setPrintGridlines(newPrintGridlines);
+    public void setPrintGridlines(boolean show) {
+        getSheet().getPrintGridlines().setPrintGridlines(show);
+    }
+    
+    /**
+     * Returns whether row and column headings are printed.
+     *
+     * @return row and column headings are printed
+     */
+    @Override
+    public boolean isPrintRowAndColumnHeadings() {
+        return getSheet().getPrintHeaders().getPrintHeaders();
+    }
+
+    /**
+     * Turns on or off the printing of row and column headings.
+     *
+     * @param show boolean to turn on or off the printing of
+     *                          row and column headings
+     */
+    @Override
+    public void setPrintRowAndColumnHeadings(boolean show) {
+        getSheet().getPrintHeaders().setPrintHeaders(show);
     }
 
     /**
@@ -1225,7 +1337,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Answer whether protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true =&gt; protection enabled; false =&gt; protection disabled
      */
     @Override
     public boolean getProtect() {
@@ -1242,7 +1354,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Answer whether object protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true =&gt; protection enabled; false =&gt; protection disabled
      */
     public boolean getObjectProtect() {
         return getProtectionBlock().isObjectProtected();
@@ -1251,7 +1363,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Answer whether scenario protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true =&gt; protection enabled; false =&gt; protection disabled
      */
     @Override
     public boolean getScenarioProtect() {
@@ -1275,9 +1387,8 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      *
      * @param numerator   The numerator for the zoom magnification.
      * @param denominator The denominator for the zoom magnification.
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #setZoom(int)} instead.
+     * @see #setZoom(int)
      */
-    @Override
     public void setZoom(int numerator, int denominator) {
         if (numerator < 1 || numerator > 65535)
             throw new IllegalArgumentException("Numerator must be greater than 0 and less than 65536");
@@ -1292,7 +1403,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     
     /**
      * Window zoom magnification for current view representing percent values.
-     * Valid values range from 10 to 400. Horizontal & Vertical scale together.
+     * Valid values range from 10 to 400. Horizontal &amp; Vertical scale together.
      *
      * For example:
      * <pre>
@@ -1359,60 +1470,28 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
         _sheet.setTopRow(toprow);
         _sheet.setLeftCol(leftcol);
     }
-
+    
     /**
-     * Shifts the merged regions left or right depending on mode
-     * <p/>
-     * TODO: MODE , this is only row specific
-     *
-     * @param startRow
-     * @param endRow
-     * @param n
-     * @param isRow
+     * Shifts, grows, or shrinks the merged regions due to a row shift
+     * 
+     * @param startRow the start-index of the rows to shift, zero-based
+     * @param endRow the end-index of the rows to shift, zero-based
+     * @param n how far to shift, negative to shift up
+     * @param isRow unused, kept for backwards compatibility
+     * @deprecated POI 3.15 beta 2. Use {@link HSSFRowShifter#shiftMergedRegions(int, int, int)}.
      */
     protected void shiftMerged(int startRow, int endRow, int n, boolean isRow) {
-        List<CellRangeAddress> shiftedRegions = new ArrayList<CellRangeAddress>();
-        //move merged regions completely if they fall within the new region boundaries when they are shifted
-        for (int i = 0; i < getNumMergedRegions(); i++) {
-            CellRangeAddress merged = getMergedRegion(i);
-
-            boolean inStart = (merged.getFirstRow() >= startRow || merged.getLastRow() >= startRow);
-            boolean inEnd = (merged.getFirstRow() <= endRow || merged.getLastRow() <= endRow);
-
-            //don't check if it's not within the shifted area
-            if (!inStart || !inEnd) {
-                continue;
-            }
-
-            //only shift if the region outside the shifted rows is not merged too
-            if (!SheetUtil.containsCell(merged, startRow - 1, 0) &&
-                    !SheetUtil.containsCell(merged, endRow + 1, 0)) {
-                merged.setFirstRow(merged.getFirstRow() + n);
-                merged.setLastRow(merged.getLastRow() + n);
-                //have to remove/add it back
-                shiftedRegions.add(merged);
-                removeMergedRegion(i);
-                i = i - 1; // we have to back up now since we removed one
-            }
-        }
-
-        //read so it doesn't get shifted again
-        Iterator<CellRangeAddress> iterator = shiftedRegions.iterator();
-        while (iterator.hasNext()) {
-            CellRangeAddress region = iterator.next();
-
-            this.addMergedRegion(region);
-        }
+        RowShifter rowShifter = new HSSFRowShifter(this);
+        rowShifter.shiftMergedRegions(startRow, endRow, n);
     }
 
     /**
      * Shifts rows between startRow and endRow n number of rows.
      * If you use a negative number, it will shift rows up.
-     * Code ensures that rows don't wrap around.
-     * <p/>
-     * Calls shiftRows(startRow, endRow, n, false, false);
-     * <p/>
-     * <p/>
+     * Code ensures that rows don't wrap around.<p>
+     * 
+     * Calls {@code shiftRows(startRow, endRow, n, false, false);}<p>
+     * 
      * Additionally shifts merged regions that are completely defined in these
      * rows (ie. merged 2 cells on a row to be shifted).
      *
@@ -1428,12 +1507,12 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Shifts rows between startRow and endRow n number of rows.
      * If you use a negative number, it will shift rows up.
-     * Code ensures that rows don't wrap around
-     * <p/>
-     * <p/>
+     * Code ensures that rows don't wrap around<p>
+     * 
      * Additionally shifts merged regions that are completely defined in these
-     * rows (ie. merged 2 cells on a row to be shifted).
-     * <p/>
+     * rows (ie. merged 2 cells on a row to be shifted). All merged regions that are
+     * completely overlaid by shifting will be deleted.<p>
+     * 
      * TODO Might want to add bounds checking here
      *
      * @param startRow               the row to start shifting
@@ -1446,16 +1525,26 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     public void shiftRows(int startRow, int endRow, int n, boolean copyRowHeight, boolean resetOriginalRowHeight) {
         shiftRows(startRow, endRow, n, copyRowHeight, resetOriginalRowHeight, true);
     }
+    
+    /**
+     * bound a row number between 0 and last row index (65535)
+     *
+     * @param row the row number
+     */
+    private static int clip(int row) {
+        return Math.min(
+                Math.max(0, row),
+                SpreadsheetVersion.EXCEL97.getLastRowIndex());
+    }
 
     /**
      * Shifts rows between startRow and endRow n number of rows.
      * If you use a negative number, it will shift rows up.
-     * Code ensures that rows don't wrap around
-     * <p/>
-     * <p/>
+     * Code ensures that rows don't wrap around<p>
+     * 
      * Additionally shifts merged regions that are completely defined in these
-     * rows (ie. merged 2 cells on a row to be shifted).
-     * <p/>
+     * rows (ie. merged 2 cells on a row to be shifted).<p>
+     * 
      * TODO Might want to add bounds checking here
      *
      * @param startRow               the row to start shifting
@@ -1481,30 +1570,28 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
             // Nothing to do
             return;
         }
-
-        // Shift comments
+        
+        final RowShifter rowShifter = new HSSFRowShifter(this);
+        
+        // Move comments from the source row to the
+        //  destination row. Note that comments can
+        //  exist for cells which are null
+        // If the row shift would shift the comments off the sheet
+        // (above the first row or below the last row), this code will shift the
+        // comments to the first or last row, rather than moving them out of
+        // bounds or deleting them
         if (moveComments) {
-            _sheet.getNoteRecords();
+            moveCommentsForRowShift(startRow, endRow, n);
         }
 
         // Shift Merged Regions
-        shiftMerged(startRow, endRow, n, true);
+        rowShifter.shiftMergedRegions(startRow, endRow, n);
         
         // Shift Row Breaks
         _sheet.getPageSettings().shiftRowBreaks(startRow, endRow, n);
         
         // Delete overwritten hyperlinks
-        final int firstOverwrittenRow = startRow + n;
-        final int lastOverwrittenRow = endRow + n;
-        for (HSSFHyperlink link : getHyperlinkList()) {
-            // If hyperlink is fully contained in the rows that will be overwritten, delete the hyperlink
-            if (firstOverwrittenRow <= link.getFirstRow() &&
-                    link.getFirstRow() <= lastOverwrittenRow &&
-                    lastOverwrittenRow <= link.getLastRow() &&
-                    link.getLastRow() <= lastOverwrittenRow) {
-                removeHyperlink(link);
-            }
-        }
+        deleteOverwrittenHyperlinksForRowShift(startRow, endRow, n);
 
         for (int rowNum = s; rowNum >= startRow && rowNum <= endRow && rowNum >= 0 && rowNum < 65536; rowNum += inc) {
             HSSFRow row = getRow(rowNum);
@@ -1555,28 +1642,38 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
             }
             // Now zap all the cells in the source row
             row.removeAllCells();
-
-            // Move comments from the source row to the
-            //  destination row. Note that comments can
-            //  exist for cells which are null
-            if (moveComments) {
-                // This code would get simpler if NoteRecords could be organised by HSSFRow.
-                HSSFPatriarch patriarch = createDrawingPatriarch();
-                for (int i = patriarch.getChildren().size() - 1; i >= 0; i--) {
-                    HSSFShape shape = patriarch.getChildren().get(i);
-                    if (!(shape instanceof HSSFComment)) {
-                        continue;
-                    }
-                    HSSFComment comment = (HSSFComment) shape;
-                    if (comment.getRow() != rowNum) {
-                        continue;
-                    }
-                    comment.setRow(rowNum + n);
-                }
-            }
         }
 
         // Re-compute the first and last rows of the sheet as needed
+        recomputeFirstAndLastRowsForRowShift(startRow, endRow, n);
+
+        // Update formulas that refer to rows that have been moved
+        updateFormulasForRowShift(startRow, endRow, n);
+    }
+
+    private void updateFormulasForRowShift(int startRow, int endRow, int n) {
+        int sheetIndex = _workbook.getSheetIndex(this);
+        String sheetName = _workbook.getSheetName(sheetIndex);
+        short externSheetIndex = _book.checkExternSheet(sheetIndex);
+        FormulaShifter formulaShifter = FormulaShifter.createForRowShift(
+                         externSheetIndex, sheetName, startRow, endRow, n, SpreadsheetVersion.EXCEL97);
+        // update formulas on this sheet that point to rows which have been moved
+        _sheet.updateFormulasAfterCellShift(formulaShifter, externSheetIndex);
+
+        // update formulas on other sheets that point to rows that have been moved on this sheet
+        int nSheets = _workbook.getNumberOfSheets();
+        for (int i = 0; i < nSheets; i++) {
+            InternalSheet otherSheet = _workbook.getSheetAt(i).getSheet();
+            if (otherSheet == this._sheet) {
+                continue;
+            }
+            short otherExtSheetIx = _book.checkExternSheet(i);
+            otherSheet.updateFormulasAfterCellShift(formulaShifter, otherExtSheetIx);
+        }
+        _workbook.getWorkbook().updateNamesAfterCellShift(formulaShifter);
+    }
+
+    private void recomputeFirstAndLastRowsForRowShift(int startRow, int endRow, int n) {
         if (n > 0) {
             // Rows are moving down
             if (startRow == _firstrow) {
@@ -1599,8 +1696,9 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
             }
             if (endRow == _lastrow) {
                 // Need to walk backward to find the last non-blank row
+                // NOTE: n is always negative here
                 _lastrow = Math.min(endRow + n, SpreadsheetVersion.EXCEL97.getLastRowIndex());
-                for (int i = endRow - 1; i > endRow + n; i++) {
+                for (int i = endRow - 1; i > endRow + n; i--) {
                     if (getRow(i) != null) {
                         _lastrow = i;
                         break;
@@ -1608,26 +1706,36 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
                 }
             }
         }
+    }
 
-        // Update any formulas on this sheet that point to
-        //  rows which have been moved
-        int sheetIndex = _workbook.getSheetIndex(this);
-        String sheetName = _workbook.getSheetName(sheetIndex);
-        short externSheetIndex = _book.checkExternSheet(sheetIndex);
-        FormulaShifter shifter = FormulaShifter.createForRowShift(
-                         externSheetIndex, sheetName, startRow, endRow, n, SpreadsheetVersion.EXCEL97);
-        _sheet.updateFormulasAfterCellShift(shifter, externSheetIndex);
+    private void deleteOverwrittenHyperlinksForRowShift(int startRow, int endRow, int n) {
+        final int firstOverwrittenRow = startRow + n;
+        final int lastOverwrittenRow = endRow + n;
+        for (HSSFHyperlink link : getHyperlinkList()) {
+            // If hyperlink is fully contained in the rows that will be overwritten, delete the hyperlink
+            final int firstRow = link.getFirstRow();
+            final int lastRow = link.getLastRow();
+            if (firstOverwrittenRow <= firstRow
+                    && firstRow <= lastOverwrittenRow
+                    && lastOverwrittenRow <= lastRow
+                    && lastRow <= lastOverwrittenRow) {
+                removeHyperlink(link);
+            }
+        }
+    }
 
-        int nSheets = _workbook.getNumberOfSheets();
-        for (int i = 0; i < nSheets; i++) {
-            InternalSheet otherSheet = _workbook.getSheetAt(i).getSheet();
-            if (otherSheet == this._sheet) {
+    private void moveCommentsForRowShift(int startRow, int endRow, int n) {
+        final HSSFPatriarch patriarch = createDrawingPatriarch();
+        for (final HSSFShape shape : patriarch.getChildren()) {
+            if (!(shape instanceof HSSFComment)) {
                 continue;
             }
-            short otherExtSheetIx = _book.checkExternSheet(i);
-            otherSheet.updateFormulasAfterCellShift(shifter, otherExtSheetIx);
+            final HSSFComment comment = (HSSFComment) shape;
+            final int r = comment.getRow();
+            if (startRow <= r && r <= endRow) {
+                comment.setRow(clip(r + n));
+            }
         }
-        _workbook.getWorkbook().updateNamesAfterCellShift(shifter);
     }
 
     protected void insertChartRecords(List<Record> records) {
@@ -1647,11 +1755,9 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     /**
-     * Creates a split (freezepane). Any existing freezepane or split pane is overwritten.
-     * <p/>
-     * <p>
+     * Creates a split (freezepane). Any existing freezepane or split pane is overwritten.<p>
+     * 
      * If both colSplit and rowSplit are zero then the existing freeze pane is removed
-     * </p>
      *
      * @param colSplit       Horizonatal position of split.
      * @param rowSplit       Vertical position of split.
@@ -1670,11 +1776,9 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     /**
-     * Creates a split (freezepane). Any existing freezepane or split pane is overwritten.
-     * <p/>
-     * <p>
+     * Creates a split (freezepane). Any existing freezepane or split pane is overwritten.<p>
+     * 
      * If both colSplit and rowSplit are zero then the existing freeze pane is removed
-     * </p>
      *
      * @param colSplit Horizonatal position of split.
      * @param rowSplit Vertical position of split.
@@ -1775,8 +1879,8 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
 
     /**
      * Sets a page break at the indicated row
-     * Breaks occur above the specified row and left of the specified column inclusive.
-     * <p/>
+     * Breaks occur above the specified row and left of the specified column inclusive.<p>
+     * 
      * For example, <code>sheet.setColumnBreak(2);</code> breaks the sheet into two parts
      * with columns A,B,C in the first and D,E,... in the second. Simuilar, <code>sheet.setRowBreak(2);</code>
      * breaks the sheet into two parts with first three rows (rownum=1...3) in the first part
@@ -1827,10 +1931,10 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
 
     /**
      * Sets a page break at the indicated column.
-     * Breaks occur above the specified row and left of the specified column inclusive.
-     * <p/>
+     * Breaks occur above the specified row and left of the specified column inclusive.<p>
+     * 
      * For example, <code>sheet.setColumnBreak(2);</code> breaks the sheet into two parts
-     * with columns A,B,C in the first and D,E,... in the second. Simuilar, <code>sheet.setRowBreak(2);</code>
+     * with columns A,B,C in the first and D,E,... in the second. Simuilar, {@code sheet.setRowBreak(2);}
      * breaks the sheet into two parts with first three rows (rownum=1...3) in the first part
      * and rows starting with rownum=4 in the second.
      *
@@ -1856,7 +1960,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Removes a page break at the indicated column
      *
-     * @param column
+     * @param column The index of the column for which to remove a page-break, zero-based
      */
     @Override
     public void removeColumnBreak(int column) {
@@ -1866,7 +1970,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Runs a bounds check for row numbers
      *
-     * @param row
+     * @param row the index of the row to validate, zero-based
      */
     protected void validateRow(int row) {
         int maxrow = SpreadsheetVersion.EXCEL97.getLastRowIndex();
@@ -1877,7 +1981,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Runs a bounds check for column numbers
      *
-     * @param column
+     * @param column the index of the column to validate, zero-based
      */
     protected void validateColumn(int column) {
         int maxcol = SpreadsheetVersion.EXCEL97.getLastColumnIndex();
@@ -1894,10 +1998,9 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
 
         EscherAggregate r = (EscherAggregate) getSheet().findFirstRecordBySid(EscherAggregate.sid);
         List<EscherRecord> escherRecords = r.getEscherRecords();
-        for (Iterator<EscherRecord> iterator = escherRecords.iterator(); iterator.hasNext(); ) {
-            EscherRecord escherRecord = iterator.next();
+        for (EscherRecord escherRecord : escherRecords) {
             if (fat) {
-                pw.println(escherRecord.toString());
+                pw.println(escherRecord);
             } else {
                 escherRecord.display(pw, 0);
             }
@@ -1927,8 +2030,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
         }
 
         // Grab our aggregate record, and wire it up
-        EscherAggregate agg = (EscherAggregate) _sheet.findFirstRecordBySid(EscherAggregate.sid);
-        return agg;
+        return (EscherAggregate) _sheet.findFirstRecordBySid(EscherAggregate.sid);
     }
 
     /**
@@ -1957,7 +2059,6 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     private HSSFPatriarch getPatriarch(boolean createIfMissing) {
-        HSSFPatriarch patriarch = null;
         if (_patriarch != null) {
             return _patriarch;
         }
@@ -1977,7 +2078,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
                 if (createIfMissing) {
                     pos = _sheet.aggregateDrawingRecords(dm, true);
                     agg = (EscherAggregate) _sheet.getRecords().get(pos);
-                    patriarch = new HSSFPatriarch(this, agg);
+                    HSSFPatriarch patriarch = new HSSFPatriarch(this, agg);
                     patriarch.afterCreate();
                     return patriarch;
                 } else {
@@ -2049,12 +2150,12 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      */
     @Override
     public void setDefaultColumnStyle(int column, CellStyle style) {
-        _sheet.setDefaultColumnStyle(column, ((HSSFCellStyle) style).getIndex());
+        _sheet.setDefaultColumnStyle(column, style.getIndex());
     }
 
     /**
-     * Adjusts the column width to fit the contents.
-     * <p/>
+     * Adjusts the column width to fit the contents.<p>
+     * 
      * This process can be relatively slow on large sheets, so this should
      * normally only be called once per column, at the end of your
      * processing.
@@ -2067,12 +2168,12 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
 
     /**
-     * Adjusts the column width to fit the contents.
-     * <p/>
+     * Adjusts the column width to fit the contents.<p>
+     * 
      * This process can be relatively slow on large sheets, so this should
      * normally only be called once per column, at the end of your
-     * processing.
-     * <p/>
+     * processing.<p>
+     * 
      * You can specify whether the content of merged cells should be considered or ignored.
      * Default is to ignore merged cells.
      *
@@ -2091,18 +2192,6 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
             }
             setColumnWidth(column, (int) (width));
         }
-
-    }
-
-    /**
-     * Returns cell comment for the specified row and column
-     *
-     * @return cell comment or <code>null</code> if not found
-     * @deprecated as of 2015-11-23 (circa POI 3.14beta1). Use {@link #getCellComment(CellAddress)} instead.
-     */
-    @Override
-    public HSSFComment getCellComment(int row, int column) {
-        return findCellComment(row, column);
     }
     
     /**
@@ -2118,16 +2207,15 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     /**
      * Get a Hyperlink in this sheet anchored at row, column
      *
-     * @param row
-     * @param column
+     * @param row The index of the row of the hyperlink, zero-based
+     * @param column the index of the column of the hyperlink, zero-based
      * @return hyperlink if there is a hyperlink anchored at row, column; otherwise returns null
      */
     @Override
     public HSSFHyperlink getHyperlink(int row, int column) {
-        for (Iterator<RecordBase> it = _sheet.getRecords().iterator(); it.hasNext(); ) {
-            RecordBase rec = it.next();
-            if (rec instanceof HyperlinkRecord){
-                HyperlinkRecord link = (HyperlinkRecord)rec;
+        for (RecordBase rec : _sheet.getRecords()) {
+            if (rec instanceof HyperlinkRecord) {
+                HyperlinkRecord link = (HyperlinkRecord) rec;
                 if (link.getFirstColumn() == column && link.getFirstRow() == row) {
                     return new HSSFHyperlink(link);
                 }
@@ -2137,17 +2225,28 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
     }
     
     /**
+     * Get a Hyperlink in this sheet located in a cell specified by {code addr}
+     *
+     * @param addr The address of the cell containing the hyperlink
+     * @return hyperlink if there is a hyperlink anchored at {@code addr}; otherwise returns {@code null}
+     * @since POI 3.15 beta 3
+     */
+    @Override
+    public HSSFHyperlink getHyperlink(CellAddress addr) {
+        return getHyperlink(addr.getRow(), addr.getColumn());
+    }
+    
+    /**
      * Get a list of Hyperlinks in this sheet
      *
      * @return Hyperlinks for the sheet
      */
     @Override
     public List<HSSFHyperlink> getHyperlinkList() {
-        final List<HSSFHyperlink> hyperlinkList = new ArrayList<HSSFHyperlink>();
-        for (Iterator<RecordBase> it = _sheet.getRecords().iterator(); it.hasNext(); ) {
-            RecordBase rec = it.next();
-            if (rec instanceof HyperlinkRecord){
-                HyperlinkRecord link = (HyperlinkRecord)rec;
+        final List<HSSFHyperlink> hyperlinkList = new ArrayList<>();
+        for (RecordBase rec : _sheet.getRecords()) {
+            if (rec instanceof HyperlinkRecord) {
+                HyperlinkRecord link = (HyperlinkRecord) rec;
                 hyperlinkList.add(new HSSFHyperlink(link));
             }
         }
@@ -2193,6 +2292,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
      *
      * @return the name of this sheet
      */
+    @SuppressWarnings("resource")
     @Override
     public String getSheetName() {
         HSSFWorkbook wb = getWorkbook();
@@ -2210,7 +2310,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
         int lastColumn = range.getLastColumn();
         int height = lastRow - firstRow + 1;
         int width = lastColumn - firstColumn + 1;
-        List<HSSFCell> temp = new ArrayList<HSSFCell>(height * width);
+        List<HSSFCell> temp = new ArrayList<>(height * width);
         for (int rowIn = firstRow; rowIn <= lastRow; rowIn++) {
             for (int colIn = firstColumn; colIn <= lastColumn; colIn++) {
                 HSSFRow row = getRow(rowIn);
@@ -2259,7 +2359,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
         CellRange<HSSFCell> result = getCellRange(range);
         // clear all cells in the range
         for (Cell c : result) {
-            c.setCellType(Cell.CELL_TYPE_BLANK);
+            c.setCellType(CellType.BLANK);
         }
         return result;
     }
@@ -2302,7 +2402,9 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
 
         //create a combobox control for each column
         HSSFPatriarch p = createDrawingPatriarch();
-        for (int col = range.getFirstColumn(); col <= range.getLastColumn(); col++) {
+        final int firstColumn = range.getFirstColumn();
+        final int lastColumn = range.getLastColumn();
+        for (int col = firstColumn; col <= lastColumn; col++) {
             p.createComboBox(new HSSFClientAnchor(0, 0, 0, 0,
                     (short) col, firstRow, (short) (col + 1), firstRow + 1));
         }
@@ -2350,7 +2452,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
             patriarch = createDrawingPatriarch();
         }
         
-        Map<CellAddress, HSSFComment> locations = new TreeMap<CellAddress, HSSFComment>();
+        Map<CellAddress, HSSFComment> locations = new TreeMap<>();
         findCellCommentLocations(patriarch, locations);
         return locations;
     }
@@ -2448,7 +2550,7 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
                     NameRecord.BUILTIN_PRINT_TITLE, sheetIndex);
         }
 
-        List<Ptg> ptgList = new ArrayList<Ptg>();
+        List<Ptg> ptgList = new ArrayList<>();
         if (setBoth) {
             final int exprsSize = 2 * 11 + 1; // 2 * Area3DPtg.SIZE + UnionPtg.SIZE
             ptgList.add(new MemFuncPtg(exprsSize));
@@ -2499,16 +2601,14 @@ public final class HSSFSheet implements org.apache.poi.ss.usermodel.Sheet {
                 if (areaPtg.getFirstColumn() == 0
                         && areaPtg.getLastColumn() == maxColIndex) {
                     if (rows) {
-                        CellRangeAddress rowRange = new CellRangeAddress(
+                        return new CellRangeAddress(
                                 areaPtg.getFirstRow(), areaPtg.getLastRow(), -1, -1);
-                        return rowRange;
                     }
                 } else if (areaPtg.getFirstRow() == 0
                         && areaPtg.getLastRow() == maxRowIndex) {
                     if (!rows) {
-                        CellRangeAddress columnRange = new CellRangeAddress(-1, -1,
+                        return new CellRangeAddress(-1, -1,
                                 areaPtg.getFirstColumn(), areaPtg.getLastColumn());
-                        return columnRange;
                     }
                 }
 

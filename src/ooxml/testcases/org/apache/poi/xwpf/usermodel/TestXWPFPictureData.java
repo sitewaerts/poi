@@ -73,7 +73,7 @@ public class TestXWPFPictureData extends TestCase {
         // Add a default header
         policy = doc.createHeaderFooterPolicy();
         XWPFHeader header = policy.createHeader(XWPFHeaderFooterPolicy.DEFAULT);
-        header.getParagraphs().get(0).createRun().setText("Hello, Header World!");
+        header.createParagraph().createRun().setText("Hello, Header World!");
         header.createParagraph().createRun().setText("Paragraph 2");
         assertEquals(0, header.getAllPictures().size());
         assertEquals(2, header.getParagraphs().size());
@@ -167,9 +167,10 @@ public class TestXWPFPictureData extends TestCase {
             for (XWPFRun run : paragraph.getRuns()) {
                 for (XWPFPicture picture : run.getEmbeddedPictures()) {
                     if (paragraph.getDocument() != null) {
-                        //System.out.println(picture.getCTPicture());
                         XWPFPictureData data = picture.getPictureData();
-                        if (data != null) System.out.println(data.getFileName());
+                        if (data != null) {
+                            fail("Should have returned null: "+ data.getFileName());
+                        }
                     }
                 }
             }

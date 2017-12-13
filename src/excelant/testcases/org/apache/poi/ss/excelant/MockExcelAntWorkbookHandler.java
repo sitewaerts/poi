@@ -22,14 +22,16 @@ import static org.junit.Assert.assertNotNull;
 import org.apache.poi.ss.usermodel.Workbook;
 
 public class MockExcelAntWorkbookHandler implements IExcelAntWorkbookHandler {
-    public static boolean executed = false;
-    public static Workbook workbook = null;
+    public static boolean executed;
+    public static Workbook workbook;
     
     
+    @Override
     public void setWorkbook(Workbook workbook) {
         MockExcelAntWorkbookHandler.workbook = workbook;
     }
 
+    @Override
     public void execute() {
         executed = true;
         assertNotNull(workbook);

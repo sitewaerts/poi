@@ -19,12 +19,12 @@
 
 package org.apache.poi.hwpf.model;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.poi.hwpf.model.io.HWPFOutputStream;
 import org.apache.poi.util.Internal;
 
 /**
@@ -79,10 +79,10 @@ public class FieldsTables
     private static ArrayList<PlexOfField> toArrayList( PlexOfCps plexOfCps )
     {
         if ( plexOfCps == null )
-            return new ArrayList<PlexOfField>();
+            return new ArrayList<>();
 
-        ArrayList<PlexOfField> fields = new ArrayList<PlexOfField>(
-                plexOfCps.length() );
+        ArrayList<PlexOfField> fields = new ArrayList<>(
+                plexOfCps.length());
         for ( int i = 0; i < plexOfCps.length(); i++ )
         {
             GenericPropertyNode propNode = plexOfCps.getProperty( i );
@@ -97,8 +97,8 @@ public class FieldsTables
 
     public FieldsTables( byte[] tableStream, FileInformationBlock fib )
     {
-        _tables = new HashMap<FieldsDocumentPart, PlexOfCps>(
-                FieldsDocumentPart.values().length );
+        _tables = new HashMap<>(
+                FieldsDocumentPart.values().length);
 
         for ( FieldsDocumentPart part : FieldsDocumentPart.values() )
         {
@@ -131,19 +131,19 @@ public class FieldsTables
     }
 
     private int savePlex( FileInformationBlock fib, FieldsDocumentPart part,
-            PlexOfCps plexOfCps, HWPFOutputStream outputStream )
+            PlexOfCps plexOfCps, ByteArrayOutputStream outputStream )
             throws IOException
     {
         if ( plexOfCps == null || plexOfCps.length() == 0 )
         {
-            fib.setFieldsPlcfOffset( part, outputStream.getOffset() );
+            fib.setFieldsPlcfOffset( part, outputStream.size() );
             fib.setFieldsPlcfLength( part, 0 );
             return 0;
         }
 
         byte[] data = plexOfCps.toByteArray();
 
-        int start = outputStream.getOffset();
+        int start = outputStream.size();
         int length = data.length;
 
         outputStream.write( data );
@@ -154,7 +154,7 @@ public class FieldsTables
         return length;
     }
 
-    public void write( FileInformationBlock fib, HWPFOutputStream tableStream )
+    public void write( FileInformationBlock fib, ByteArrayOutputStream tableStream )
             throws IOException
     {
         for ( FieldsDocumentPart part : FieldsDocumentPart.values() )

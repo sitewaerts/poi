@@ -25,18 +25,18 @@ import java.util.Map;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.ConditionalFormattingThreshold.RangeType;
 import org.apache.poi.ss.usermodel.IconMultiStateFormatting.IconSet;
-import org.apache.poi.xssf.usermodel.XSSFFontFormatting;
 import org.apache.poi.xssf.model.StylesTable;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.*;
 
 /**
- * XSSF suport for Conditional Formatting rules
+ * XSSF support for Conditional Formatting rules
  */
 public class XSSFConditionalFormattingRule implements ConditionalFormattingRule {
     private final CTCfRule _cfRule;
     private XSSFSheet _sh;
     
-    private static Map<STCfType.Enum, ConditionType> typeLookup = new HashMap<STCfType.Enum, ConditionType>();
+    private static Map<STCfType.Enum, ConditionType> typeLookup = new HashMap<>();
+    private static Map<STCfType.Enum, ConditionFilterType> filterTypeLookup = new HashMap<>();
     static {
         typeLookup.put(STCfType.CELL_IS, ConditionType.CELL_VALUE_IS);
         typeLookup.put(STCfType.EXPRESSION, ConditionType.FORMULA);
@@ -58,8 +58,27 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         typeLookup.put(STCfType.NOT_CONTAINS_ERRORS, ConditionType.FILTER);
         typeLookup.put(STCfType.TIME_PERIOD, ConditionType.FILTER);
         typeLookup.put(STCfType.ABOVE_AVERAGE, ConditionType.FILTER);
+        
+        filterTypeLookup.put(STCfType.TOP_10, ConditionFilterType.TOP_10);
+        filterTypeLookup.put(STCfType.UNIQUE_VALUES, ConditionFilterType.UNIQUE_VALUES);
+        filterTypeLookup.put(STCfType.DUPLICATE_VALUES, ConditionFilterType.DUPLICATE_VALUES);
+        filterTypeLookup.put(STCfType.CONTAINS_TEXT, ConditionFilterType.CONTAINS_TEXT);
+        filterTypeLookup.put(STCfType.NOT_CONTAINS_TEXT, ConditionFilterType.NOT_CONTAINS_TEXT);
+        filterTypeLookup.put(STCfType.BEGINS_WITH, ConditionFilterType.BEGINS_WITH);
+        filterTypeLookup.put(STCfType.ENDS_WITH, ConditionFilterType.ENDS_WITH);
+        filterTypeLookup.put(STCfType.CONTAINS_BLANKS, ConditionFilterType.CONTAINS_BLANKS);
+        filterTypeLookup.put(STCfType.NOT_CONTAINS_BLANKS, ConditionFilterType.NOT_CONTAINS_BLANKS);
+        filterTypeLookup.put(STCfType.CONTAINS_ERRORS, ConditionFilterType.CONTAINS_ERRORS);
+        filterTypeLookup.put(STCfType.NOT_CONTAINS_ERRORS, ConditionFilterType.NOT_CONTAINS_ERRORS);
+        filterTypeLookup.put(STCfType.TIME_PERIOD, ConditionFilterType.TIME_PERIOD);
+        filterTypeLookup.put(STCfType.ABOVE_AVERAGE, ConditionFilterType.ABOVE_AVERAGE);
+
     }
     
+    /**
+     * NOTE: does not set priority, so this assumes the rule will not be added to the sheet yet
+     * @param sh
+     */
     /*package*/ XSSFConditionalFormattingRule(XSSFSheet sh){
         _cfRule = CTCfRule.Factory.newInstance();
         _sh = sh;
@@ -89,6 +108,16 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         return dxf;
     }
 
+    public int getPriority() {
+        final int priority = _cfRule.getPriority();
+        // priorities start at 1, if it is less, it is undefined, use definition order in caller
+        return priority >=1 ? priority : 0;
+    }
+    
+    public boolean getStopIfTrue() {
+        return _cfRule.getStopIfTrue();
+    }
+    
     /**
      * Create a new border formatting structure if it does not exist,
      * otherwise just return existing object.
@@ -104,7 +133,7 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
             border = dxf.getBorder();
         }
 
-        return new XSSFBorderFormatting(border);
+        return new XSSFBorderFormatting(border, _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
 
     /**
@@ -114,7 +143,7 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         CTDxf dxf = getDxf(false);
         if(dxf == null || !dxf.isSetBorder()) return null;
 
-        return new XSSFBorderFormatting(dxf.getBorder());
+        return new XSSFBorderFormatting(dxf.getBorder(), _sh.getWorkbook().getStylesSource().getIndexedColors());
      }
 
     /**
@@ -132,7 +161,7 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
             font = dxf.getFont();
         }
 
-        return new XSSFFontFormatting(font);
+        return new XSSFFontFormatting(font, _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
 
     /**
@@ -142,7 +171,7 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         CTDxf dxf = getDxf(false);
         if(dxf == null || !dxf.isSetFont()) return null;
 
-        return new XSSFFontFormatting(dxf.getFont());
+        return new XSSFFontFormatting(dxf.getFont(), _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
 
     /**
@@ -160,7 +189,7 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
             fill = dxf.getFill();
         }
 
-        return new XSSFPatternFormatting(fill);
+        return new XSSFPatternFormatting(fill, _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
 
     /**
@@ -170,9 +199,14 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         CTDxf dxf = getDxf(false);
         if(dxf == null || !dxf.isSetFill()) return null;
 
-        return new XSSFPatternFormatting(dxf.getFill());
+        return new XSSFPatternFormatting(dxf.getFill(), _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
     
+    /**
+     *
+     * @param color
+     * @return data bar formatting
+     */
     public XSSFDataBarFormatting createDataBarFormatting(XSSFColor color) {
         // Is it already there?
         if (_cfRule.isSetDataBar() && _cfRule.getType() == STCfType.DATA_BAR)
@@ -198,12 +232,12 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         max.setType(STCfvoType.Enum.forString(RangeType.MAX.name));
         
         // Wrap and return
-        return new XSSFDataBarFormatting(bar);
+        return new XSSFDataBarFormatting(bar, _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
     public XSSFDataBarFormatting getDataBarFormatting() {
         if (_cfRule.isSetDataBar()) {
             CTDataBar bar = _cfRule.getDataBar();
-            return new XSSFDataBarFormatting(bar);
+            return new XSSFDataBarFormatting(bar, _sh.getWorkbook().getStylesSource().getIndexedColors());
         } else {
             return null;
         }
@@ -284,47 +318,59 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
         }
         
         // Wrap and return
-        return new XSSFColorScaleFormatting(scale);
+        return new XSSFColorScaleFormatting(scale, _sh.getWorkbook().getStylesSource().getIndexedColors());
     }
     public XSSFColorScaleFormatting getColorScaleFormatting() {
         if (_cfRule.isSetColorScale()) {
             CTColorScale scale = _cfRule.getColorScale();
-            return new XSSFColorScaleFormatting(scale);
+            return new XSSFColorScaleFormatting(scale, _sh.getWorkbook().getStylesSource().getIndexedColors());
         } else {
             return null;
         }
     }
 
     /**
-     * Type of conditional formatting rule.
-     * <p>
-     * MUST be one of the IDs of a {@link ConditionType}
-     * </p>
-     *
-     * @return the type of condition
+     * Return the number format from the dxf style record if present, null if not
+     * @see org.apache.poi.ss.usermodel.ConditionalFormattingRule#getNumberFormat()
      */
-    public byte getConditionType(){
-        ConditionType type = getConditionTypeType();
-        if (type != null) return type.id;
-        return 0;
+    public ExcelNumberFormat getNumberFormat() {
+        CTDxf dxf = getDxf(false);
+        if(dxf == null || !dxf.isSetNumFmt()) return null;
+        
+        CTNumFmt numFmt = dxf.getNumFmt();
+        return new ExcelNumberFormat((int) numFmt.getNumFmtId(), numFmt.getFormatCode());
     }
     
     /**
      * Type of conditional formatting rule.
      */
-    public ConditionType getConditionTypeType() {
+    @Override
+    public ConditionType getConditionType() {
         return typeLookup.get(_cfRule.getType());
     }
 
     /**
+     * Will return null if {@link #getConditionType()} != {@link ConditionType#FILTER}
+     * @see org.apache.poi.ss.usermodel.ConditionalFormattingRule#getConditionFilterType()
+     */
+    public ConditionFilterType getConditionFilterType() {
+        return filterTypeLookup.get(_cfRule.getType());
+    }
+    
+    public ConditionFilterData getFilterConfiguration() {
+        return new XSSFConditionFilterData(_cfRule);
+    }
+    
+    /**
      * The comparison function used when the type of conditional formatting is set to
-     * {@link ConditionalFormattingRule#CONDITION_TYPE_CELL_VALUE_IS}
+     * {@link ConditionType#CELL_VALUE_IS}
      * <p>
      *     MUST be a constant from {@link org.apache.poi.ss.usermodel.ComparisonOperator}
      * </p>
      *
      * @return the conditional format operator
      */
+    @Override
     public byte getComparisonOperation(){
         STConditionalFormattingOperator.Enum op = _cfRule.getOperator();
         if(op == null) return ComparisonOperator.NO_COMPARISON;
@@ -345,13 +391,13 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
     /**
      * The formula used to evaluate the first operand for the conditional formatting rule.
      * <p>
-     * If the condition type is {@link ConditionalFormattingRule#CONDITION_TYPE_CELL_VALUE_IS},
+     * If the condition type is {@link ConditionType#CELL_VALUE_IS},
      * this field is the first operand of the comparison.
-     * If type is {@link ConditionalFormattingRule#CONDITION_TYPE_FORMULA}, this formula is used
+     * If type is {@link ConditionType#FORMULA}, this formula is used
      * to determine if the conditional formatting is applied.
      * </p>
      * <p>
-     * If comparison type is {@link ConditionalFormattingRule#CONDITION_TYPE_FORMULA} the formula MUST be a Boolean function
+     * If comparison type is {@link ConditionType#FORMULA} the formula MUST be a Boolean function
      * </p>
      *
      * @return  the first formula
@@ -362,12 +408,24 @@ public class XSSFConditionalFormattingRule implements ConditionalFormattingRule 
 
     /**
      * The formula used to evaluate the second operand of the comparison when
-     * comparison type is  {@link ConditionalFormattingRule#CONDITION_TYPE_CELL_VALUE_IS} and operator
+     * comparison type is  {@link ConditionType#CELL_VALUE_IS} and operator
      * is either {@link org.apache.poi.ss.usermodel.ComparisonOperator#BETWEEN} or {@link org.apache.poi.ss.usermodel.ComparisonOperator#NOT_BETWEEN}
      *
      * @return  the second formula
      */
     public String getFormula2(){
         return _cfRule.sizeOfFormulaArray() == 2 ? _cfRule.getFormulaArray(1) : null;
+    }
+    
+    public String getText() {
+        return _cfRule.getText();
+    }
+    
+    /**
+     * Conditional format rules don't define stripes, so always 0
+     * @see org.apache.poi.ss.usermodel.DifferentialStyleProvider#getStripeSize()
+     */
+    public int getStripeSize() {
+        return 0;
     }
 }

@@ -43,7 +43,7 @@ import org.apache.poi.hssf.usermodel.HSSFFormulaEvaluator;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.hssf.util.CellReference;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.ss.formula.IEvaluationListener.ICacheEntry;
 import org.apache.poi.ss.formula.PlainCellCache.Loc;
 import org.apache.poi.ss.usermodel.*;
@@ -67,7 +67,8 @@ public class TestEvaluationCache extends TestCase {
 		private EvaluationCell getCell(ICacheEntry a) {
 			return _formulaCellsByCacheEntry.get(a);
 		}
-		public int compare(ICacheEntry oa, ICacheEntry ob) {
+		@Override
+        public int compare(ICacheEntry oa, ICacheEntry ob) {
 			EvaluationCell a = getCell(oa);
 			EvaluationCell b = getCell(ob);
 			int cmp;
@@ -90,33 +91,38 @@ public class TestEvaluationCache extends TestCase {
 
 		private final List<String> _logList;
 		private final HSSFWorkbook _book;
-		private Map<ICacheEntry,EvaluationCell> _formulaCellsByCacheEntry;
-		private Map<ICacheEntry,Loc> _plainCellLocsByCacheEntry;
+		private final Map<ICacheEntry,EvaluationCell> _formulaCellsByCacheEntry;
+		private final Map<ICacheEntry,Loc> _plainCellLocsByCacheEntry;
 
 		public EvalListener(HSSFWorkbook wb) {
 			_book = wb;
-			_logList = new ArrayList<String>();
-			_formulaCellsByCacheEntry = new HashMap<ICacheEntry,EvaluationCell>();
-			_plainCellLocsByCacheEntry = new HashMap<ICacheEntry, Loc>();
+			_logList = new ArrayList<>();
+			_formulaCellsByCacheEntry = new HashMap<>();
+			_plainCellLocsByCacheEntry = new HashMap<>();
 		}
-		public void onCacheHit(int sheetIndex, int rowIndex, int columnIndex, ValueEval result) {
+		@Override
+        public void onCacheHit(int sheetIndex, int rowIndex, int columnIndex, ValueEval result) {
 			log("hit", rowIndex, columnIndex, result);
 		}
-		public void onReadPlainValue(int sheetIndex, int rowIndex, int columnIndex, ICacheEntry entry) {
+		@Override
+        public void onReadPlainValue(int sheetIndex, int rowIndex, int columnIndex, ICacheEntry entry) {
 			Loc loc = new Loc(0, sheetIndex, rowIndex, columnIndex);
 			_plainCellLocsByCacheEntry.put(entry, loc);
 			log("value", rowIndex, columnIndex, entry.getValue());
 		}
-		public void onStartEvaluate(EvaluationCell cell, ICacheEntry entry) {
+		@Override
+        public void onStartEvaluate(EvaluationCell cell, ICacheEntry entry) {
 			_formulaCellsByCacheEntry.put(entry, cell);
 			HSSFCell hc = _book.getSheetAt(0).getRow(cell.getRowIndex()).getCell(cell.getColumnIndex());
 			log("start", cell.getRowIndex(), cell.getColumnIndex(), FormulaExtractor.getPtgs(hc));
 		}
-		public void onEndEvaluate(ICacheEntry entry, ValueEval result) {
+		@Override
+        public void onEndEvaluate(ICacheEntry entry, ValueEval result) {
 			EvaluationCell cell = _formulaCellsByCacheEntry.get(entry);
 			log("end", cell.getRowIndex(), cell.getColumnIndex(), result);
 		}
-		public void onClearCachedValue(ICacheEntry entry) {
+		@Override
+        public void onClearCachedValue(ICacheEntry entry) {
 			int rowIndex;
 			int columnIndex;
 			EvaluationCell cell = _formulaCellsByCacheEntry.get(entry);
@@ -133,15 +139,18 @@ public class TestEvaluationCache extends TestCase {
 			}
 			log("clear", rowIndex, columnIndex, entry.getValue());
 		}
-		public void sortDependentCachedValues(ICacheEntry[] entries) {
+		@Override
+        public void sortDependentCachedValues(ICacheEntry[] entries) {
 			Arrays.sort(entries, new FormulaCellCacheEntryComparer(_formulaCellsByCacheEntry));
 		}
-		public void onClearDependentCachedValue(ICacheEntry entry, int depth) {
+		@Override
+        public void onClearDependentCachedValue(ICacheEntry entry, int depth) {
 			EvaluationCell cell = _formulaCellsByCacheEntry.get(entry);
 			log("clear" + depth, cell.getRowIndex(), cell.getColumnIndex(), entry.getValue());
 		}
 
-		public void onChangeFromBlankValue(int sheetIndex, int rowIndex, int columnIndex,
+		@Override
+        public void onChangeFromBlankValue(int sheetIndex, int rowIndex, int columnIndex,
 				EvaluationCell cell, ICacheEntry entry) {
 			log("changeFromBlank", rowIndex, columnIndex, entry.getValue());
 			if (entry.getValue() == null) { // hack to tell the difference between formula and plain value
@@ -153,7 +162,7 @@ public class TestEvaluationCache extends TestCase {
 			}
 		}
 		private void log(String tag, int rowIndex, int columnIndex, Object value) {
-			StringBuffer sb = new StringBuffer(64);
+			StringBuilder sb = new StringBuilder(64);
 			sb.append(tag).append(' ');
 			sb.append(new CellReference(rowIndex, columnIndex, false, false).formatAsString());
 			if (value != null) {
@@ -199,9 +208,8 @@ public class TestEvaluationCache extends TestCase {
 	 * Wrapper class to manage repetitive tasks from this test,
 	 *
 	 * Note - this class does a little bit more than just plain set-up of data. The method
-	 * {@link WorkbookEvaluator#clearCachedResultValue(HSSFSheet, int, int)} is called whenever a
+	 * {@link WorkbookEvaluator#notifyUpdateCell(EvaluationCell)} is called whenever a
 	 * cell value is changed.
-	 *
 	 */
 	private static final class MySheet {
 
@@ -224,14 +232,14 @@ public class TestEvaluationCache extends TestCase {
 		public void setCellValue(String cellRefText, double value) {
 			HSSFCell cell = getOrCreateCell(cellRefText);
 			// be sure to blank cell, in case it is currently a formula
-			cell.setCellType(HSSFCell.CELL_TYPE_BLANK);
+			cell.setCellType(CellType.BLANK);
 			// otherwise this line will only set the formula cached result;
 			cell.setCellValue(value);
 			_evaluator.notifyUpdateCell(wrapCell(cell));
 		}
 		public void clearCell(String cellRefText) {
 			HSSFCell cell = getOrCreateCell(cellRefText);
-			cell.setCellType(HSSFCell.CELL_TYPE_BLANK);
+			cell.setCellType(CellType.BLANK);
 			_evaluator.notifyUpdateCell(wrapCell(cell));
 		}
 
@@ -598,7 +606,7 @@ public class TestEvaluationCache extends TestCase {
 		cv = fe.evaluate(cellA1);
 		assertEquals(3.7, cv.getNumberValue(), 0.0);
 
-		cellB1.setCellType(HSSFCell.CELL_TYPE_BLANK);
+		cellB1.setCellType(CellType.BLANK);
 		fe.notifyUpdateCell(cellB1);
 		cv = fe.evaluate(cellA1); // B1 was used to evaluate A1
 		assertEquals(2.2, cv.getNumberValue(), 0.0);
@@ -692,8 +700,8 @@ public class TestEvaluationCache extends TestCase {
 	}
 
 	private static void debugPrint(PrintStream ps, String[] log) {
-		for (int i = 0; i < log.length; i++) {
-			ps.println('"' + log[i] + "\",");
+		for (String element : log) {
+			ps.println('"' + element + "\",");
 		}
 	}
 

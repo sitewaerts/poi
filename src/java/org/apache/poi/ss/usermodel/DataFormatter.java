@@ -33,7 +33,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,6 +43,7 @@ import java.util.regex.Pattern;
 
 import org.apache.poi.ss.format.CellFormat;
 import org.apache.poi.ss.format.CellFormatResult;
+import org.apache.poi.ss.formula.ConditionalFormattingEvaluator;
 import org.apache.poi.ss.util.DateFormatConverter;
 import org.apache.poi.ss.util.NumberToTextConverter;
 import org.apache.poi.util.LocaleUtil;
@@ -100,7 +100,7 @@ import org.apache.poi.util.POILogger;
  *  The trailing underscore and space ("_ ") in the format adds a space to the end and Excel formats this cell as <code>"12.34 "</code>,
  *  but <code>DataFormatter</code> trims the formatted value and returns <code>"12.34"</code>.
  * </p>
- * You can enable spaces by passing the <code>emulateCsv=true</code> flag in the <code>DateFormatter</code> cosntructor.
+ * You can enable spaces by passing the <code>emulateCSV=true</code> flag in the <code>DateFormatter</code> cosntructor.
  * If set to true, then the output tries to conform to what you get when you take an xls or xlsx in Excel and Save As CSV file:
  * <ul>
  *  <li>returned values are not trimmed</li>
@@ -128,13 +128,16 @@ public class DataFormatter implements Observer {
     private static final Pattern daysAsText = Pattern.compile("([d]{3,})", Pattern.CASE_INSENSITIVE);
 
     /** Pattern to find "AM/PM" marker */
-    private static final Pattern amPmPattern = Pattern.compile("((A|P)[M/P]*)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern amPmPattern = Pattern.compile("(([AP])[M/P]*)", Pattern.CASE_INSENSITIVE);
+    
+    /** Pattern to find formats with condition ranges e.g. [>=100] */
+    private static final Pattern rangeConditionalPattern = Pattern.compile(".*\\[\\s*(>|>=|<|<=|=)\\s*[0-9]*\\.*[0-9].*");
 
     /** 
      * A regex to find locale patterns like [$$-1009] and [$?-452].
      * Note that we don't currently process these into locales 
      */
-    private static final Pattern localePatternGroup = Pattern.compile("(\\[\\$[^-\\]]*-[0-9A-Z]+\\])");
+    private static final Pattern localePatternGroup = Pattern.compile("(\\[\\$[^-\\]]*-[0-9A-Z]+])");
 
     /**
      * A regex to match the colour formattings rules.
@@ -199,15 +202,15 @@ public class DataFormatter implements Observer {
      * A map to cache formats.
      *  Map<String,Format> formats
      */
-    private final Map<String,Format> formats = new HashMap<String,Format>();
+    private final Map<String,Format> formats = new HashMap<>();
 
-    private boolean emulateCsv = false;
+    private final boolean emulateCSV;
 
     /** stores the locale valid it the last formatting call */
     private Locale locale;
     
     /** stores if the locale should change according to {@link LocaleUtil#getUserLocale()} */
-    private boolean localeIsAdapting = true;
+    private boolean localeIsAdapting;
     
     private class LocaleChangeObservable extends Observable {
         void checkForLocaleChange() {
@@ -222,7 +225,7 @@ public class DataFormatter implements Observer {
     }
     
     /** the Observable to notify, when the locale has been changed */
-    private final LocaleChangeObservable localeChangedObervable = new LocaleChangeObservable();
+    private final LocaleChangeObservable localeChangedObservable = new LocaleChangeObservable();
     
     /** For logging any problems we find */
     private static POILogger logger = POILogFactory.getLogger(DataFormatter.class);
@@ -232,36 +235,48 @@ public class DataFormatter implements Observer {
      */
     public DataFormatter() {
         this(false);
-        this.localeIsAdapting = true;
     }
 
     /**
      * Creates a formatter using the {@link Locale#getDefault() default locale}.
      *
-     * @param  emulateCsv whether to emulate CSV output.
+     * @param  emulateCSV whether to emulate CSV output.
      */
-    public DataFormatter(boolean emulateCsv) {
-        this(LocaleUtil.getUserLocale(), emulateCsv);
-        this.localeIsAdapting = true;
-    }
-
-    /**
-     * Creates a formatter using the given locale.
-     *
-     * @param  emulateCsv whether to emulate CSV output.
-     */
-    public DataFormatter(Locale locale, boolean emulateCsv) {
-        this(locale);
-        this.emulateCsv = emulateCsv;
+    public DataFormatter(boolean emulateCSV) {
+        this(LocaleUtil.getUserLocale(), true, emulateCSV);
     }
 
     /**
      * Creates a formatter using the given locale.
      */
     public DataFormatter(Locale locale) {
-        localeChangedObervable.addObserver(this);
-        localeChangedObervable.checkForLocaleChange(locale);
-        this.localeIsAdapting = false;
+        this(locale, false);
+    }
+
+    /**
+     * Creates a formatter using the given locale.
+     *
+     * @param  emulateCSV whether to emulate CSV output.
+     */
+    public DataFormatter(Locale locale, boolean emulateCSV) {
+        this(locale, false, emulateCSV);
+    }
+
+    /**
+     * Creates a formatter using the given locale.
+     * @param  localeIsAdapting (true only if locale is not user-specified)
+     * @param  emulateCSV whether to emulate CSV output.
+     */
+    private DataFormatter(Locale locale, boolean localeIsAdapting, boolean emulateCSV) {
+        this.localeIsAdapting = true;
+        localeChangedObservable.addObserver(this);
+        // localeIsAdapting must be true prior to this first checkForLocaleChange call.
+        localeChangedObservable.checkForLocaleChange(locale);
+        // set localeIsAdapting so subsequent checks perform correctly
+        // (whether a specific locale was provided to this DataFormatter or DataFormatter should
+        // adapt to the current user locale as the locale changes)
+        this.localeIsAdapting = localeIsAdapting;
+        this.emulateCSV = emulateCSV;
     }
 
     /**
@@ -277,13 +292,17 @@ public class DataFormatter implements Observer {
      * @param cell The cell to retrieve a Format for
      * @return A Format for the format String
      */
-    private Format getFormat(Cell cell) {
-        if ( cell.getCellStyle() == null) {
+    private Format getFormat(Cell cell, ConditionalFormattingEvaluator cfEvaluator) {
+        if (cell == null) return null;
+        
+        ExcelNumberFormat numFmt = ExcelNumberFormat.from(cell, cfEvaluator);
+        
+        if ( numFmt == null) {
             return null;
         }
 
-        int formatIndex = cell.getCellStyle().getDataFormat();
-        String formatStr = cell.getCellStyle().getDataFormatString();
+        int formatIndex = numFmt.getIdx();
+        String formatStr = numFmt.getFormat();
         if(formatStr == null || formatStr.trim().length() == 0) {
             return null;
         }
@@ -291,27 +310,29 @@ public class DataFormatter implements Observer {
     }
 
     private Format getFormat(double cellValue, int formatIndex, String formatStrIn) {
-        localeChangedObervable.checkForLocaleChange();
-        
-//      // Might be better to separate out the n p and z formats, falling back to p when n and z are not set.
-//      // That however would require other code to be re factored.
-//      String[] formatBits = formatStrIn.split(";");
-//      int i = cellValue > 0.0 ? 0 : cellValue < 0.0 ? 1 : 2; 
-//      String formatStr = (i < formatBits.length) ? formatBits[i] : formatBits[0];
+        localeChangedObservable.checkForLocaleChange();
+
+        // Might be better to separate out the n p and z formats, falling back to p when n and z are not set.
+        // That however would require other code to be re factored.
+        // String[] formatBits = formatStrIn.split(";");
+        // int i = cellValue > 0.0 ? 0 : cellValue < 0.0 ? 1 : 2; 
+        // String formatStr = (i < formatBits.length) ? formatBits[i] : formatBits[0];
 
         String formatStr = formatStrIn;
         
-        // Excel supports 3+ part conditional data formats, eg positive/negative/zero,
+        // Excel supports 2+ part conditional data formats, eg positive/negative/zero,
         //  or (>1000),(>0),(0),(negative). As Java doesn't handle these kinds
         //  of different formats for different ranges, just +ve/-ve, we need to 
         //  handle these ourselves in a special way.
-        // For now, if we detect 3+ parts, we call out to CellFormat to handle it
+        // For now, if we detect 2+ parts, we call out to CellFormat to handle it
         // TODO Going forward, we should really merge the logic between the two classes
-        if (formatStr.indexOf(";") != -1 && 
-                formatStr.indexOf(';') != formatStr.lastIndexOf(';')) {
+        if (formatStr.contains(";") && 
+                (formatStr.indexOf(';') != formatStr.lastIndexOf(';')
+                 || rangeConditionalPattern.matcher(formatStr).matches()
+                ) ) {
             try {
                 // Ask CellFormat to get a formatter for it
-                CellFormat cfmt = CellFormat.getInstance(formatStr);
+                CellFormat cfmt = CellFormat.getInstance(locale, formatStr);
                 // CellFormat requires callers to identify date vs not, so do so
                 Object cellValueO = Double.valueOf(cellValue);
                 if (DateUtil.isADateFormat(formatIndex, formatStr) && 
@@ -327,7 +348,7 @@ public class DataFormatter implements Observer {
         }
         
        // Excel's # with value 0 will output empty where Java will output 0. This hack removes the # from the format.
-       if (emulateCsv && cellValue == 0.0 && formatStr.contains("#") && !formatStr.contains("0")) {
+       if (emulateCSV && cellValue == 0.0 && formatStr.contains("#") && !formatStr.contains("0")) {
            formatStr = formatStr.replaceAll("#", "");
        }
        
@@ -344,6 +365,7 @@ public class DataFormatter implements Observer {
         
         // Build a formatter, and cache it
         format = createFormat(cellValue, formatIndex, formatStr);
+        formats.put(formatStr, format);
         return format;
     }
 
@@ -362,7 +384,7 @@ public class DataFormatter implements Observer {
     }
 
     private Format createFormat(double cellValue, int formatIndex, String sFormat) {
-        localeChangedObervable.checkForLocaleChange();
+        localeChangedObservable.checkForLocaleChange();
         
         String formatStr = sFormat;
         
@@ -389,11 +411,9 @@ public class DataFormatter implements Observer {
             String match = m.group();
             String symbol = match.substring(match.indexOf('$') + 1, match.indexOf('-'));
             if (symbol.indexOf('$') > -1) {
-                StringBuffer sb = new StringBuffer();
-                sb.append(symbol.substring(0, symbol.indexOf('$')));
-                sb.append('\\');
-                sb.append(symbol.substring(symbol.indexOf('$'), symbol.length()));
-                symbol = sb.toString();
+                symbol = symbol.substring(0, symbol.indexOf('$')) +
+                        '\\' +
+                        symbol.substring(symbol.indexOf('$'), symbol.length());
             }
             formatStr = m.replaceAll(symbol);
             m = localePatternGroup.matcher(formatStr);
@@ -413,16 +433,16 @@ public class DataFormatter implements Observer {
             return createDateFormat(formatStr, cellValue);
         }
         // Excel supports fractions in format strings, which Java doesn't
-        if (formatStr.indexOf("#/") >= 0 || formatStr.indexOf("?/") >= 0) {
+        if (formatStr.contains("#/") || formatStr.contains("?/")) {
             String[] chunks = formatStr.split(";");
-            for (int i = 0; i < chunks.length; i++){
-                String chunk = chunks[i].replaceAll("\\?", "#");
+            for (String chunk1 : chunks) {
+                String chunk = chunk1.replaceAll("\\?", "#");
                 Matcher matcher = fractionStripper.matcher(chunk);
                 chunk = matcher.replaceAll(" ");
                 chunk = chunk.replaceAll(" +", " ");
                 Matcher fractionMatcher = fractionPattern.matcher(chunk);
                 //take the first match
-                if (fractionMatcher.find()){
+                if (fractionMatcher.find()) {
                     String wholePart = (fractionMatcher.group(1) == null) ? "" : defaultFractionWholePartFormat;
                     return new FractionFormat(wholePart, fractionMatcher.group(3));
                 }
@@ -438,7 +458,7 @@ public class DataFormatter implements Observer {
             return createNumberFormat(formatStr, cellValue);
         }
 
-        if (emulateCsv) {
+        if (emulateCSV) {
             return new ConstantStringFormat(cleanFormatForNumber(formatStr));
         }
         // TODO - when does this occur?
@@ -485,10 +505,10 @@ public class DataFormatter implements Observer {
             Excel displays the month instead of minutes."
           */
 
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         char[] chars = formatStr.toCharArray();
         boolean mIsMonth = true;
-        List<Integer> ms = new ArrayList<Integer>();
+        List<Integer> ms = new ArrayList<>();
         boolean isElapsed = false;
         for(int j=0; j<chars.length; j++) {
             char c = chars[j];
@@ -550,10 +570,9 @@ public class DataFormatter implements Observer {
             else if (c == 's' || c == 'S') {
                 sb.append('s');
                 // if 'M' precedes 's' it should be minutes ('m')
-                for (int i = 0; i < ms.size(); i++) {
-                    int index = ms.get(i).intValue();
+                for (int index : ms) {
                     if (sb.charAt(index) == 'M') {
-                        sb.replace(index, index+1, "m");
+                        sb.replace(index, index + 1, "m");
                     }
                 }
                 mIsMonth = true;
@@ -573,6 +592,9 @@ public class DataFormatter implements Observer {
                 }
             }
             else {
+                if (Character.isWhitespace(c)){
+                    ms.clear();
+                }
                 sb.append(c);
             }
         }
@@ -581,7 +603,7 @@ public class DataFormatter implements Observer {
         try {
             return new ExcelStyleDateFormatter(formatStr, dateSymbols);
         } catch(IllegalArgumentException iae) {
-
+            logger.log(POILogger.DEBUG, "Formatting failed for format " + formatStr + ", falling back", iae);
             // the pattern could not be parsed correctly,
             // so fall back to the default number format
             return getDefaultFormat(cellValue);
@@ -590,9 +612,9 @@ public class DataFormatter implements Observer {
     }
 
     private String cleanFormatForNumber(String formatStr) {
-        StringBuffer sb = new StringBuffer(formatStr);
+        StringBuilder sb = new StringBuilder(formatStr);
 
-        if (emulateCsv) {
+        if (emulateCSV) {
             // Requested spacers with "_" are replaced by a single space.
             // Full-column-width padding "*" are removed.
             // Not processing fractions at this time. Replace ? with space.
@@ -665,6 +687,57 @@ public class DataFormatter implements Observer {
         return sb.toString();
     }
 
+    private static class InternalDecimalFormatWithScale extends Format {
+
+        private static final Pattern endsWithCommas = Pattern.compile("(,+)$");
+        private BigDecimal divider;
+        private static final BigDecimal ONE_THOUSAND = new BigDecimal(1000);
+        private final DecimalFormat df;
+        private static String trimTrailingCommas(String s) {
+            return s.replaceAll(",+$", "");
+        }
+
+        public InternalDecimalFormatWithScale(String pattern, DecimalFormatSymbols symbols) {
+            df = new DecimalFormat(trimTrailingCommas(pattern), symbols);
+            setExcelStyleRoundingMode(df);
+            Matcher endsWithCommasMatcher = endsWithCommas.matcher(pattern);
+            if (endsWithCommasMatcher.find()) {
+                String commas = (endsWithCommasMatcher.group(1));
+                BigDecimal temp = BigDecimal.ONE;
+                for (int i = 0; i < commas.length(); ++i) {
+                    temp = temp.multiply(ONE_THOUSAND);
+                }
+                divider = temp;
+            } else {
+                divider = null;
+            }
+        }
+
+        private Object scaleInput(Object obj) {
+            if (divider != null) {
+                if (obj instanceof BigDecimal) {
+                    obj = ((BigDecimal) obj).divide(divider, RoundingMode.HALF_UP);
+                } else if (obj instanceof Double) {
+                    obj = (Double) obj / divider.doubleValue();
+                } else {
+                    throw new UnsupportedOperationException();
+                }
+            }
+            return obj;
+        }
+
+        @Override
+        public StringBuffer format(Object obj, StringBuffer toAppendTo, FieldPosition pos) {
+            obj = scaleInput(obj);
+            return df.format(obj, toAppendTo, pos);
+        }
+
+        @Override
+        public Object parseObject(String source, ParsePosition pos) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     private Format createNumberFormat(String formatStr, double cellValue) {
         String format = cleanFormatForNumber(formatStr);
         DecimalFormatSymbols symbols = decimalSymbols;
@@ -673,21 +746,24 @@ public class DataFormatter implements Observer {
         // eg for a format like #'##0 which wants 12'345 not 12,345
         Matcher agm = alternateGrouping.matcher(format);
         if (agm.find()) {
-            symbols = DecimalFormatSymbols.getInstance(locale);
-            
             char grouping = agm.group(2).charAt(0);
-            symbols.setGroupingSeparator(grouping);
-            String oldPart = agm.group(1);
-            String newPart = oldPart.replace(grouping, ',');
-            format = format.replace(oldPart, newPart);
+            // Only replace the grouping character if it is not the default
+            // grouping character for the US locale (',') in order to enable
+            // correct grouping for non-US locales.
+            if (grouping!=',') {
+                symbols = DecimalFormatSymbols.getInstance(locale);
+
+                symbols.setGroupingSeparator(grouping);
+                String oldPart = agm.group(1);
+                String newPart = oldPart.replace(grouping, ',');
+                format = format.replace(oldPart, newPart);
+            }
         }
         
         try {
-            DecimalFormat df = new DecimalFormat(format, symbols);
-            setExcelStyleRoundingMode(df);
-            return df;
+            return new InternalDecimalFormatWithScale(format, symbols);
         } catch(IllegalArgumentException iae) {
-
+            logger.log(POILogger.DEBUG, "Formatting failed for format " + formatStr + ", falling back", iae);
             // the pattern could not be parsed correctly,
             // so fall back to the default number format
             return getDefaultFormat(cellValue);
@@ -703,7 +779,7 @@ public class DataFormatter implements Observer {
         return getDefaultFormat(cell.getNumericCellValue());
     }
     private Format getDefaultFormat(double cellValue) {
-        localeChangedObervable.checkForLocaleChange();
+        localeChangedObservable.checkForLocaleChange();
         
         // for numeric cells try user supplied default
         if (defaultNumFormat != null) {
@@ -726,12 +802,17 @@ public class DataFormatter implements Observer {
      * Returns the formatted value of an Excel date as a <tt>String</tt> based
      * on the cell's <code>DataFormat</code>. i.e. "Thursday, January 02, 2003"
      * , "01/02/2003" , "02-Jan" , etc.
+     * <p>
+     * If any conditional format rules apply, the highest priority with a number format is used.
+     * If no rules contain a number format, or no rules apply, the cell's style format is used.
+     * If the style does not have a format, the default date format is applied.
      *
-     * @param cell The cell
-     * @return a formatted date string
+     * @param cell to format
+     * @param cfEvaluator ConditionalFormattingEvaluator (if available)
+     * @return Formatted value
      */
-    private String getFormattedDateString(Cell cell) {
-        Format dateFormat = getFormat(cell);
+    private String getFormattedDateString(Cell cell, ConditionalFormattingEvaluator cfEvaluator) {
+        Format dateFormat = getFormat(cell, cfEvaluator);
         if(dateFormat instanceof ExcelStyleDateFormatter) {
            // Hint about the raw excel value
            ((ExcelStyleDateFormatter)dateFormat).setDateToBeFormatted(
@@ -747,18 +828,22 @@ public class DataFormatter implements Observer {
      * based on the cell's <code>DataFormat</code>. Supported formats include
      * currency, percents, decimals, phone number, SSN, etc.:
      * "61.54%", "$100.00", "(800) 555-1234".
-     *
+     * <p>
+     * Format comes from either the highest priority conditional format rule with a
+     * specified format, or from the cell style.
+     * 
      * @param cell The cell
+     * @param cfEvaluator if available, or null
      * @return a formatted number string
      */
-    private String getFormattedNumberString(Cell cell) {
+    private String getFormattedNumberString(Cell cell, ConditionalFormattingEvaluator cfEvaluator) {
 
-        Format numberFormat = getFormat(cell);
+        Format numberFormat = getFormat(cell, cfEvaluator);
         double d = cell.getNumericCellValue();
         if (numberFormat == null) {
             return String.valueOf(d);
         }
-        String formatted = numberFormat.format(new Double(d));
+        String formatted = numberFormat.format(Double.valueOf(d));
         return formatted.replaceFirst("E(\\d)", "E+$1"); // to match Excel's E-notation
     }
 
@@ -776,7 +861,7 @@ public class DataFormatter implements Observer {
      * @see #formatCellValue(Cell)
      */
     public String formatRawCellContents(double value, int formatIndex, String formatString, boolean use1904Windowing) {
-        localeChangedObervable.checkForLocaleChange();
+        localeChangedObservable.checkForLocaleChange();
         
         // Is it a date?
         if(DateUtil.isADateFormat(formatIndex,formatString)) {
@@ -790,7 +875,7 @@ public class DataFormatter implements Observer {
                 return performDateFormatting(d, dateFormat);
             }
             // RK: Invalid dates are 255 #s.
-            if (emulateCsv) {
+            if (emulateCSV) {
                 return invalidDateTimeString;
             }
         }
@@ -809,7 +894,7 @@ public class DataFormatter implements Observer {
         String result;
         final String textValue = NumberToTextConverter.toText(value);
         if (textValue.indexOf('E') > -1) {
-            result = numberFormat.format(new Double(value));
+            result = numberFormat.format(Double.valueOf(value));
         }
         else {
             result = numberFormat.format(new BigDecimal(textValue));
@@ -841,7 +926,7 @@ public class DataFormatter implements Observer {
     /**
      * <p>
      * Returns the formatted value of a cell as a <tt>String</tt> regardless
-     * of the cell type. If the Excel format pattern cannot be parsed then the
+     * of the cell type. If the Excel number format pattern cannot be parsed then the
      * cell value will be formatted using a default format.
      * </p>
      * <p>When passed a null or blank cell, this method will return an empty
@@ -856,38 +941,70 @@ public class DataFormatter implements Observer {
      * @return a string value of the cell
      */
     public String formatCellValue(Cell cell, FormulaEvaluator evaluator) {
-        localeChangedObervable.checkForLocaleChange();
+        return formatCellValue(cell, evaluator, null);
+    }
+    
+    /**
+     * <p>
+     * Returns the formatted value of a cell as a <tt>String</tt> regardless
+     * of the cell type. If the Excel number format pattern cannot be parsed then the
+     * cell value will be formatted using a default format.
+     * </p>
+     * <p>When passed a null or blank cell, this method will return an empty
+     * String (""). Formula cells will be evaluated using the given
+     * {@link FormulaEvaluator} if the evaluator is non-null. If the
+     * evaluator is null, then the formula String will be returned. The caller
+     * is responsible for setting the currentRow on the evaluator
+     *</p>
+     * <p>
+     * When a ConditionalFormattingEvaluator is present, it is checked first to see
+     * if there is a number format to apply.  If multiple rules apply, the last one is used.
+     * If no ConditionalFormattingEvaluator is present, no rules apply, or the applied
+     * rules do not define a format, the cell's style format is used.
+     * </p>
+     * <p>
+     * The two evaluators should be from the same context, to avoid inconsistencies in cached values.
+     *</p>
+     *
+     * @param cell The cell (can be null)
+     * @param evaluator The FormulaEvaluator (can be null)
+     * @param cfEvaluator ConditionalFormattingEvaluator (can be null)
+     * @return a string value of the cell
+     */
+    public String formatCellValue(Cell cell, FormulaEvaluator evaluator, ConditionalFormattingEvaluator cfEvaluator) {
+        localeChangedObservable.checkForLocaleChange();
         
         if (cell == null) {
             return "";
         }
 
-        int cellType = cell.getCellType();
-        if (cellType == Cell.CELL_TYPE_FORMULA) {
+        CellType cellType = cell.getCellType();
+        if (cellType == CellType.FORMULA) {
             if (evaluator == null) {
                 return cell.getCellFormula();
             }
             cellType = evaluator.evaluateFormulaCell(cell);
         }
         switch (cellType) {
-            case Cell.CELL_TYPE_NUMERIC :
+            case NUMERIC :
 
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return getFormattedDateString(cell);
+                if (DateUtil.isCellDateFormatted(cell, cfEvaluator)) {
+                    return getFormattedDateString(cell, cfEvaluator);
                 }
-                return getFormattedNumberString(cell);
+                return getFormattedNumberString(cell, cfEvaluator);
 
-            case Cell.CELL_TYPE_STRING :
+            case STRING :
                 return cell.getRichStringCellValue().getString();
 
-            case Cell.CELL_TYPE_BOOLEAN :
-                return String.valueOf(cell.getBooleanCellValue());
-            case Cell.CELL_TYPE_BLANK :
+            case BOOLEAN :
+                return cell.getBooleanCellValue() ? "TRUE" : "FALSE";
+            case BLANK :
                 return "";
-            case Cell.CELL_TYPE_ERROR:
-            	return FormulaError.forInt(cell.getErrorCellValue()).getString();
+            case ERROR:
+                return FormulaError.forInt(cell.getErrorCellValue()).getString();
+            default:
+                throw new RuntimeException("Unexpected celltype (" + cellType + ")");
         }
-        throw new RuntimeException("Unexpected celltype (" + cellType + ")");
     }
 
 
@@ -909,9 +1026,7 @@ public class DataFormatter implements Observer {
      * @see java.text.Format#format
      */
     public void setDefaultNumberFormat(Format format) {
-        Iterator<Map.Entry<String,Format>> itr = formats.entrySet().iterator();
-        while(itr.hasNext()) {
-            Map.Entry<String,Format> entry = itr.next();
+        for (Map.Entry<String, Format> entry : formats.entrySet()) {
             if (entry.getValue() == generalNumberFormat) {
                 entry.setValue(format);
             }
@@ -974,7 +1089,7 @@ public class DataFormatter implements Observer {
      * @return the listener object, where callers can register themselves
      */
     public Observable getLocaleChangedObservable() {
-        return localeChangedObervable;
+        return localeChangedObservable;
     }
 
     /**
@@ -1036,11 +1151,9 @@ public class DataFormatter implements Observer {
         /** Format a number as an SSN */
         public static String format(Number num) {
             String result = df.format(num);
-            StringBuffer sb = new StringBuffer();
-            sb.append(result.substring(0, 3)).append('-');
-            sb.append(result.substring(3, 5)).append('-');
-            sb.append(result.substring(5, 9));
-            return sb.toString();
+            return result.substring(0, 3) + '-' +
+                    result.substring(3, 5) + '-' +
+                    result.substring(5, 9);
         }
 
         @Override
@@ -1070,10 +1183,8 @@ public class DataFormatter implements Observer {
         /** Format a number as Zip + 4 */
         public static String format(Number num) {
             String result = df.format(num);
-            StringBuffer sb = new StringBuffer();
-            sb.append(result.substring(0, 5)).append('-');
-            sb.append(result.substring(5, 9));
-            return sb.toString();
+            return result.substring(0, 5) + '-' +
+                    result.substring(5, 9);
         }
 
         @Override
@@ -1103,7 +1214,7 @@ public class DataFormatter implements Observer {
         /** Format a number as a phone number */
         public static String format(Number num) {
             String result = df.format(num);
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             String seg1, seg2, seg3;
             int len = result.length();
             if (len <= 4) {
@@ -1114,10 +1225,10 @@ public class DataFormatter implements Observer {
             seg2 = result.substring(Math.max(0, len - 7), len - 4);
             seg1 = result.substring(Math.max(0, len - 10), Math.max(0, len - 7));
 
-            if(seg1 != null && seg1.trim().length() > 0) {
+            if(seg1.trim().length() > 0) {
                 sb.append('(').append(seg1).append(") ");
             }
-            if(seg2 != null && seg2.trim().length() > 0) {
+            if(seg2.trim().length() > 0) {
                 sb.append(seg2).append('-');
             }
             sb.append(seg3);
@@ -1175,7 +1286,7 @@ public class DataFormatter implements Observer {
             this.result = result;
         }
         public StringBuffer format(Object obj, StringBuffer toAppendTo, FieldPosition pos) {
-            if (emulateCsv) {
+            if (emulateCSV) {
                 return toAppendTo.append(result.text);
             } else {
                 return toAppendTo.append(result.text.trim());

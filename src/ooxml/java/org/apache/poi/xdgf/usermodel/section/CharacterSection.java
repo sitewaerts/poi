@@ -30,10 +30,10 @@ import com.microsoft.schemas.office.visio.x2012.main.SectionType;
 
 public class CharacterSection extends XDGFSection {
 
-    Double _fontSize = null;
-    Color _fontColor = null;
+    Double _fontSize;
+    Color _fontColor;
 
-    Map<String, XDGFCell> _characterCells = new HashMap<String, XDGFCell>();
+    Map<String, XDGFCell> _characterCells = new HashMap<>();
 
     public CharacterSection(SectionType section, XDGFSheet containingSheet) {
         super(section, containingSheet);
@@ -45,13 +45,11 @@ public class CharacterSection extends XDGFSection {
             _characterCells.put(cell.getN(), new XDGFCell(cell));
         }
 
-        if (row != null) {
-            _fontSize = XDGFCell.maybeGetDouble(_characterCells, "Size");
+        _fontSize = XDGFCell.maybeGetDouble(_characterCells, "Size");
 
-            String tmpColor = XDGFCell.maybeGetString(_characterCells, "Color");
-            if (tmpColor != null)
-                _fontColor = Color.decode(tmpColor);
-        }
+        String tmpColor = XDGFCell.maybeGetString(_characterCells, "Color");
+        if (tmpColor != null)
+            _fontColor = Color.decode(tmpColor);
     }
 
     public Double getFontSize() {

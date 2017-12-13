@@ -211,9 +211,9 @@ public final class TestMissingRecordAwareHSSFListener extends TestCase {
 		// Check the numbers of the last seen columns
 		LastCellOfRowDummyRecord[] lrs = new LastCellOfRowDummyRecord[24];
 		int lrscount = 0;
-		for(int i=0; i<r.length; i++) {
-			if(r[i] instanceof LastCellOfRowDummyRecord) {
-				lrs[lrscount] = (LastCellOfRowDummyRecord)r[i];
+		for (final Record rec : r) {
+			if(rec instanceof LastCellOfRowDummyRecord) {
+				lrs[lrscount] = (LastCellOfRowDummyRecord)rec;
 				lrscount++;
 			}
 		}
@@ -351,9 +351,9 @@ public final class TestMissingRecordAwareHSSFListener extends TestCase {
 		readRecords("MRExtraLines.xls");
 		
 		int rowCount=0;
-		for(int i=0; i<r.length; i++) {
-			if(r[i] instanceof LastCellOfRowDummyRecord) {
-				LastCellOfRowDummyRecord eor = (LastCellOfRowDummyRecord) r[i];
+		for (Record rec : r) {
+			if(rec instanceof LastCellOfRowDummyRecord) {
+				LastCellOfRowDummyRecord eor = (LastCellOfRowDummyRecord) rec;
 				assertEquals(rowCount, eor.getRow());
 				rowCount++;
 			}
@@ -364,10 +364,11 @@ public final class TestMissingRecordAwareHSSFListener extends TestCase {
 
 	private static final class MockHSSFListener implements HSSFListener {
 		public MockHSSFListener() {}
-		private final List<Record> _records = new ArrayList<Record>();
-		private boolean logToStdOut = false;
+		private final List<Record> _records = new ArrayList<>();
+		private final boolean logToStdOut = false;
 
-		public void processRecord(Record record) {
+		@Override
+        public void processRecord(Record record) {
 			_records.add(record);
 			
 			if(record instanceof MissingRowDummyRecord) {
@@ -415,8 +416,7 @@ public final class TestMissingRecordAwareHSSFListener extends TestCase {
 		Record[] rr = r;
 		int eorCount=0;
 		int sfrCount=0;
-		for (int i = 0; i < rr.length; i++) {
-			Record record = rr[i];
+		for (Record record : rr) {
 			if (record instanceof SharedFormulaRecord) {
 				sfrCount++;
 			}
@@ -444,8 +444,7 @@ public final class TestMissingRecordAwareHSSFListener extends TestCase {
 		int eorCount=0;
 		int mbrCount=0;
 		int brCount=0;
-		for (int i = 0; i < rr.length; i++) {
-			Record record = rr[i];
+		for (Record record : rr) {
 			if (record instanceof MulBlankRecord) {
 				mbrCount++;
 			}
@@ -473,8 +472,7 @@ public final class TestMissingRecordAwareHSSFListener extends TestCase {
         Record[] rr = r;
         int missingCount=0;
         int lastCount=0;
-        for (int i = 0; i < rr.length; i++) {
-            Record record = rr[i];
+        for (Record record : rr) {
             if (record instanceof MissingCellDummyRecord) {
                 missingCount++;
             }

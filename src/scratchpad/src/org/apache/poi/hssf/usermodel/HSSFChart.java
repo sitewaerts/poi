@@ -85,11 +85,11 @@ public final class HSSFChart {
 	@SuppressWarnings("unused")
     private ChartTitleFormatRecord chartTitleFormat;
 	private SeriesTextRecord chartTitleText;
-	private List<ValueRangeRecord> valueRanges = new ArrayList<ValueRangeRecord>(); 
+	private List<ValueRangeRecord> valueRanges = new ArrayList<>();
 	
 	private HSSFChartType type = HSSFChartType.Unknown;
 	
-	private List<HSSFSeries> series = new ArrayList<HSSFSeries>();
+	private List<HSSFSeries> series = new ArrayList<>();
 
 	public enum HSSFChartType {
 		Area {
@@ -146,7 +146,7 @@ public final class HSSFChart {
 	public void createBarChart( HSSFWorkbook workbook, HSSFSheet parentSheet )
 	{
 
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		records.add( createMSDrawingObjectRecord() );
 		records.add( createOBJRecord() );
 		records.add( createBOFRecord() );
@@ -218,7 +218,7 @@ public final class HSSFChart {
 	 *  these charts yet, as this is very limited support
 	 */
 	public static HSSFChart[] getSheetCharts(HSSFSheet sheet) {
-		List<HSSFChart> charts = new ArrayList<HSSFChart>();
+		List<HSSFChart> charts = new ArrayList<>();
 		HSSFChart lastChart = null;
 		HSSFSeries lastSeries = null;
 		// Find records of interest
@@ -227,49 +227,47 @@ public final class HSSFChart {
 
 			if(r instanceof ChartRecord) {
 				lastSeries = null;
-				
 				lastChart = new HSSFChart(sheet,(ChartRecord)r);
 				charts.add(lastChart);
-			} else if(r instanceof LegendRecord) {
+            } else if (r instanceof LinkedDataRecord) {
+                LinkedDataRecord linkedDataRecord = (LinkedDataRecord) r;
+                if (lastSeries != null) {
+                    lastSeries.insertData(linkedDataRecord);
+                }
+			}
+            
+            if (lastChart == null) {
+                continue;
+            }
+            
+            if (r instanceof LegendRecord) {
 				lastChart.legendRecord = (LegendRecord)r;
 			} else if(r instanceof SeriesRecord) {
 				HSSFSeries series = new HSSFSeries( (SeriesRecord)r );
 				lastChart.series.add(series);
 				lastSeries = series;
 			} else if(r instanceof ChartTitleFormatRecord) {
-				lastChart.chartTitleFormat =
-					(ChartTitleFormatRecord)r;
+				lastChart.chartTitleFormat = (ChartTitleFormatRecord)r;
 			} else if(r instanceof SeriesTextRecord) {
-				// Applies to a series, unless we've seen
-				//  a legend already
+				// Applies to a series, unless we've seen a legend already
 				SeriesTextRecord str = (SeriesTextRecord)r;
-				if(lastChart.legendRecord == null &&
-						lastChart.series.size() > 0) {
+				if(lastChart.legendRecord == null && lastChart.series.size() > 0) {
 					HSSFSeries series = lastChart.series.get(lastChart.series.size()-1);
 					series.seriesTitleText = str;
 				} else {
 					lastChart.chartTitleText = str;
 				}
-			} else if (r instanceof LinkedDataRecord) {
-				LinkedDataRecord linkedDataRecord = (LinkedDataRecord) r;
-				if (lastSeries != null) {
-					lastSeries.insertData(linkedDataRecord);
-				}
 			} else if(r instanceof ValueRangeRecord){
 				lastChart.valueRanges.add((ValueRangeRecord)r);
 			} else if (r instanceof Record) {
-				if (lastChart != null)
-				{
-					Record record = (Record) r;
-					for (HSSFChartType type : HSSFChartType.values()) {
-						if (type == HSSFChartType.Unknown)
-						{
-							continue;
-						}
-						if (record.getSid() == type.getSid()) {
-							lastChart.type = type ;
-							break;
-						}
+				Record record = (Record) r;
+				for (HSSFChartType type : HSSFChartType.values()) {
+					if (type == HSSFChartType.Unknown) {
+						continue;
+					}
+					if (record.getSid() == type.getSid()) {
+						lastChart.type = type;
+						break;
 					}
 				}
 			}
@@ -599,8 +597,7 @@ public final class HSSFChart {
 
 	private PlotAreaRecord createPlotAreaRecord()
 	{
-		PlotAreaRecord r = new PlotAreaRecord(  );
-		return r;
+        return new PlotAreaRecord(  );
 	}
 
 	private AxisLineFormatRecord createAxisLineFormatRecord( short format )
@@ -1005,14 +1002,21 @@ public final class HSSFChart {
 
 		/* package */ void insertData(LinkedDataRecord data){
 			switch(data.getLinkType()){
-				case 0: dataName = data;
-				break;
-				case 1: dataValues = data;
-				break;
-				case 2: dataCategoryLabels = data;
-				break;
-				case 3: dataSecondaryCategoryLabels = data;
-				break;
+			
+				case LinkedDataRecord.LINK_TYPE_TITLE_OR_TEXT:
+					dataName = data;
+					break;
+				case LinkedDataRecord.LINK_TYPE_VALUES:
+					dataValues = data;
+					break;
+				case LinkedDataRecord.LINK_TYPE_CATEGORIES:
+					dataCategoryLabels = data;
+					break;
+				case LinkedDataRecord.LINK_TYPE_SECONDARY_CATEGORIES:
+					dataSecondaryCategoryLabels = data;
+					break;
+				default:
+					throw new IllegalStateException("Invalid link type: " + data.getLinkType());
 			}
 		}
 		
@@ -1131,7 +1135,7 @@ public final class HSSFChart {
 				return null;
 			}
 			
-			List<Ptg> ptgList = new ArrayList<Ptg>();
+			List<Ptg> ptgList = new ArrayList<>();
 			
 			int rowCount = (range.getLastRow() - range.getFirstRow()) + 1;
 			int colCount = (range.getLastColumn() - range.getFirstColumn()) + 1;
@@ -1176,7 +1180,7 @@ public final class HSSFChart {
 	}
 	
 	public HSSFSeries createSeries() throws Exception {
-		ArrayList<RecordBase> seriesTemplate = new ArrayList<RecordBase>();
+		ArrayList<RecordBase> seriesTemplate = new ArrayList<>();
 		boolean seriesTemplateFilled = false;
 		
 		int idx = 0;
@@ -1240,7 +1244,7 @@ public final class HSSFChart {
 		HSSFSeries newSeries = null;
 		
 		/* duplicate record of the template series */
-		ArrayList<RecordBase> clonedRecords = new ArrayList<RecordBase>();
+		ArrayList<RecordBase> clonedRecords = new ArrayList<>();
 		for(final RecordBase record : seriesTemplate) {		
 			
 			Record newRecord = null;

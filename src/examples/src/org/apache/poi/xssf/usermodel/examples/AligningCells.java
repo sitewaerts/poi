@@ -18,13 +18,16 @@ package org.apache.poi.xssf.usermodel.examples;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CreationHelper;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
-import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -35,41 +38,40 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.impl.CTRowImpl;
  *
  * Modified by Cristian Petrula, Romania on May 26, 2010
  * New method was added centerAcrossSelection to center a column content over 
- * one selection using ALIGN_CENTER_SELECTION
+ * one selection using {@link HorizontalAlignment#CENTER_SELECTION}
  * To create this method example was change for XSSF only and the previous
  * AligningCells.java example has been moved into the SS examples folder.
  */
 public class AligningCells {
 
     public static void main(String[] args) throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
+        try (XSSFWorkbook wb = new XSSFWorkbook()) {
 
-        XSSFSheet sheet = wb.createSheet();
-        XSSFRow row = sheet.createRow((short) 2);
-        row.setHeightInPoints(30);
-        for (int i = 0; i < 8; i++) {
-            //column width is set in units of 1/256th of a character width
-            sheet.setColumnWidth(i, 256 * 15);
+            XSSFSheet sheet = wb.createSheet();
+            XSSFRow row = sheet.createRow(2);
+            row.setHeightInPoints(30);
+            for (int i = 0; i < 8; i++) {
+                //column width is set in units of 1/256th of a character width
+                sheet.setColumnWidth(i, 256 * 15);
+            }
+
+            createCell(wb, row, 0, HorizontalAlignment.CENTER, VerticalAlignment.BOTTOM);
+            createCell(wb, row, 1, HorizontalAlignment.CENTER_SELECTION, VerticalAlignment.BOTTOM);
+            createCell(wb, row, 2, HorizontalAlignment.FILL, VerticalAlignment.CENTER);
+            createCell(wb, row, 3, HorizontalAlignment.GENERAL, VerticalAlignment.CENTER);
+            createCell(wb, row, 4, HorizontalAlignment.JUSTIFY, VerticalAlignment.JUSTIFY);
+            createCell(wb, row, 5, HorizontalAlignment.LEFT, VerticalAlignment.TOP);
+            createCell(wb, row, 6, HorizontalAlignment.RIGHT, VerticalAlignment.TOP);
+
+            //center text over B4, C4, D4
+            row = sheet.createRow(3);
+            centerAcrossSelection(wb, row, 1, 3, VerticalAlignment.CENTER);
+
+            // Write the output to a file
+            try (OutputStream fileOut = new FileOutputStream("xssf-align.xlsx")) {
+                wb.write(fileOut);
+            }
         }
-
-        createCell(wb, row, (short) 0, XSSFCellStyle.ALIGN_CENTER, XSSFCellStyle.VERTICAL_BOTTOM);
-        createCell(wb, row, (short) 1, XSSFCellStyle.ALIGN_CENTER_SELECTION, XSSFCellStyle.VERTICAL_BOTTOM);
-        createCell(wb, row, (short) 2, XSSFCellStyle.ALIGN_FILL, XSSFCellStyle.VERTICAL_CENTER);
-        createCell(wb, row, (short) 3, XSSFCellStyle.ALIGN_GENERAL, XSSFCellStyle.VERTICAL_CENTER);
-        createCell(wb, row, (short) 4, XSSFCellStyle.ALIGN_JUSTIFY, XSSFCellStyle.VERTICAL_JUSTIFY);
-        createCell(wb, row, (short) 5, XSSFCellStyle.ALIGN_LEFT, XSSFCellStyle.VERTICAL_TOP);
-        createCell(wb, row, (short) 6, XSSFCellStyle.ALIGN_RIGHT, XSSFCellStyle.VERTICAL_TOP);
-
-        //center text over B4, C4, D4
-        row = sheet.createRow((short) 3);
-        centerAcrossSelection(wb, row, (short) 1, (short) 3, XSSFCellStyle.VERTICAL_CENTER);
-
-        // Write the output to a file
-        FileOutputStream fileOut = new FileOutputStream("xssf-align.xlsx");
-        wb.write(fileOut);
-        fileOut.close();
-        
-        wb.close();
     }
 
     /**
@@ -80,10 +82,11 @@ public class AligningCells {
      * @param column the column number to create the cell in
      * @param halign the horizontal alignment for the cell.
      */
-    private static void createCell(XSSFWorkbook wb, XSSFRow row, short column,
-            short halign, short valign) {
+    private static void createCell(XSSFWorkbook wb, XSSFRow row, int column,
+                                   HorizontalAlignment halign, VerticalAlignment valign) {
+        CreationHelper ch = wb.getCreationHelper();
         XSSFCell cell = row.createCell(column);
-        cell.setCellValue(new XSSFRichTextString("Align It"));
+        cell.setCellValue(ch.createRichTextString("Align It"));
         CellStyle cellStyle = wb.createCellStyle();
         cellStyle.setAlignment(halign);
         cellStyle.setVerticalAlignment(valign);
@@ -98,15 +101,14 @@ public class AligningCells {
      * @param start_column  the column number to create the cell in and where the selection starts
      * @param end_column    the column number where the selection ends
      * @param valign the horizontal alignment for the cell.
-     *
-     * @author Cristian Petrula, Romania
      */
     private static void centerAcrossSelection(XSSFWorkbook wb, XSSFRow row,
-            short start_column, short end_column, short valign) {
+            int start_column, int end_column, VerticalAlignment valign) {
+        CreationHelper ch = wb.getCreationHelper();
 
         // Create cell style with ALIGN_CENTER_SELECTION
         XSSFCellStyle cellStyle = wb.createCellStyle();
-        cellStyle.setAlignment(XSSFCellStyle.ALIGN_CENTER_SELECTION);
+        cellStyle.setAlignment(HorizontalAlignment.CENTER_SELECTION);
         cellStyle.setVerticalAlignment(valign);
 
         // Create cells over the selected area
@@ -117,7 +119,7 @@ public class AligningCells {
 
         // Set value to the first cell
         XSSFCell cell = row.getCell(start_column);
-        cell.setCellValue(new XSSFRichTextString("Align It"));
+        cell.setCellValue(ch.createRichTextString("Align It"));
 
         // Make the selection
         CTRowImpl ctRow = (CTRowImpl) row.getCTRow();
@@ -128,7 +130,7 @@ public class AligningCells {
         // You can add multiple spans for one row
         Object span = start_column + ":" + end_column;
 
-        List<Object> spanList = new ArrayList<Object>();
+        List<Object> spanList = new ArrayList<>();
         spanList.add(span);
 
         //add spns to the row

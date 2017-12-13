@@ -19,19 +19,15 @@
 
 package org.apache.poi.sl.draw.geom;
 
-import java.awt.geom.GeneralPath;
+import java.awt.geom.Path2D;
 
-/**
- * Date: 10/25/11
- *
- * @author Yegor Kozlov
- */
 public class ClosePathCommand implements PathCommand {
 
     ClosePathCommand(){
     }
 
-    public void execute(GeneralPath path, Context ctx){
+    @Override
+    public void execute(Path2D.Double path, Context ctx){
         path.closePath();
     }
 }

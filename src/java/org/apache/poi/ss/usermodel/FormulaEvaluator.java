@@ -17,10 +17,12 @@
 
 package org.apache.poi.ss.usermodel;
 
+import org.apache.poi.util.Removal;
+
 import java.util.Map;
 
 /**
- * Evaluates formula cells.<p/>
+ * Evaluates formula cells.<p>
  * 
  * For performance reasons, this class keeps a cache of all previously calculated intermediate
  * cell values.  Be sure to call {@link #clearAllCachedResultValues()} if any workbook cells are changed between
@@ -74,7 +76,7 @@ public interface FormulaEvaluator {
      * the cell and also its cell type. This method should be preferred over
      * evaluateInCell() when the call should not modify the contents of the
      * original cell.
-     * @param cell
+     * @param cell The {@link Cell} to evaluate
      */
     CellValue evaluate(Cell cell);
 
@@ -96,10 +98,37 @@ public interface FormulaEvaluator {
      *  the result of the formula, use {@link #evaluateInCell(Cell)}
      * @param cell The cell to evaluate
      * @return The type of the formula result, i.e. -1 if the cell is not a formula, 
-     *      or one of Cell.CELL_TYPE_NUMERIC, Cell.CELL_TYPE_STRING, Cell.CELL_TYPE_BOOLEAN, Cell.CELL_TYPE_ERROR
-     *      Note: the cell's type remains as Cell.CELL_TYPE_FORMULA however.
+     *      or one of {@link CellType#NUMERIC}, {@link CellType#STRING},
+     *      {@link CellType#BOOLEAN}, {@link CellType#ERROR}
+     *      Note: the cell's type remains as CellType.FORMULA however.
      */
-    int evaluateFormulaCell(Cell cell);
+    CellType evaluateFormulaCell(Cell cell);
+    
+    /**
+     * If cell contains formula, it evaluates the formula,
+     *  and saves the result of the formula. The cell
+     *  remains as a formula cell.
+     * Else if cell does not contain formula, this method leaves
+     *  the cell unchanged.
+     * Note that the type of the formula result is returned,
+     *  so you know what kind of value is also stored with
+     *  the formula.
+     * <pre>
+     * CellType evaluatedCellType = evaluator.evaluateFormulaCell(cell);
+     * </pre>
+     * Be aware that your cell will hold both the formula,
+     *  and the result. If you want the cell replaced with
+     *  the result of the formula, use {@link #evaluateInCell(Cell)}
+     * @param cell The cell to evaluate
+     * @return The type of the formula result, i.e. -1 if the cell is not a formula, 
+     *      or one of {@link CellType#NUMERIC}, {@link CellType#STRING},
+     *      {@link CellType#BOOLEAN}, {@link CellType#ERROR}
+     *      Note: the cell's type remains as CellType.FORMULA however.
+     * @deprecated use <code>evaluateFormulaCell(cell)</code>
+     */
+    @Deprecated
+    @Removal(version = "4.2")
+    CellType evaluateFormulaCellEnum(Cell cell);
 
     /**
      * If cell contains formula, it evaluates the formula, and
@@ -115,7 +144,7 @@ public interface FormulaEvaluator {
      * Be aware that your cell value will be changed to hold the
      *  result of the formula. If you simply want the formula
      *  value computed for you, use {@link #evaluateFormulaCell(Cell)}
-     * @param cell
+     * @param cell The {@link Cell} to evaluate and modify.
      */
     Cell evaluateInCell(Cell cell);
     

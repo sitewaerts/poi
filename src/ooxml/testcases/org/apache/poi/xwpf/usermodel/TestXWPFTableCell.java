@@ -19,27 +19,20 @@
 
 package org.apache.poi.xwpf.usermodel;
 
-import junit.framework.TestCase;
+import static org.junit.Assert.*;
 
+import org.junit.Ignore;
+import org.junit.Test;
+
+import org.apache.poi.xwpf.XWPFTestDataSamples;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell.XWPFVertAlign;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTHMerge;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTShd;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTc;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcBorders;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTVMerge;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTVerticalJc;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.STVerticalJc;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 
-public class TestXWPFTableCell extends TestCase {
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-    }
+import java.util.List;
 
+public class TestXWPFTableCell {
+
+    @Test
     public void testSetGetVertAlignment() throws Exception {
         // instantiate the following classes so they'll get picked up by
         // the XmlBean process and added to the jar file. they are required
@@ -68,6 +61,7 @@ public class TestXWPFTableCell extends TestCase {
         assertEquals(XWPFVertAlign.BOTH, al);
     }
 
+    @Test
     public void testSetGetColor() throws Exception {
         // create a table
         XWPFDocument doc = new XWPFDocument();
@@ -85,9 +79,10 @@ public class TestXWPFTableCell extends TestCase {
     }
 
     /**
-     * ensure that CTHMerge & CTTcBorders go in poi-ooxml.jar
+     * ensure that CTHMerge and CTTcBorders go in poi-ooxml.jar
      */
     @SuppressWarnings("unused")
+    @Test
     public void test54099() {
         XWPFDocument doc = new XWPFDocument();
         CTTbl ctTable = CTTbl.Factory.newInstance();
@@ -102,5 +97,40 @@ public class TestXWPFTableCell extends TestCase {
 
         CTTcBorders tblBorders = tcPr.addNewTcBorders();
         CTVMerge vMerge = tcPr.addNewVMerge();
+    }
+
+    @Test
+    public void testCellVerticalAlign() throws Exception{
+        XWPFDocument docx = XWPFTestDataSamples.openSampleDocument("59030.docx");
+        List<XWPFTable> tables = docx.getTables();
+        assertEquals(1, tables.size());
+
+        XWPFTable table = tables.get(0);
+
+        List<XWPFTableRow> tableRows = table.getRows();
+        assertEquals(2, tableRows.size());
+
+        assertNull(tableRows.get(0).getCell(0).getVerticalAlignment());
+        assertEquals(XWPFVertAlign.BOTTOM, tableRows.get(0).getCell(1).getVerticalAlignment());
+        assertEquals(XWPFVertAlign.CENTER, tableRows.get(1).getCell(0).getVerticalAlignment());
+        assertNull(tableRows.get(1).getCell(1).getVerticalAlignment()); // should return null since alignment isn't set
+    }
+
+    // This is not a very useful test as written. It is not worth the execution time for a unit test
+    @Ignore
+    @Test
+    public void testCellVerticalAlignShouldNotThrowNPE() throws Exception {
+        XWPFDocument docx = XWPFTestDataSamples.openSampleDocument("TestTableCellAlign.docx");
+        List<XWPFTable> tables = docx.getTables();
+        for (XWPFTable table : tables) {
+            List<XWPFTableRow> tableRows = table.getRows();
+            for (XWPFTableRow tableRow : tableRows) {
+                List<XWPFTableCell> tableCells = tableRow.getTableCells();
+                for (XWPFTableCell tableCell : tableCells) {
+                    // getVerticalAlignment should return either an XWPFVertAlign enum or null if not set
+                    tableCell.getVerticalAlignment();
+                }
+            }
+        }
     }
 }

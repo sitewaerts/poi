@@ -18,6 +18,7 @@ package org.apache.poi.xssf.usermodel;
 
 import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
 
+import javax.xml.namespace.QName;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -25,14 +26,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import javax.xml.namespace.QName;
-
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataConsolidateFunction;
+import org.apache.poi.ss.usermodel.DataFormat;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.AreaReference;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.Beta;
@@ -62,9 +64,9 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STSourceType;
 
 public class XSSFPivotTable extends POIXMLDocumentPart {
 
-    protected final static short CREATED_VERSION = 3;
-    protected final static short MIN_REFRESHABLE_VERSION = 3;
-    protected final static short UPDATED_VERSION = 3;
+    protected static final short CREATED_VERSION = 3;
+    protected static final short MIN_REFRESHABLE_VERSION = 3;
+    protected static final short UPDATED_VERSION = 3;
 
     private CTPivotTableDefinition pivotTableDefinition;
     private XSSFPivotCacheDefinition pivotCacheDefinition;
@@ -94,14 +96,6 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
     protected XSSFPivotTable(PackagePart part) throws IOException {
         super(part);
         readFrom(part.getInputStream());
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    protected XSSFPivotTable(PackagePart part, PackageRelationship rel) throws IOException {
-        this(part);
     }
     
     @Beta
@@ -231,24 +225,37 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
     }
 
     protected AreaReference getPivotArea() {
-        AreaReference pivotArea = new AreaReference(getPivotCacheDefinition().
-                getCTPivotCacheDefinition().getCacheSource().getWorksheetSource().getRef());
-        return pivotArea;
+        final Workbook wb = getDataSheet().getWorkbook();
+        return getPivotCacheDefinition().getPivotArea(wb);
+    }
+    
+    /**
+     * Verify column index (relative to first column in pivot area) is within the
+     * pivot area
+     *
+     * @param columnIndex
+     * @throws IndexOutOfBoundsException
+     */
+    private void checkColumnIndex(int columnIndex) throws IndexOutOfBoundsException {
+        AreaReference pivotArea = getPivotArea();
+        int size = pivotArea.getLastCell().getCol() - pivotArea.getFirstCell().getCol() + 1;
+
+        if (columnIndex < 0 || columnIndex >= size) {
+            throw new IndexOutOfBoundsException("Column Index: " + columnIndex + ", Size: " + size);
+        }
     }
 
     /**
      * Add a row label using data from the given column.
-     * @param columnIndex the index of the column to be used as row label.
+     * @param columnIndex the index of the source column to be used as row label.
+     * {@code columnIndex} is 0-based indexed and relative to the first column in the source.
      */
     @Beta
     public void addRowLabel(int columnIndex) {
+        checkColumnIndex(columnIndex);
+        
         AreaReference pivotArea = getPivotArea();
-        int lastRowIndex = pivotArea.getLastCell().getRow() - pivotArea.getFirstCell().getRow();
-        int lastColIndex = pivotArea.getLastCell().getCol() - pivotArea.getFirstCell().getCol();
-
-        if(columnIndex > lastColIndex) {
-            throw new IndexOutOfBoundsException();
-        }
+        final int lastRowIndex = pivotArea.getLastCell().getRow() - pivotArea.getFirstCell().getRow();
         CTPivotFields pivotFields = pivotTableDefinition.getPivotFields();
 
         CTPivotField pivotField = CTPivotField.Factory.newInstance();
@@ -256,7 +263,7 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
 
         pivotField.setAxis(STAxis.AXIS_ROW);
         pivotField.setShowAll(false);
-        for(int i = 0; i <= lastRowIndex; i++) {
+        for (int i = 0; i <= lastRowIndex; i++) {
             items.addNewItem().setT(STItemType.DEFAULT);
         }
         items.setCount(items.sizeOfItemArray());
@@ -276,7 +283,7 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
     @Beta
     public List<Integer> getRowLabelColumns() {
         if (pivotTableDefinition.getRowFields() != null) {
-            List<Integer> columnIndexes = new ArrayList<Integer>();
+            List<Integer> columnIndexes = new ArrayList<>();
             for (CTField f : pivotTableDefinition.getRowFields().getFieldArray()) {
                 columnIndexes.add(f.getX());
             }
@@ -285,26 +292,86 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
             return Collections.emptyList();
         }
     }
+
+    /**
+     * Add a col label using data from the given column.
+     * @param columnIndex the index of the source column to be used as row label.
+     * {@code columnIndex} is 0-based indexed and relative to the first column in the source.
+     * @param valueFormat format of column value (e.g. for date: "DD.MM.YYYY")
+     */
+    @Beta
+    public void addColLabel(int columnIndex, String valueFormat) {
+        checkColumnIndex(columnIndex);
+        
+        AreaReference pivotArea = getPivotArea();
+        final int lastRowIndex = pivotArea.getLastCell().getRow() - pivotArea.getFirstCell().getRow();
+        CTPivotFields pivotFields = pivotTableDefinition.getPivotFields();
+
+        CTPivotField pivotField = CTPivotField.Factory.newInstance();
+        CTItems items = pivotField.addNewItems();
+
+        pivotField.setAxis(STAxis.AXIS_COL);
+        pivotField.setShowAll(false);
+        if (valueFormat != null && !valueFormat.trim().isEmpty()) {
+            DataFormat df = parentSheet.getWorkbook().createDataFormat();
+            pivotField.setNumFmtId(df.getFormat(valueFormat));
+        }
+        for (int i = 0; i <= lastRowIndex; i++) {
+            items.addNewItem().setT(STItemType.DEFAULT);
+        }
+        items.setCount(items.sizeOfItemArray());
+        pivotFields.setPivotFieldArray(columnIndex, pivotField);
+
+        CTColFields colFields;
+        if(pivotTableDefinition.getColFields() != null) {
+            colFields = pivotTableDefinition.getColFields();
+        } else {
+            colFields = pivotTableDefinition.addNewColFields();
+        }
+
+        colFields.addNewField().setX(columnIndex);
+        colFields.setCount(colFields.sizeOfFieldArray());
+    }
+
+    /**
+     * Add a col label using data from the given column.
+     * @param columnIndex the index of the source column to be used as row label.
+     * {@code columnIndex} is 0-based indexed and relative to the first column in the source.
+     */
+    @Beta
+    public void addColLabel(int columnIndex) {
+        addColLabel(columnIndex, null);
+    }
     
+    @Beta
+    public List<Integer> getColLabelColumns() {
+        if (pivotTableDefinition.getColFields() != null) {
+            List<Integer> columnIndexes = new ArrayList<>();
+            for (CTField f : pivotTableDefinition.getColFields().getFieldArray()) {
+                columnIndexes.add(f.getX());
+            }
+            return columnIndexes;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
     /**
      * Add a column label using data from the given column and specified function
-     * @param columnIndex the index of the column to be used as column label.
+     * @param columnIndex the index of the source column to be used as column label.
+     * {@code columnIndex} is 0-based indexed and relative to the first column in the source.
      * @param function the function to be used on the data
      * The following functions exists:
      * Sum, Count, Average, Max, Min, Product, Count numbers, StdDev, StdDevp, Var, Varp
      * @param valueFieldName the name of pivot table value field
+     * @param valueFormat format of value field (e.g. "#,##0.00")
      */
     @Beta
-    public void addColumnLabel(DataConsolidateFunction function, int columnIndex, String valueFieldName) {
-        AreaReference pivotArea = getPivotArea();
-        int lastColIndex = pivotArea.getLastCell().getCol() - pivotArea.getFirstCell().getCol();
-
-        if(columnIndex > lastColIndex && columnIndex < 0) {
-            throw new IndexOutOfBoundsException();
-        }
+    public void addColumnLabel(DataConsolidateFunction function, int columnIndex, String valueFieldName, String valueFormat) {
+        checkColumnIndex(columnIndex);
 
         addDataColumn(columnIndex, true);
-        addDataField(function, columnIndex, valueFieldName);
+        addDataField(function, columnIndex, valueFieldName, valueFormat);
 
         // colfield should be added for the second one.
         if (pivotTableDefinition.getDataFields().getCount() == 2) {
@@ -321,32 +388,45 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
 
     /**
      * Add a column label using data from the given column and specified function
-     * @param columnIndex the index of the column to be used as column label.
+     * @param columnIndex the index of the source column to be used as column label.
+     * {@code columnIndex} is 0-based indexed and relative to the first column in the source.
+     * @param function the function to be used on the data
+     * The following functions exists:
+     * Sum, Count, Average, Max, Min, Product, Count numbers, StdDev, StdDevp, Var, Varp
+     * @param valueFieldName the name of pivot table value field
+     */
+    @Beta
+    public void addColumnLabel(DataConsolidateFunction function, int columnIndex, String valueFieldName) {
+        addColumnLabel(function, columnIndex, valueFieldName, null);
+    }
+
+    /**
+     * Add a column label using data from the given column and specified function
+     * @param columnIndex the index of the source column to be used as column label
+     * {@code columnIndex} is 0-based indexed and relative to the first column in the source..
      * @param function the function to be used on the data
      * The following functions exists:
      * Sum, Count, Average, Max, Min, Product, Count numbers, StdDev, StdDevp, Var, Varp
      */
     @Beta
     public void addColumnLabel(DataConsolidateFunction function, int columnIndex) {
-        addColumnLabel(function, columnIndex, function.getName());
+        addColumnLabel(function, columnIndex, function.getName(), null);
     }
 
     /**
      * Add data field with data from the given column and specified function.
      * @param function the function to be used on the data
-     * @param index the index of the column to be used as column label.
-     * The following functions exists:
-     * Sum, Count, Average, Max, Min, Product, Count numbers, StdDev, StdDevp, Var, Varp
+     *      The following functions exists:
+     *      Sum, Count, Average, Max, Min, Product, Count numbers, StdDev, StdDevp, Var, Varp
+     * @param columnIndex the index of the column to be used as column label.
      * @param valueFieldName the name of pivot table value field
      */
     @Beta
-    private void addDataField(DataConsolidateFunction function, int columnIndex, String valueFieldName) {
+    private void addDataField(DataConsolidateFunction function, int columnIndex, String valueFieldName, String valueFormat) {
+        checkColumnIndex(columnIndex);
+        
         AreaReference pivotArea = getPivotArea();
-        int lastColIndex = pivotArea.getLastCell().getCol() - pivotArea.getFirstCell().getCol();
-
-        if(columnIndex > lastColIndex && columnIndex < 0) {
-            throw new IndexOutOfBoundsException();
-        }
+        
         CTDataFields dataFields;
         if(pivotTableDefinition.getDataFields() != null) {
             dataFields = pivotTableDefinition.getDataFields();
@@ -355,10 +435,15 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
         }
         CTDataField dataField = dataFields.addNewDataField();
         dataField.setSubtotal(STDataConsolidateFunction.Enum.forInt(function.getValue()));
-        Cell cell = getDataSheet().getRow(pivotArea.getFirstCell().getRow()).getCell(columnIndex);
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        Cell cell = getDataSheet().getRow(pivotArea.getFirstCell().getRow())
+                .getCell(pivotArea.getFirstCell().getCol() + columnIndex);
+        cell.setCellType(CellType.STRING);
         dataField.setName(valueFieldName);
         dataField.setFld(columnIndex);
+        if (valueFormat != null && !valueFormat.trim().isEmpty()) {
+            DataFormat df = parentSheet.getWorkbook().createDataFormat();
+            dataField.setNumFmtId(df.getFormat(valueFormat));
+        }
         dataFields.setCount(dataFields.sizeOfDataFieldArray());
     }
 
@@ -369,11 +454,8 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
      */
     @Beta
     public void addDataColumn(int columnIndex, boolean isDataField) {
-        AreaReference pivotArea = getPivotArea();
-        int lastColIndex = pivotArea.getLastCell().getCol() - pivotArea.getFirstCell().getCol();
-        if(columnIndex > lastColIndex && columnIndex < 0) {
-            throw new IndexOutOfBoundsException();
-        }
+        checkColumnIndex(columnIndex);
+
         CTPivotFields pivotFields = pivotTableDefinition.getPivotFields();
         CTPivotField pivotField = CTPivotField.Factory.newInstance();
 
@@ -388,15 +470,20 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
      */
     @Beta
     public void addReportFilter(int columnIndex) {
+        checkColumnIndex(columnIndex);
+        
         AreaReference pivotArea = getPivotArea();
-        int lastColIndex = pivotArea.getLastCell().getCol() - pivotArea.getFirstCell().getCol();
         int lastRowIndex = pivotArea.getLastCell().getRow() - pivotArea.getFirstCell().getRow();
+        // check and change row of location
+        CTLocation location = pivotTableDefinition.getLocation();
+        AreaReference destination = new AreaReference(location.getRef(), SpreadsheetVersion.EXCEL2007);
+        if (destination.getFirstCell().getRow() < 2) {
+            AreaReference newDestination = new AreaReference(new CellReference(2, destination.getFirstCell().getCol()), new CellReference(
+                    3, destination.getFirstCell().getCol()+1), SpreadsheetVersion.EXCEL2007);
+            location.setRef(newDestination.formatAsString());
+       }
 
-        if(columnIndex > lastColIndex && columnIndex < 0) {
-            throw new IndexOutOfBoundsException();
-        }
         CTPivotFields pivotFields = pivotTableDefinition.getPivotFields();
-
         CTPivotField pivotField = CTPivotField.Factory.newInstance();
         CTItems items = pivotField.addNewItems();
 
@@ -426,14 +513,16 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
 
     /**
      * Creates cacheSource and workSheetSource for pivot table and sets the source reference as well assets the location of the pivot table
-     * @param source Source for data for pivot table
      * @param position Position for pivot table in sheet
      * @param sourceSheet Sheet where the source will be collected from
+     * @param refConfig  an configurator that knows how to configure pivot table references
      */
     @Beta
-    protected void createSourceReferences(AreaReference source, CellReference position, Sheet sourceSheet){
+    protected void createSourceReferences(CellReference position, Sheet sourceSheet, PivotTableReferenceConfigurator refConfig){
+        
         //Get cell one to the right and one down from position, add both to AreaReference and set pivot table location.
-        AreaReference destination = new AreaReference(position, new CellReference(position.getRow()+1, position.getCol()+1));
+        AreaReference destination = new AreaReference(position, new CellReference(
+                position.getRow()+1, position.getCol()+1), SpreadsheetVersion.EXCEL2007);
 
         CTLocation location;
         if(pivotTableDefinition.getLocation() == null) {
@@ -455,9 +544,8 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
         worksheetSource.setSheet(sourceSheet.getSheetName());
         setDataSheet(sourceSheet);
 
-        String[] firstCell = source.getFirstCell().getCellRefParts();
-        String[] lastCell = source.getLastCell().getCellRefParts();
-        worksheetSource.setRef(firstCell[2]+firstCell[1]+':'+lastCell[2]+lastCell[1]);
+        refConfig.configureReference(worksheetSource);
+        if (worksheetSource.getName() == null && worksheetSource.getRef() == null) throw new IllegalArgumentException("Pivot table source area reference or name must be specified.");
     }
 
     @Beta
@@ -472,11 +560,20 @@ public class XSSFPivotTable extends POIXMLDocumentPart {
         int firstColumn = sourceArea.getFirstCell().getCol();
         int lastColumn = sourceArea.getLastCell().getCol();
         CTPivotField pivotField;
-        for(int i = 0; i<=lastColumn-firstColumn; i++) {
+        for(int i = firstColumn; i<=lastColumn; i++) {
             pivotField = pivotFields.addNewPivotField();
             pivotField.setDataField(false);
             pivotField.setShowAll(false);
         }
         pivotFields.setCount(pivotFields.sizeOfPivotFieldArray());
+    }
+    
+    protected static interface PivotTableReferenceConfigurator {
+        
+        /**
+         * Configure the name or area reference for the pivot table 
+         * @param wsSource CTWorksheetSource that needs the pivot source reference assignment
+         */
+        public void configureReference(CTWorksheetSource wsSource);
     }
 }

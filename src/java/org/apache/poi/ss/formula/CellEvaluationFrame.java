@@ -23,7 +23,7 @@ import java.util.Set;
 import org.apache.poi.ss.formula.eval.ValueEval;
 
 /**
- * Stores details about the current evaluation of a cell.<br/>
+ * Stores details about the current evaluation of a cell.<br>
  */
 final class CellEvaluationFrame {
 
@@ -33,7 +33,7 @@ final class CellEvaluationFrame {
 
 	public CellEvaluationFrame(FormulaCellCacheEntry cce) {
 		_cce = cce;
-		_sensitiveInputCells = new HashSet<CellCacheEntry>();
+		_sensitiveInputCells = new HashSet<>();
 	}
 	public CellCacheEntry getCCE() {
 		return _cce;
@@ -64,11 +64,11 @@ final class CellEvaluationFrame {
 		_sensitiveInputCells.toArray(result);
 		return result;
 	}
-	public void addUsedBlankCell(int bookIndex, int sheetIndex, int rowIndex, int columnIndex) {
+	public void addUsedBlankCell(EvaluationWorkbook evalWorkbook, int bookIndex, int sheetIndex, int rowIndex, int columnIndex) {
 		if (_usedBlankCellGroup == null) {
 			_usedBlankCellGroup = new FormulaUsedBlankCellSet();
 		}
-		_usedBlankCellGroup.addCell(bookIndex, sheetIndex, rowIndex, columnIndex);
+		_usedBlankCellGroup.addCell(evalWorkbook, bookIndex, sheetIndex, rowIndex, columnIndex);
 	}
 
 	public void updateFormulaResult(ValueEval result) {

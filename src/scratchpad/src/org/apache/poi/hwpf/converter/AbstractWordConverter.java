@@ -102,14 +102,14 @@ public abstract class AbstractWordConverter
 
         public int compareTo( Structure o )
         {
-            return start < o.start ? -1 : start == o.start ? 0 : 1;
+            return Integer.compare(start, o.start);
         }
 
         @Override
         public String toString()
         {
             return "Structure [" + start + "; " + end + "): "
-                    + structure.toString();
+                    + structure;
         }
     }
 
@@ -168,7 +168,7 @@ public abstract class AbstractWordConverter
         structures.add( structure );
     }
 
-    private final Set<Bookmark> bookmarkStack = new LinkedHashSet<Bookmark>();
+    private final Set<Bookmark> bookmarkStack = new LinkedHashSet<>();
 
     private FontReplacer fontReplacer = new DefaultFontReplacer();
 
@@ -194,8 +194,7 @@ public abstract class AbstractWordConverter
         original.bold = characterRun.isBold();
         original.italic = characterRun.isItalic();
         original.fontName = characterRun.getFontName();
-        Triplet updated = getFontReplacer().update( original );
-        return updated;
+        return getFontReplacer().update( original );
     }
 
     public abstract Document getDocument();
@@ -303,7 +302,7 @@ public abstract class AbstractWordConverter
          * should process char-by-char (slow) or find a correct way to
          * reconstruct the structure of range -- sergey
          */
-        List<Structure> structures = new LinkedList<Structure>();
+        List<Structure> structures = new LinkedList<>();
         if ( wordDocument instanceof HWPFDocument )
         {
             final HWPFDocument doc = (HWPFDocument) wordDocument;
@@ -366,7 +365,7 @@ public abstract class AbstractWordConverter
             }
         }
 
-        structures = new ArrayList<Structure>( structures );
+        structures = new ArrayList<>(structures);
         Collections.sort( structures );
 
         int previous = range.getStartOffset();
@@ -389,7 +388,7 @@ public abstract class AbstractWordConverter
             if ( structure.structure instanceof Bookmark )
             {
                 // other bookmarks with same boundaries
-                List<Bookmark> bookmarks = new LinkedList<Bookmark>();
+                List<Bookmark> bookmarks = new LinkedList<>();
                 for ( Bookmark bookmark : ( (HWPFDocument) wordDocument )
                         .getBookmarks()
                         .getBookmarksStartedBetween( structure.start,
@@ -692,8 +691,6 @@ public abstract class AbstractWordConverter
         if ( separatorMark + 1 < endMark )
             processCharacters( wordDocument, currentTableLevel,
                     deadFieldValueSubrage, currentBlock );
-
-        return;
     }
 
     public void processDocument( HWPFDocumentCore wordDocument )
@@ -1003,7 +1000,6 @@ public abstract class AbstractWordConverter
 
                 processEndnoteAutonumbered( doc, noteIndex, block,
                         noteTextRange );
-                return;
             }
         }
     }
@@ -1108,7 +1104,7 @@ public abstract class AbstractWordConverter
                 }
             }
 
-            if ( processed == false )
+            if (!processed)
             {
                 processParagraph( wordDocument, flow, currentTableLevel,
                         paragraph, AbstractWordUtils.EMPTY );

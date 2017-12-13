@@ -27,7 +27,6 @@ import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.ss.usermodel.BaseTestFormulaEvaluator;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellValue;
-import org.apache.poi.ss.usermodel.FormulaError;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -85,7 +84,7 @@ public final class TestXSSFFormulaEvaluation extends BaseTestFormulaEvaluator {
         XSSFWorkbook wb = (XSSFWorkbook) _testDataProvider.openSampleWorkbook("50096.xlsx");
         XSSFFormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
 
-        /**
+        /*
          *  The first row simply contains the numbers 1 - 300.
          *  The second row simply refers to the cell value above in the first row by a simple formula.
          */
@@ -153,10 +152,12 @@ public final class TestXSSFFormulaEvaluation extends BaseTestFormulaEvaluator {
             evaluator.evaluate(cXSL_cell);
             fail("Without a fix for #56752, shouldn't be able to evaluate a " +
                  "reference to a non-provided linked workbook");
-        } catch(Exception e) {}
+        } catch(Exception e) {
+            // expected here
+        }
         
         // Setup the environment
-        Map<String,FormulaEvaluator> evaluators = new HashMap<String, FormulaEvaluator>();
+        Map<String,FormulaEvaluator> evaluators = new HashMap<>();
         evaluators.put("ref2-56737.xlsx", evaluator);
         evaluators.put("56737.xlsx", 
                 _testDataProvider.openSampleWorkbook("56737.xlsx").getCreationHelper().createFormulaEvaluator());
@@ -170,8 +171,19 @@ public final class TestXSSFFormulaEvaluation extends BaseTestFormulaEvaluator {
                 evaluator.evaluate(c);
             }
         }
+        // And evaluate the other way too
+        evaluator.evaluateAll();
         
-        // Evaluate and check results
+        // Static evaluator won't work, as no references passed in
+        try {
+            XSSFFormulaEvaluator.evaluateAllFormulaCells(wb);
+            fail("Static method lacks references, shouldn't work");
+        } catch(Exception e) {
+            // expected here
+        }
+        
+        
+        // Evaluate specific cells and check results
         assertEquals("\"Hello!\"",  evaluator.evaluate(cXSLX_cell).formatAsString());
         assertEquals("\"Test A1\"", evaluator.evaluate(cXSLX_sNR).formatAsString());
         assertEquals("142.0",   evaluator.evaluate(cXSLX_gNR).formatAsString());
@@ -195,35 +207,34 @@ public final class TestXSSFFormulaEvaluation extends BaseTestFormulaEvaluator {
         try {
             cXSLX_nw_cell.setCellFormula("[alt.xlsx]Sheet1!$A$1");
             fail("New workbook not linked, shouldn't be able to add");
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            // expected here
+        }
         
         // Link and re-try
-        Workbook alt = new XSSFWorkbook();
-        try {
+        try (Workbook alt = new XSSFWorkbook()) {
             alt.createSheet().createRow(0).createCell(0).setCellValue("In another workbook");
             // TODO Implement the rest of this, see bug #57184
 /*
             wb.linkExternalWorkbook("alt.xlsx", alt);
-                    
+
             cXSLX_nw_cell.setCellFormula("[alt.xlsx]Sheet1!$A$1");
             // Check it - TODO Is this correct? Or should it become [3]Sheet1!$A$1 ?
             assertEquals("[alt.xlsx]Sheet1!$A$1", cXSLX_nw_cell.getCellFormula());
-            
+
             // Evaluate it, without a link to that workbook
             try {
                 evaluator.evaluate(cXSLX_nw_cell);
                 fail("No cached value and no link to workbook, shouldn't evaluate");
             } catch(Exception e) {}
-            
+
             // Add a link, check it does
             evaluators.put("alt.xlsx", alt.getCreationHelper().createFormulaEvaluator());
             evaluator.setupReferencedWorkbooks(evaluators);
-            
+
             evaluator.evaluate(cXSLX_nw_cell);
             assertEquals("In another workbook", cXSLX_nw_cell.getStringCellValue());
 */
-        } finally {
-        	alt.close();
         }
         
         wb.close();
@@ -240,6 +251,7 @@ public final class TestXSSFFormulaEvaluation extends BaseTestFormulaEvaluator {
     @Ignore
     public void testCachedReferencesToOtherWorkbooks() throws Exception {
         // TODO
+        fail("unit test not written yet");
     }
     
     /**
@@ -358,276 +370,76 @@ public final class TestXSSFFormulaEvaluation extends BaseTestFormulaEvaluator {
         wb2.close();
         wb1.close();
     }
-    
-    @Test
-    public void testMultisheetFormulaEval() throws IOException {
-    	XSSFWorkbook wb = new XSSFWorkbook();
-    	try {
-    		XSSFSheet sheet1 = wb.createSheet("Sheet1");
-    		XSSFSheet sheet2 = wb.createSheet("Sheet2");
-    		XSSFSheet sheet3 = wb.createSheet("Sheet3");
-    		
-    		// sheet1 A1
-    		XSSFCell cell = sheet1.createRow(0).createCell(0);
-    		cell.setCellType(Cell.CELL_TYPE_NUMERIC);
-    		cell.setCellValue(1.0);
-    		
-    		// sheet2 A1
-    		cell = sheet2.createRow(0).createCell(0);
-    		cell.setCellType(Cell.CELL_TYPE_NUMERIC);
-    		cell.setCellValue(1.0);
-    		
-    		// sheet2 B1
-    		cell = sheet2.getRow(0).createCell(1);
-    		cell.setCellType(Cell.CELL_TYPE_NUMERIC);
-    		cell.setCellValue(1.0);
-    		
-    		// sheet3 A1
-    		cell = sheet3.createRow(0).createCell(0);
-    		cell.setCellType(Cell.CELL_TYPE_NUMERIC);
-    		cell.setCellValue(1.0);
-    		
-    		// sheet1 A2 formulae
-    		cell = sheet1.createRow(1).createCell(0);
-    		cell.setCellType(Cell.CELL_TYPE_FORMULA);
-    		cell.setCellFormula("SUM(Sheet1:Sheet3!A1)");
-    		
-    		// sheet1 A3 formulae
-    		cell = sheet1.createRow(2).createCell(0);
-    		cell.setCellType(Cell.CELL_TYPE_FORMULA);
-    		cell.setCellFormula("SUM(Sheet1:Sheet3!A1:B1)");
-    		
-    		wb.getCreationHelper().createFormulaEvaluator().evaluateAll();
-    		
-    		cell = sheet1.getRow(1).getCell(0);
-    		assertEquals(3.0, cell.getNumericCellValue(), 0);
-    		
-    		cell = sheet1.getRow(2).getCell(0);
-    		assertEquals(4.0, cell.getNumericCellValue(), 0);
-    	} finally {
-    	    wb.close();
-    	}
-	}
 
+    // bug 57721
     @Test
-    public void testBug55843() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-            cellA2.setCellFormula("IF(B1=0,\"\",((ROW()-ROW(A$1))*12))");
-            CellValue evaluate = formulaEvaluator.evaluate(cellA2);
-            assertEquals("12.0", evaluate.formatAsString());
-
-            cellA2.setCellFormula("IF(NOT(B1=0),((ROW()-ROW(A$1))*12),\"\")");
-            CellValue evaluateN = formulaEvaluator.evaluate(cellA2);
-            
-            assertEquals(evaluate.toString(), evaluateN.toString());
-            assertEquals("12.0", evaluateN.formatAsString());
-        } finally {
-            wb.close();
-        }
+    public void structuredReferences() throws IOException {
+        verifyAllFormulasInWorkbookCanBeEvaluated("evaluate_formula_with_structured_table_references.xlsx");
     }
     
+    // bug 57840
+    @Ignore("Takes over a minute to evaluate all formulas in this large workbook. Run this test when profiling for formula evaluation speed.")
     @Test
-    public void testBug55843a() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-            cellA2.setCellFormula("IF(B1=0,\"\",((ROW(A$1))))");
-            CellValue evaluate = formulaEvaluator.evaluate(cellA2);
-            assertEquals("1.0", evaluate.formatAsString());
-
-            cellA2.setCellFormula("IF(NOT(B1=0),((ROW(A$1))),\"\")");
-            CellValue evaluateN = formulaEvaluator.evaluate(cellA2);
-            
-            assertEquals(evaluate.toString(), evaluateN.toString());
-            assertEquals("1.0", evaluateN.formatAsString());
-        } finally {
-            wb.close();
-        }
-    }    
-
-    @Test
-    public void testBug55843b() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-
-            cellA2.setCellFormula("IF(B1=0,\"\",((ROW())))");
-            CellValue evaluate = formulaEvaluator.evaluate(cellA2);
-            assertEquals("2.0", evaluate.formatAsString());
-            
-            cellA2.setCellFormula("IF(NOT(B1=0),((ROW())),\"\")");
-            CellValue evaluateN = formulaEvaluator.evaluate(cellA2);
-            
-            assertEquals(evaluate.toString(), evaluateN.toString());
-            assertEquals("2.0", evaluateN.formatAsString());
-        } finally {
-            wb.close();
-        }
-    }
-    
-    @Test
-    public void testBug55843c() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-            
-            cellA2.setCellFormula("IF(NOT(B1=0),((ROW())))");
-            CellValue evaluateN = formulaEvaluator.evaluate(cellA2);
-            assertEquals("2.0", evaluateN.formatAsString());
-        } finally {
-            wb.close();
-        }
-    }
-    
-    @Test
-    public void testBug55843d() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-            
-            cellA2.setCellFormula("IF(NOT(B1=0),((ROW())),\"\")");
-            CellValue evaluateN = formulaEvaluator.evaluate(cellA2);
-            assertEquals("2.0", evaluateN.formatAsString());
-        } finally {
-            wb.close();
-        }
+    public void testLotsOfFormulasWithStructuredReferencesToCalculatedTableColumns() throws IOException {
+        verifyAllFormulasInWorkbookCanBeEvaluated("StructuredRefs-lots-with-lookups.xlsx");
     }
 
-    @Test
-    public void testBug55843e() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-
-            cellA2.setCellFormula("IF(B1=0,\"\",((ROW())))");
-            CellValue evaluate = formulaEvaluator.evaluate(cellA2);
-            assertEquals("2.0", evaluate.formatAsString());
-        } finally {
-            wb.close();
-        }
-    }
-    
-    @Test
-    public void testBug55843f() throws IOException {
-        XSSFWorkbook wb = new XSSFWorkbook();
-        try {
-            XSSFSheet sheet = wb.createSheet("test");
-            XSSFRow row = sheet.createRow(0);
-            XSSFRow row2 = sheet.createRow(1);
-            XSSFCell cellA2 = row2.createCell(0, Cell.CELL_TYPE_FORMULA);
-            XSSFCell cellB1 = row.createCell(1, Cell.CELL_TYPE_NUMERIC);
-            cellB1.setCellValue(10);
-            XSSFFormulaEvaluator formulaEvaluator = wb.getCreationHelper().createFormulaEvaluator();
-
-            cellA2.setCellFormula("IF(B1=0,\"\",IF(B1=10,3,4))");
-            CellValue evaluate = formulaEvaluator.evaluate(cellA2);
-            assertEquals("3.0", evaluate.formatAsString());
-        } finally {
-            wb.close();
-        }
-    }    
-
-    @Test
-    public void testBug56655() throws IOException {
-        Workbook wb =  new XSSFWorkbook();
-        Sheet sheet = wb.createSheet();
-        
-        setCellFormula(sheet, 0, 0, "#VALUE!");
-        setCellFormula(sheet, 0, 1, "SUMIFS(A:A,A:A,#VALUE!)");
-
-        wb.getCreationHelper().createFormulaEvaluator().evaluateAll();
-
-        assertEquals(XSSFCell.CELL_TYPE_ERROR, getCell(sheet, 0,0).getCachedFormulaResultType());
-        assertEquals(FormulaError.VALUE.getCode(), getCell(sheet, 0,0).getErrorCellValue());
-        assertEquals(XSSFCell.CELL_TYPE_ERROR, getCell(sheet, 0,1).getCachedFormulaResultType());
-        assertEquals(FormulaError.VALUE.getCode(), getCell(sheet, 0,1).getErrorCellValue());
-        
+    // FIXME: use junit4 parameterization
+    private static void verifyAllFormulasInWorkbookCanBeEvaluated(String sampleWorkbook) throws IOException {
+        XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook(sampleWorkbook);
+        XSSFFormulaEvaluator.evaluateAllFormulaCells(wb);
         wb.close();
     }
 
     @Test
-    public void testBug56655a() throws IOException {
-        Workbook wb =  new XSSFWorkbook();
-        Sheet sheet = wb.createSheet();
-        
-        setCellFormula(sheet, 0, 0, "B1*C1");
-        sheet.getRow(0).createCell(1).setCellValue("A");
-        setCellFormula(sheet, 1, 0, "B1*C1");
-        sheet.getRow(1).createCell(1).setCellValue("A");
-        setCellFormula(sheet, 0, 3, "SUMIFS(A:A,A:A,A2)");
+    public void test59736() {
+        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("59736.xlsx");
+        FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        Cell cell = wb.getSheetAt(0).getRow(0).getCell(0);
+        assertEquals(1, cell.getNumericCellValue(), 0.001);
 
-        wb.getCreationHelper().createFormulaEvaluator().evaluateAll();
+        cell = wb.getSheetAt(0).getRow(1).getCell(0);
+        CellValue value = evaluator.evaluate(cell);
+        assertEquals(1, value.getNumberValue(), 0.001);
 
-        assertEquals(XSSFCell.CELL_TYPE_ERROR, getCell(sheet, 0, 0).getCachedFormulaResultType());
-        assertEquals(FormulaError.VALUE.getCode(), getCell(sheet, 0, 0).getErrorCellValue());
-        assertEquals(XSSFCell.CELL_TYPE_ERROR, getCell(sheet, 1, 0).getCachedFormulaResultType());
-        assertEquals(FormulaError.VALUE.getCode(), getCell(sheet, 1, 0).getErrorCellValue());
-        assertEquals(XSSFCell.CELL_TYPE_ERROR, getCell(sheet, 0, 3).getCachedFormulaResultType());
-        assertEquals(FormulaError.VALUE.getCode(), getCell(sheet, 0, 3).getErrorCellValue());
-        
+        cell = wb.getSheetAt(0).getRow(2).getCell(0);
+        value = evaluator.evaluate(cell);
+        assertEquals(1, value.getNumberValue(), 0.001);
+    }
+    
+    @Test
+    public void evaluateInCellReturnsSameDataType() throws IOException {
+        XSSFWorkbook wb = new XSSFWorkbook();
+        wb.createSheet().createRow(0).createCell(0);
+        XSSFFormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        XSSFCell cell = wb.getSheetAt(0).getRow(0).getCell(0);
+        XSSFCell same = evaluator.evaluateInCell(cell);
+        assertSame(cell, same);
         wb.close();
     }
+    
+    @Test
+    public void testBug61468() {
+        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("simple-monthly-budget.xlsx");
+        FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        Cell cell = wb.getSheetAt(0).getRow(8).getCell(4);
+        assertEquals(3750, cell.getNumericCellValue(), 0.001);
 
-    /**
-    * @param row 0-based
-    * @param column 0-based
-    */
-   private void setCellFormula(Sheet sheet, int row, int column, String formula) {
-       Row r = sheet.getRow(row);
-       if (r == null) {
-           r = sheet.createRow(row);
-       }
-       Cell cell = r.getCell(column);
-       if (cell == null) {
-           cell = r.createCell(column);
-       }
-       cell.setCellType(XSSFCell.CELL_TYPE_FORMULA);
-       cell.setCellFormula(formula);
-   }
-
-   /**
-    * @param rowNo 0-based
-    * @param column 0-based
-    */
-   private Cell getCell(Sheet sheet, int rowNo, int column) {
-       return sheet.getRow(rowNo).getCell(column);
-   }
+        CellValue value = evaluator.evaluate(cell);
+        assertEquals(3750, value.getNumberValue(), 0.001);
+    }
+    
+    @Test
+    @Ignore // this is from an open bug/discussion over handling localization for number formats
+    public void testBug61495() {
+        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("61495-test.xlsm");
+        FormulaEvaluator evaluator = wb.getCreationHelper().createFormulaEvaluator();
+        Cell cell = wb.getSheetAt(0).getRow(0).getCell(1);
+//        assertEquals("D 67.10", cell.getStringCellValue());
+        
+        CellValue value = evaluator.evaluate(cell);
+        assertEquals("D 67.10", value.getStringValue());
+        
+        assertEquals("D 0,068", evaluator.evaluate(wb.getSheetAt(0).getRow(1).getCell(1)));
+    }
 }

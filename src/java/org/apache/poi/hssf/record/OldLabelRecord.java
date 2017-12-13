@@ -18,8 +18,10 @@
 package org.apache.poi.hssf.record;
 
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * Biff2 - Biff 4 Label Record (0x0004 / 0x0204) - read only support for 
@@ -28,12 +30,14 @@ import org.apache.poi.util.POILogger;
  */
 public final class OldLabelRecord extends OldCellRecord {
     private final static POILogger logger = POILogFactory.getLogger(OldLabelRecord.class);
+    //arbitrarily set, may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
 
     public final static short biff2_sid = 0x0004;
     public final static short biff345_sid = 0x0204;
 
     private short          field_4_string_len;
-    private byte[]         field_5_bytes;
+    private final byte[]         field_5_bytes;
     private CodepageRecord codepage;
 
     /**
@@ -50,7 +54,7 @@ public final class OldLabelRecord extends OldCellRecord {
         }
 
         // Can only decode properly later when you know the codepage
-        field_5_bytes = new byte[field_4_string_len];
+        field_5_bytes = IOUtils.safelyAllocate(field_4_string_len, MAX_RECORD_LENGTH);
         in.read(field_5_bytes, 0, field_4_string_len);
 
         if (in.remaining() > 0) {
@@ -76,6 +80,8 @@ public final class OldLabelRecord extends OldCellRecord {
 
     /**
      * Get the String of the cell
+     * 
+     * @return the String of the cell
      */
     public String getValue()
     {
@@ -84,19 +90,26 @@ public final class OldLabelRecord extends OldCellRecord {
 
     /**
      * Not supported
+     * 
+     * @param offset not supported
+     * @param data not supported
+     * @return not supported
      */
     public int serialize(int offset, byte [] data) {
         throw new RecordFormatException("Old Label Records are supported READ ONLY");
     }
+    
     public int getRecordSize() {
         throw new RecordFormatException("Old Label Records are supported READ ONLY");
     }
 
+    @Override
     protected void appendValueText(StringBuilder sb) {
         sb.append("    .string_len= ").append(HexDump.shortToHex(field_4_string_len)).append("\n");
         sb.append("    .value       = ").append(getValue()).append("\n");
     }
 
+    @Override
     protected String getRecordName() {
         return "OLD LABEL";
     }

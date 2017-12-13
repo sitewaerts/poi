@@ -38,8 +38,7 @@ import org.apache.poi.poifs.storage.ListManagedBlock;
  * @author Marc Johnson (mjohnson at apache dot org)
  */
 
-class PropertyFactory
-{
+class PropertyFactory {
     // no need for an accessible constructor
     private PropertyFactory()
     {
@@ -58,10 +57,10 @@ class PropertyFactory
     static List<Property> convertToProperties(ListManagedBlock [] blocks)
         throws IOException
     {
-        List<Property> properties = new ArrayList<Property>();
+        List<Property> properties = new ArrayList<>();
 
-        for (int j = 0; j < blocks.length; j++) {
-            byte[] data = blocks[ j ].getData();
+        for (ListManagedBlock block : blocks) {
+            byte[] data = block.getData();
             convertToProperties(data, properties);
         }
         return properties;
@@ -101,6 +100,4 @@ class PropertyFactory
           offset += POIFSConstants.PROPERTY_SIZE;
        }
     }
-    
-}   // end package scope class PropertyFactory
-
+}

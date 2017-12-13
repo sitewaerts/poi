@@ -36,26 +36,28 @@ import org.apache.poi.ddf.EscherSerializationListener;
 import org.apache.poi.ddf.EscherSpRecord;
 import org.apache.poi.ddf.EscherSpgrRecord;
 import org.apache.poi.ddf.EscherTextboxRecord;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * This class is used to aggregate the MSODRAWING and OBJ record
  * combinations.  This is necessary due to the bizare way in which
  * these records are serialized.  What happens is that you get a
- * combination of MSODRAWING -> OBJ -> MSODRAWING -> OBJ records
+ * combination of MSODRAWING -&gt; OBJ -&gt; MSODRAWING -&gt; OBJ records
  * but the escher records are serialized _across_ the MSODRAWING
  * records.
- * <p/>
+ * <p>
  * It gets even worse when you start looking at TXO records.
- * <p/>
+ * <p>
  * So what we do with this class is aggregate lazily.  That is
- * we don't aggregate the MSODRAWING -> OBJ records unless we
+ * we don't aggregate the MSODRAWING -&gt; OBJ records unless we
  * need to modify them.
- * <p/>
+ * <p>
  * At first document contains 4 types of records which belong to drawing layer.
  * There are can be such sequence of record:
- * <p/>
+ * <p>
  * DrawingRecord
  * ContinueRecord
  * ...
@@ -69,23 +71,24 @@ import org.apache.poi.util.POILogger;
  * NoteRecord
  * ...
  * NoteRecord
- * <p/>
+ * <p>
  * To work with shapes we have to read data from Drawing and Continue records into single array of bytes and
  * build escher(office art) records tree from this array.
  * Each shape in drawing layer matches corresponding ObjRecord
  * Each textbox matches corresponding TextObjectRecord
- * <p/>
+ * <p>
  * ObjRecord contains information about shape. Thus each ObjRecord corresponds EscherContainerRecord(SPGR)
- * <p/>
+ * <p>
  * EscherAggrefate contains also NoteRecords
  * NoteRecords must be serial
- *
- * @author Glen Stampoultzis (glens at apache.org)
  */
 
 public final class EscherAggregate extends AbstractEscherHolderRecord {
     public static final short sid = 9876; // not a real sid - dummy value
     private static POILogger log = POILogFactory.getLogger(EscherAggregate.class);
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000_000;
+
 
     public static final short ST_MIN = (short) 0;
     public static final short ST_NOT_PRIMATIVE = ST_MIN;
@@ -296,12 +299,12 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
     /**
      * Maps shape container objects to their {@link TextObjectRecord} or {@link ObjRecord}
      */
-    private final Map<EscherRecord, Record> shapeToObj = new HashMap<EscherRecord, Record>();
+    private final Map<EscherRecord, Record> shapeToObj = new HashMap<>();
 
     /**
      * list of "tail" records that need to be serialized after all drawing group records
      */
-    private final Map<Integer, NoteRecord> tailRec = new LinkedHashMap<Integer, NoteRecord>();
+    private final Map<Integer, NoteRecord> tailRec = new LinkedHashMap<>();
 
     /**
      * create new EscherAggregate
@@ -331,7 +334,7 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
         StringBuilder result = new StringBuilder();
         result.append('[').append(getRecordName()).append(']').append(nl);
         for (EscherRecord escherRecord : getEscherRecords()) {
-            result.append(escherRecord.toString());
+            result.append(escherRecord);
         }
         result.append("[/").append(getRecordName()).append(']').append(nl);
 
@@ -368,7 +371,7 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
     /**
      * Collapses the drawing records into an aggregate.
      * read Drawing, Obj, TxtObj, Note and Continue records into single byte array,
-     * create Escher tree from byte array, create map <EscherRecord, Record>
+     * create Escher tree from byte array, create map &lt;EscherRecord, Record&gt;
      *
      * @param records - list of all records inside sheet
      * @param locFirstDrawingRecord - location of the first DrawingRecord inside sheet
@@ -377,7 +380,7 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
     public static EscherAggregate createAggregate(List<RecordBase> records, int locFirstDrawingRecord) {
         // Keep track of any shape records created so we can match them back to the object id's.
         // Textbox objects are also treated as shape objects.
-        final List<EscherRecord> shapeRecords = new ArrayList<EscherRecord>();
+        final List<EscherRecord> shapeRecords = new ArrayList<>();
         EscherRecordFactory recordFactory = new DefaultEscherRecordFactory() {
             public EscherRecord createRecord(byte[] data, int offset) {
                 EscherRecord r = super.createRecord(data, offset);
@@ -467,8 +470,8 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
         byte[] buffer = new byte[size];
 
         // Serialize escher records into one big data structure and keep note of ending offsets.
-        final List <Integer>spEndingOffsets = new ArrayList<Integer>();
-        final List <EscherRecord> shapes = new ArrayList<EscherRecord>();
+        final List <Integer>spEndingOffsets = new ArrayList<>();
+        final List <EscherRecord> shapes = new ArrayList<>();
         int pos = 0;
         for (Object record : records) {
             EscherRecord e = (EscherRecord) record;
@@ -523,8 +526,7 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
         }
 
         for (NoteRecord noteRecord : tailRec.values()) {
-            Record rec = (Record) noteRecord;
-            pos += rec.serialize(pos, data);
+            pos += noteRecord.serialize(pos, data);
         }
         int bytesWritten = pos - offset;
         if (bytesWritten != getRecordSize())
@@ -594,8 +596,8 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
         // Determine buffer size
         List<EscherRecord> records = getEscherRecords();
         int rawEscherSize = getEscherRecordSize(records);
-        byte[] buffer = new byte[rawEscherSize];
-        final List<Integer> spEndingOffsets = new ArrayList<Integer>();
+        byte[] buffer = IOUtils.safelyAllocate(rawEscherSize, MAX_RECORD_LENGTH);
+        final List<Integer> spEndingOffsets = new ArrayList<>();
         int pos = 0;
         for (EscherRecord e : records) {
             pos += e.serialize(pos, buffer, new EscherSerializationListener() {
@@ -748,9 +750,9 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
      */
     public void setMainSpRecordId(int shapeId) {
         EscherContainerRecord dgContainer = getEscherContainer();
-        EscherContainerRecord spgrConatiner = (EscherContainerRecord) dgContainer.getChildById(EscherContainerRecord.SPGR_CONTAINER);
+        EscherContainerRecord spgrConatiner = dgContainer.getChildById(EscherContainerRecord.SPGR_CONTAINER);
         EscherContainerRecord spContainer = (EscherContainerRecord) spgrConatiner.getChild(0);
-        EscherSpRecord sp = (EscherSpRecord) spContainer.getChildById(EscherSpRecord.RECORD_ID);
+        EscherSpRecord sp = spContainer.getChildById(EscherSpRecord.RECORD_ID);
         sp.setShapeId(shapeId);
     }
 
@@ -773,7 +775,7 @@ public final class EscherAggregate extends AbstractEscherHolderRecord {
     /**
      * @return unmodifiable copy of the mapping  of {@link EscherClientDataRecord} and {@link EscherTextboxRecord}
      * to their {@link TextObjectRecord} or {@link ObjRecord} .
-     * <p/>
+     * <p>
      * We need to access it outside of EscherAggregate when building shapes
      */
     public Map<EscherRecord, Record> getShapeToObjMapping() {

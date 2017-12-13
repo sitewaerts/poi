@@ -18,6 +18,7 @@ package org.apache.poi.stress;
 
 import static org.junit.Assert.assertNotNull;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 
@@ -28,7 +29,7 @@ import org.junit.Test;
 
 public class HSMFFileHandler extends POIFSFileHandler {
 	@Override
-	public void handleFile(InputStream stream) throws Exception {
+	public void handleFile(InputStream stream, String path) throws Exception {
 		MAPIMessage mapi = new MAPIMessage(stream);
 		assertNotNull(mapi.getAttachmentFiles());
 		assertNotNull(mapi.getDisplayBCC());
@@ -38,7 +39,7 @@ public class HSMFFileHandler extends POIFSFileHandler {
 
 		for(AttachmentChunks attachment : attachments) {
 
-		   DirectoryChunk chunkDirectory = attachment.attachmentDirectory;
+		   DirectoryChunk chunkDirectory = attachment.getAttachmentDirectory();
 		   if(chunkDirectory != null) {
 			   MAPIMessage attachmentMSG = chunkDirectory.getAsEmbededMessage();
 			   assertNotNull(attachmentMSG);
@@ -59,6 +60,8 @@ public class HSMFFileHandler extends POIFSFileHandler {
 		*/
 		
 		// writing is not yet supported... handlePOIDocument(mapi);
+		
+		mapi.close();
 	}
 	
 //	private void writeToFile(MAPIMessage mapi, File file)
@@ -72,13 +75,17 @@ public class HSMFFileHandler extends POIFSFileHandler {
 //	}
 
 	// a test-case to test this locally without executing the full TestAllFiles
-	@Test
+	@Override
+    @Test
 	public void test() throws Exception {
-		InputStream stream = new FileInputStream("test-data/hsmf/example_received_regular.msg");
+        File file = new File("test-data/hsmf/logsat.com_signatures_valid.msg");
+        InputStream stream = new FileInputStream(file);
 		try {
-			handleFile(stream);
+			handleFile(stream, file.getPath());
 		} finally {
 			stream.close();
 		}
+		
+		handleExtracting(file);
 	}
 }

@@ -20,32 +20,34 @@ import static org.junit.Assert.assertNotNull;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.ss.extractor.EmbeddedData;
+import org.apache.poi.ss.extractor.EmbeddedExtractor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.util.RecordFormatException;
+import org.apache.poi.xssf.usermodel.XSSFChartSheet;
 
 public abstract class SpreadsheetHandler extends AbstractFileHandler {
-	public void handleWorkbook(Workbook wb, String extension) throws IOException {
+	public void handleWorkbook(Workbook wb) throws IOException {
 		// try to access some of the content
 		readContent(wb);
 		
 		// write out the file
-		ByteArrayOutputStream out = writeToArray(wb);
+		writeToArray(wb);
 		
 		// access some more content (we had cases where writing corrupts the data in memory)
 		readContent(wb);
 
 		// write once more
-		out = writeToArray(wb);
+		ByteArrayOutputStream out = writeToArray(wb);
 
-		// read in the writen file
+		// read in the written file
 		Workbook read;
 		try {
 			read = WorkbookFactory.create(new ByteArrayInputStream(out.toByteArray()));
@@ -56,13 +58,14 @@ public abstract class SpreadsheetHandler extends AbstractFileHandler {
 		
 		readContent(read);
 		
+		extractEmbedded(read);
+		
 		modifyContent(read);
 
 		read.close();
 	}
 
-	private ByteArrayOutputStream writeToArray(Workbook wb)
-			throws FileNotFoundException, IOException {
+	private ByteArrayOutputStream writeToArray(Workbook wb) throws IOException {
 		ByteArrayOutputStream stream = new ByteArrayOutputStream();
 		try {
 			wb.write(stream);
@@ -88,14 +91,46 @@ public abstract class SpreadsheetHandler extends AbstractFileHandler {
 			
 			for(Row row : sheet) {
 			    for(Cell cell : row) {
-			        cell.toString();
+			        assertNotNull(cell.toString());
 			    }
 			}
 		}
 	}
+
+	private void extractEmbedded(Workbook wb) throws IOException {
+        EmbeddedExtractor ee = new EmbeddedExtractor();
+
+        for (Sheet s : wb) {
+            for (EmbeddedData ed : ee.extractAll(s)) {
+                assertNotNull(ed.getFilename());
+                assertNotNull(ed.getEmbeddedData());
+                assertNotNull(ed.getShape());
+            }
+        }
+	}
 	
 	private void modifyContent(Workbook wb) {
+		/* a number of file fail because of various things: udf, unimplemented functions, ...
+		we would need quite a list of excludes and the large regression tests would probably
+		take a lot longer to run...
+		try {
+			// try to re-compute all formulas to find cases where parsing fails
+			wb.getCreationHelper().createFormulaEvaluator().evaluateAll();
+		} catch (RuntimeException e) {
+			// only allow a specific exception which indicates that an external
+			// reference was not found
+			if(!e.getMessage().contains("Could not resolve external workbook name")) {
+				throw e;
+			}
+
+		}*/
+
 	    for (int i=wb.getNumberOfSheets()-1; i>=0; i--) {
+	    	if(wb.getSheetAt(i) instanceof XSSFChartSheet) {
+	    		// clone for chart-sheets is not supported
+	    		continue;
+			}
+
 	        try {
 	            wb.cloneSheet(i);
 	        } catch (RecordFormatException e) {

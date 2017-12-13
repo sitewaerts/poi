@@ -58,7 +58,7 @@ public class NumberRenderingSpreadsheetGenerator {
 			writeHeaderRow(wb, sheet);
 			_sheet = sheet;
 			_rowIndex = 1;
-			_replacementNaNs = new ArrayList<Long>();
+			_replacementNaNs = new ArrayList<>();
 		}
 
 		public void addTestRow(long rawBits, String expectedExcelRendering) {
@@ -97,7 +97,7 @@ public class NumberRenderingSpreadsheetGenerator {
 		HSSFRow row = sheet.createRow(0);
 		HSSFCellStyle style = wb.createCellStyle();
 		HSSFFont font = wb.createFont();
-		font.setBoldweight(HSSFFont.BOLDWEIGHT_BOLD);
+		font.setBold(true);
 		style.setFont(font);
 		writeHeaderCell(row, 0, "Value", style);
 		writeHeaderCell(row, 1, "Raw Long Bits", style);
@@ -136,9 +136,7 @@ public class NumberRenderingSpreadsheetGenerator {
 	}
 	
 	private static String formatLongAsHex(long l) {
-		StringBuilder sb = new StringBuilder(20);
-		sb.append(HexDump.longToHex(l)).append('L');
-		return sb.toString();
+		return HexDump.longToHex(l) + 'L';
 	}
 
 	public static void main(String[] args) {
@@ -148,8 +146,7 @@ public class NumberRenderingSpreadsheetGenerator {
 		SheetWriter sw = new SheetWriter(wb);
 		
 		ExampleConversion[] exampleValues = NumberToTextConversionExamples.getExampleConversions();
-		for (int i = 0; i < exampleValues.length; i++) {
-			ExampleConversion example = exampleValues[i];
+		for (ExampleConversion example : exampleValues) {
 			sw.addTestRow(example.getRawDoubleBits(), example.getExcelRendering());
 		}
 		
@@ -178,8 +175,7 @@ public class NumberRenderingSpreadsheetGenerator {
 	public static void writeJavaDoc() {
 		
 		ExampleConversion[] exampleConversions = NumberToTextConversionExamples.getExampleConversions();
-		for (int i = 0; i < exampleConversions.length; i++) {
-			ExampleConversion ec = exampleConversions[i];
+		for (ExampleConversion ec : exampleConversions) {
 			String line = 	" * <tr><td>" 
 				+ formatLongAsHex(ec.getRawDoubleBits())
 				+ "</td><td>" + Double.toString(ec.getDoubleValue()) 

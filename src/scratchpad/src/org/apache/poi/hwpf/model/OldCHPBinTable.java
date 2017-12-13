@@ -17,8 +17,6 @@
 
 package org.apache.poi.hwpf.model;
 
-import java.util.Collections;
-
 import org.apache.poi.poifs.common.POIFSConstants;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.LittleEndian;
@@ -44,7 +42,7 @@ public final class OldCHPBinTable extends CHPBinTable
    * @param fcMin
    */
   public OldCHPBinTable(byte[] documentStream, int offset,
-                     int size, int fcMin, TextPieceTable tpt)
+                     int size, int fcMin, OldTextPieceTable tpt)
   {
     PlexOfCps binTable = new PlexOfCps(documentStream, offset, size, 2);
 
@@ -65,6 +63,6 @@ public final class OldCHPBinTable extends CHPBinTable
                     _textRuns.add( chpx );
             }
     }
-    Collections.sort( _textRuns, PropertyNode.StartComparator.instance );
+    _textRuns.sort(PropertyNode.StartComparator.instance);
   }
 }

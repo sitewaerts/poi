@@ -20,10 +20,9 @@ package org.apache.poi.hssf.record;
 import org.apache.poi.util.LittleEndianOutput;
 
 /**
- * Title:        DATAVALIDATIONS Record (0x01B2)<p/>
+ * Title:        DATAVALIDATIONS Record (0x01B2)<p>
  * Description:  used in data validation ;
  *               This record is the list header of all data validation records (0x01BE) in the current sheet.
- * @author Dragos Buleandra (dragos.buleandra@trade2b.ro)
  */
 public final class DVALRecord extends StandardRecord implements Cloneable {
 	public final static short sid = 0x01B2;
@@ -115,14 +114,14 @@ public final class DVALRecord extends StandardRecord implements Cloneable {
 	}
 
 	/**
-     * get Object ID of the drop down arrow object for list boxes
+     * @return the Object ID of the drop down arrow object for list boxes
      */
     public int getObjectID() {
         return field_cbo_id;
     }
 
     /**
-     * Get number of following DV records
+     * @return the number of following DV records
      */
     public int getDVRecNo() {
         return field_5_dv_no;

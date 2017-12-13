@@ -16,12 +16,13 @@
 ==================================================================== */
 package org.apache.poi.poifs.crypt;
 
+import org.apache.poi.EncryptedDocumentException;
 
 /**
  * Reads and processes OOXML Encryption Headers
  * The constants are largely based on ZIP constants.
  */
-public abstract class EncryptionHeader {
+public abstract class EncryptionHeader implements Cloneable {
     public static final int ALGORITHM_RC4 = CipherAlgorithm.rc4.ecmaId;
     public static final int ALGORITHM_AES_128 = CipherAlgorithm.aes128.ecmaId;
     public static final int ALGORITHM_AES_192 = CipherAlgorithm.aes192.ecmaId;
@@ -53,13 +54,6 @@ public abstract class EncryptionHeader {
     
     protected EncryptionHeader() {}
 
-    /**
-     * @deprecated use getChainingMode().ecmaId
-     */
-    public int getCipherMode() {
-        return chainingMode.ecmaId;
-    }
-    
     public ChainingMode getChainingMode() {
         return chainingMode;
     }
@@ -84,32 +78,21 @@ public abstract class EncryptionHeader {
         this.sizeExtra = sizeExtra;
     }
 
-    /**
-     * @deprecated use getCipherAlgorithm()
-     */
-    public int getAlgorithm() {
-        return cipherAlgorithm.ecmaId;
-    }
-
     public CipherAlgorithm getCipherAlgorithm() {
         return cipherAlgorithm;
     }
     
     protected void setCipherAlgorithm(CipherAlgorithm cipherAlgorithm) {
         this.cipherAlgorithm = cipherAlgorithm;
+        if (cipherAlgorithm.allowedKeySize.length == 1) {
+            setKeySize(cipherAlgorithm.defaultKeySize);
+        }
     }
-    
-    /**
-     * @deprecated use getHashAlgorithmEx()
-     */
-    public int getHashAlgorithm() {
-        return hashAlgorithm.ecmaId;
-    }
-    
-    public HashAlgorithm getHashAlgorithmEx() {
+
+    public HashAlgorithm getHashAlgorithm() {
         return hashAlgorithm;
     }
-    
+
     protected void setHashAlgorithm(HashAlgorithm hashAlgorithm) {
         this.hashAlgorithm = hashAlgorithm;
     }
@@ -118,8 +101,21 @@ public abstract class EncryptionHeader {
         return keyBits;
     }
     
+    /**
+     * Sets the keySize (in bits). Before calling this method, make sure
+     * to set the cipherAlgorithm, as the amount of keyBits gets validated against
+     * the list of allowed keyBits of the corresponding cipherAlgorithm
+     *
+     * @param keyBits
+     */
     protected void setKeySize(int keyBits) {
         this.keyBits = keyBits;
+        for (int allowedBits : getCipherAlgorithm().allowedKeySize) {
+            if (allowedBits == keyBits) {
+                return;
+            }
+        }
+        throw new EncryptedDocumentException("KeySize "+keyBits+" not allowed for cipher "+getCipherAlgorithm());
     }
 
     public int getBlockSize() {
@@ -138,13 +134,6 @@ public abstract class EncryptionHeader {
         this.keySalt = (salt == null) ? null : salt.clone();
     }
 
-    /**
-     * @deprecated use getCipherProvider()
-     */
-    public int getProviderType() {
-        return providerType.ecmaId;
-    }
-
     public CipherProvider getCipherProvider() {
         return providerType;
     }    
@@ -159,5 +148,12 @@ public abstract class EncryptionHeader {
     
     protected void setCspName(String cspName) {
         this.cspName = cspName;
+    }
+
+    @Override
+    public EncryptionHeader clone() throws CloneNotSupportedException {
+        EncryptionHeader other = (EncryptionHeader)super.clone();
+        other.keySalt = (keySalt == null) ? null : keySalt.clone();
+        return other;
     }
 }

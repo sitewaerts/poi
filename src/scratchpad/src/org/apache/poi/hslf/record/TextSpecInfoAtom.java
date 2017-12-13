@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.poi.hslf.exceptions.HSLFException;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianByteArrayInputStream;
 
@@ -34,6 +35,10 @@ import org.apache.poi.util.LittleEndianByteArrayInputStream;
  * @author Yegor Kozlov
  */
 public final class TextSpecInfoAtom extends RecordAtom {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
     private static final long _type = RecordTypes.TextSpecInfoAtom.typeID;
     
     /**
@@ -69,7 +74,7 @@ public final class TextSpecInfoAtom extends RecordAtom {
         System.arraycopy(source,start,_header,0,8);
 
         // Get the record data.
-        _data = new byte[len-8];
+        _data = IOUtils.safelyAllocate(len-8, MAX_RECORD_LENGTH);
         System.arraycopy(source,start+8,_data,0,len-8);
 
     }
@@ -77,6 +82,7 @@ public final class TextSpecInfoAtom extends RecordAtom {
      * Gets the record type.
      * @return the record type.
      */
+    @Override
     public long getRecordType() { return _type; }
 
     /**
@@ -86,6 +92,7 @@ public final class TextSpecInfoAtom extends RecordAtom {
      * @param out the output stream to write to.
      * @throws java.io.IOException if an error occurs.
      */
+    @Override
     public void writeOut(OutputStream out) throws IOException {
         out.write(_header);
         out.write(_data);
@@ -110,7 +117,7 @@ public final class TextSpecInfoAtom extends RecordAtom {
         try {
             sir.writeOut(bos);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new HSLFException(e);
         }
         _data = bos.toByteArray();
 
@@ -155,13 +162,15 @@ public final class TextSpecInfoAtom extends RecordAtom {
      */
     public int getCharactersCovered(){
         int covered = 0;
-        for (TextSpecInfoRun r : getTextSpecInfoRuns()) covered += r.length;
+        for (TextSpecInfoRun r : getTextSpecInfoRuns()) {
+            covered += r.getLength();
+        }
         return covered;
     }
 
     public TextSpecInfoRun[] getTextSpecInfoRuns(){
-        LittleEndianByteArrayInputStream bis = new LittleEndianByteArrayInputStream(_data);
-        List<TextSpecInfoRun> lst = new ArrayList<TextSpecInfoRun>();
+        LittleEndianByteArrayInputStream bis = new LittleEndianByteArrayInputStream(_data); // NOSONAR
+        List<TextSpecInfoRun> lst = new ArrayList<>();
         while (bis.available() > 0) {
             lst.add(new TextSpecInfoRun(bis));
         }

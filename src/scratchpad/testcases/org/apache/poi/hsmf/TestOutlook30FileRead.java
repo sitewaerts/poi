@@ -19,7 +19,6 @@ package org.apache.poi.hsmf;
 
 import java.io.IOException;
 
-import org.apache.poi.hsmf.MAPIMessage;
 import org.apache.poi.hsmf.exceptions.ChunkNotFoundException;
 import org.apache.poi.POIDataSamples;
 
@@ -29,7 +28,7 @@ import junit.framework.TestCase;
  * Tests to verify that we can still work on the newer Outlook 3.0 files.
  */
 public final class TestOutlook30FileRead extends TestCase {
-    private MAPIMessage mapiMessage;
+    private final MAPIMessage mapiMessage;
 
     /**
      * Initialize this test, load up the blank.msg mapi message.
@@ -126,8 +125,8 @@ public final class TestOutlook30FileRead extends TestCase {
      * @throws Exception
      */
     public void testReadMessageClass() throws Exception {
-        String obtained = mapiMessage.getMessageClass();
-        TestCase.assertEquals("IPM.Note", obtained);
+        MAPIMessage.MESSAGE_CLASS obtained = mapiMessage.getMessageClassEnum();
+        TestCase.assertEquals(MAPIMessage.MESSAGE_CLASS.NOTE, obtained);
     }
 
     /**

@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.poi.hslf.record.MainMaster;
+import org.apache.poi.common.usermodel.fonts.FontInfo;
 import org.apache.poi.ddf.EscherBSERecord;
 import org.apache.poi.ddf.EscherContainerRecord;
 import org.apache.poi.ddf.EscherOptRecord;
@@ -42,15 +42,12 @@ import org.apache.poi.hslf.exceptions.CorruptPowerPointFileException;
 import org.apache.poi.hslf.exceptions.HSLFException;
 import org.apache.poi.hslf.model.HeadersFooters;
 import org.apache.poi.hslf.model.MovieShape;
-import org.apache.poi.hslf.model.PPFont;
 import org.apache.poi.hslf.record.Document;
 import org.apache.poi.hslf.record.DocumentAtom;
 import org.apache.poi.hslf.record.ExAviMovie;
 import org.apache.poi.hslf.record.ExControl;
 import org.apache.poi.hslf.record.ExEmbed;
 import org.apache.poi.hslf.record.ExEmbedAtom;
-import org.apache.poi.hslf.record.ExHyperlink;
-import org.apache.poi.hslf.record.ExHyperlinkAtom;
 import org.apache.poi.hslf.record.ExMCIMovie;
 import org.apache.poi.hslf.record.ExObjList;
 import org.apache.poi.hslf.record.ExObjListAtom;
@@ -58,8 +55,8 @@ import org.apache.poi.hslf.record.ExOleObjAtom;
 import org.apache.poi.hslf.record.ExOleObjStg;
 import org.apache.poi.hslf.record.ExVideoContainer;
 import org.apache.poi.hslf.record.FontCollection;
-import org.apache.poi.hslf.record.FontEntityAtom;
 import org.apache.poi.hslf.record.HeadersFootersContainer;
+import org.apache.poi.hslf.record.MainMaster;
 import org.apache.poi.hslf.record.Notes;
 import org.apache.poi.hslf.record.PersistPtrHolder;
 import org.apache.poi.hslf.record.PositionDependentRecord;
@@ -80,6 +77,8 @@ import org.apache.poi.sl.usermodel.MasterSheet;
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
 import org.apache.poi.sl.usermodel.Resources;
 import org.apache.poi.sl.usermodel.SlideShow;
+import org.apache.poi.util.IOUtils;
+import org.apache.poi.util.Internal;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 import org.apache.poi.util.Units;
@@ -89,18 +88,22 @@ import org.apache.poi.util.Units;
  *
  * TODO: - figure out how to match notes to their correct sheet (will involve
  * understanding DocSlideList and DocNotesList) - handle Slide creation cleaner
- *
- * @author Nick Burch
- * @author Yegor kozlov
  */
 public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagraph>, Closeable {
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 10_000_000;
+
+	/** Powerpoint document entry/stream name */
+    public static final String POWERPOINT_DOCUMENT = "PowerPoint Document";
+    
     enum LoadSavePhase {
-        INIT, LOADED;
-    }
-    private static ThreadLocal<LoadSavePhase> loadSavePhase = new ThreadLocal<LoadSavePhase>();
+        INIT, LOADED
+	}
+    private static final ThreadLocal<LoadSavePhase> loadSavePhase = new ThreadLocal<>();
     
     // What we're based on
-	private HSLFSlideShowImpl _hslfSlideShow;
+	private final HSLFSlideShowImpl _hslfSlideShow;
 
 	// Pointers to the most recent versions of the core records
 	// (Document, Notes, Slide etc)
@@ -113,14 +116,14 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	private Document _documentRecord;
 
 	// Friendly objects for people to deal with
-	private final List<HSLFSlideMaster> _masters = new ArrayList<HSLFSlideMaster>();
-	private final List<HSLFTitleMaster> _titleMasters = new ArrayList<HSLFTitleMaster>();
-	private final List<HSLFSlide> _slides = new ArrayList<HSLFSlide>();
-	private final List<HSLFNotes> _notes = new ArrayList<HSLFNotes>();
+	private final List<HSLFSlideMaster> _masters = new ArrayList<>();
+	private final List<HSLFTitleMaster> _titleMasters = new ArrayList<>();
+	private final List<HSLFSlide> _slides = new ArrayList<>();
+	private final List<HSLFNotes> _notes = new ArrayList<>();
 	private FontCollection _fonts;
 
 	// For logging
-	private POILogger logger = POILogFactory.getLogger(this.getClass());
+	private static final POILogger logger = POILogFactory.getLogger(HSLFSlideShow.class);
 
 
 	/**
@@ -197,7 +200,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	 */
 	private void findMostRecentCoreRecords() {
 		// To start with, find the most recent in the byte offset domain
-		Map<Integer,Integer> mostRecentByBytes = new HashMap<Integer,Integer>();
+		Map<Integer,Integer> mostRecentByBytes = new HashMap<>();
 		for (Record record : _hslfSlideShow.getRecords()) {
 			if (record instanceof PersistPtrHolder) {
 				PersistPtrHolder pph = (PersistPtrHolder) record;
@@ -225,28 +228,32 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 
 		// We'll also want to be able to turn the slide IDs into a position
 		// in this array
-		_sheetIdToCoreRecordsLookup = new HashMap<Integer,Integer>();
+		_sheetIdToCoreRecordsLookup = new HashMap<>();
 		Integer[] allIDs = mostRecentByBytes.keySet().toArray(new Integer[mostRecentByBytes.size()]); 
 		Arrays.sort(allIDs);
 		for (int i = 0; i < allIDs.length; i++) {
 			_sheetIdToCoreRecordsLookup.put(allIDs[i], i);
 		}
 
-		Map<Integer,Integer> mostRecentByBytesRev = new HashMap<Integer,Integer>(mostRecentByBytes.size());
+		Map<Integer,Integer> mostRecentByBytesRev = new HashMap<>(mostRecentByBytes.size());
 		for (Map.Entry<Integer,Integer> me : mostRecentByBytes.entrySet()) {
 		    mostRecentByBytesRev.put(me.getValue(), me.getKey());
 		}
 		
 		// Now convert the byte offsets back into record offsets
 		for (Record record : _hslfSlideShow.getRecords()) {
-			if (!(record instanceof PositionDependentRecord)) continue;
+			if (!(record instanceof PositionDependentRecord)) {
+                continue;
+            }
 			
 			PositionDependentRecord pdr = (PositionDependentRecord) record;
 			int recordAt = pdr.getLastOnDiskOffset();
 
 			Integer thisID = mostRecentByBytesRev.get(recordAt);
 			
-			if (thisID == null) continue;
+			if (thisID == null) {
+                continue;
+            }
 			
 			// Bingo. Now, where do we store it?
 			int storeAt = _sheetIdToCoreRecordsLookup.get(thisID);
@@ -270,10 +277,10 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 					_documentRecord = (Document) record;
 					_fonts = _documentRecord.getEnvironment().getFontCollection();
 				}
-			} else {
+			} /*else {
 				// No record at this number
 				// Odd, but not normally a problem
-			}
+			}*/
 		}
 	}
 
@@ -297,8 +304,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	private Record getCoreRecordForRefID(int refID) {
 		Integer coreRecordId = _sheetIdToCoreRecordsLookup.get(refID);
 		if (coreRecordId != null) {
-			Record r = _mostRecentCoreRecords[coreRecordId];
-			return r;
+			return _mostRecentCoreRecords[coreRecordId];
 		}
 		logger.log(POILogger.ERROR,
 				"We tried to look up a reference to a core record, but there was no core ID for reference ID "
@@ -338,7 +344,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 		findMasterSlides();
 		
 		// Having sorted out the masters, that leaves the notes and slides
-        Map<Integer,Integer> slideIdToNotes = new HashMap<Integer,Integer>();
+        Map<Integer,Integer> slideIdToNotes = new HashMap<>();
 
         // Start by finding the notes records
         findNotesSlides(slideIdToNotes);
@@ -499,7 +505,9 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
                 for (HSLFTextParagraph p : hts.getTextParagraphs()) {
                     isDirty |= p.isDirty();
                 }
-                if (isDirty) hts.storeText();
+                if (isDirty) {
+                    hts.storeText();
+                }
             }
         }
 	}
@@ -622,7 +630,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 		_slides.get(newSlideNumber - 1).setSlideNumber(newSlideNumber);
 		_slides.get(oldSlideNumber - 1).setSlideNumber(oldSlideNumber);
 		
-		ArrayList<Record> lst = new ArrayList<Record>();
+		ArrayList<Record> lst = new ArrayList<>();
 		for (SlideAtomsSet s : sas) {
 			lst.add(s.getSlidePersistAtom());
 			lst.addAll(Arrays.asList(s.getSlideRecords()));
@@ -653,15 +661,17 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 		SlideListWithText slwt = _documentRecord.getSlideSlideListWithText();
 		SlideAtomsSet[] sas = slwt.getSlideAtomsSets();
 
-		List<Record> records = new ArrayList<Record>();
-		List<SlideAtomsSet> sa = new ArrayList<SlideAtomsSet>(Arrays.asList(sas));
+		List<Record> records = new ArrayList<>();
+		List<SlideAtomsSet> sa = new ArrayList<>(Arrays.asList(sas));
 
 		HSLFSlide removedSlide = _slides.remove(index);
 		_notes.remove(removedSlide.getNotes());
 		sa.remove(index);
 		
 		int i=0;
-		for (HSLFSlide s : _slides) s.setSlideNumber(i++);
+		for (HSLFSlide s : _slides) {
+            s.setSlideNumber(i++);
+        }
 		
 		for (SlideAtomsSet s : sa) {
             records.add(s.getSlidePersistAtom());
@@ -679,10 +689,12 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
         int notesId = removedSlide.getSlideRecord().getSlideAtom().getNotesID();
 		if (notesId != 0) {
 			SlideListWithText nslwt = _documentRecord.getNotesSlideListWithText();
-			records = new ArrayList<Record>();
-			ArrayList<SlideAtomsSet> na = new ArrayList<SlideAtomsSet>();
+			records = new ArrayList<>();
+			ArrayList<SlideAtomsSet> na = new ArrayList<>();
 			for (SlideAtomsSet ns : nslwt.getSlideAtomsSets()) {
-				if (ns.getSlidePersistAtom().getSlideIdentifier() == notesId) continue;
+				if (ns.getSlidePersistAtom().getSlideIdentifier() == notesId) {
+                    continue;
+                }
 				na.add(ns);
 				records.add(ns.getSlidePersistAtom());
 				if (ns.getSlideRecords() != null) {
@@ -707,12 +719,10 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	 */
 	@Override
 	public HSLFSlide createSlide() {
-		SlideListWithText slist = null;
-
 		// We need to add the records to the SLWT that deals
 		// with Slides.
 		// Add it, if it doesn't exist
-		slist = _documentRecord.getSlideSlideListWithText();
+		SlideListWithText slist = _documentRecord.getSlideSlideListWithText();
 		if (slist == null) {
 			// Need to add a new one
 			slist = new SlideListWithText();
@@ -772,22 +782,20 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 
 	@Override
 	public HSLFPictureData addPicture(byte[] data, PictureType format) throws IOException {
-	    if (format == null || format.nativeId == -1) {
-	        throw new IllegalArgumentException("Unsupported picture format: " + format); 
-	    }
-	    
-	    byte[] uid = HSLFPictureData.getChecksum(data);
-
-		for (HSLFPictureData pd : getPictureData()) {
-		    if (Arrays.equals(pd.getUID(), uid)) {
-		        return pd;
-		    }
+		if (format == null || format.nativeId == -1) {
+			throw new IllegalArgumentException("Unsupported picture format: " + format); 
+		}
+		
+		HSLFPictureData pd = findPictureData(data);
+		if (pd != null) {
+			// identical picture was already added to the SlideShow
+			return pd;
 		}
 		
 		EscherContainerRecord bstore;
 
 		EscherContainerRecord dggContainer = _documentRecord.getPPDrawingGroup().getDggContainer();
-		bstore = (EscherContainerRecord) HSLFShape.getEscherChild(dggContainer,
+		bstore = HSLFShape.getEscherChild(dggContainer,
 				EscherContainerRecord.BSTORE_CONTAINER);
 		if (bstore == null) {
 			bstore = new EscherContainerRecord();
@@ -805,6 +813,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 		bse.setRecordId(EscherBSERecord.RECORD_ID);
 		bse.setOptions((short) (0x0002 | (format.nativeId << 4)));
 		bse.setSize(pict.getRawData().length + 8);
+		byte[] uid = HSLFPictureData.getChecksum(data);
 		bse.setUid(uid);
 
 		bse.setBlipTypeMacOS((byte) format.nativeId);
@@ -830,43 +839,75 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	}
 
 	/**
-	 * Adds a picture to this presentation and returns the associated index.
+	 * Adds a picture to the presentation.
+	 *
+	 * @param is	        The stream to read the image from
+	 * @param format        The format of the picture.
+	 *
+	 * @return the picture data.
+	 * @since 3.15 beta 2
+	 */
+	@Override
+	public HSLFPictureData addPicture(InputStream is, PictureType format) throws IOException {
+	    if (format == null || format.nativeId == -1) { // fail early
+	        throw new IllegalArgumentException("Unsupported picture format: " + format);
+	    }
+	    return addPicture(IOUtils.toByteArray(is), format);
+	}
+
+	/**
+	 * Adds a picture to the presentation.
 	 *
 	 * @param pict
 	 *            the file containing the image to add
 	 * @param format
-	 *            the format of the picture. One of constans defined in the
-	 *            <code>Picture</code> class.
-	 * @return the index to this picture (1 based).
+	 *            The format of the picture.
+	 *
+	 * @return the picture data.
+	 * @since 3.15 beta 2
 	 */
+	@Override
 	public HSLFPictureData addPicture(File pict, PictureType format) throws IOException {
-		int length = (int) pict.length();
-		byte[] data = new byte[length];
-        FileInputStream is = null;
-        try {
-			is = new FileInputStream(pict);
-			is.read(data);
+	    if (format == null || format.nativeId == -1) { // fail early
+	        throw new IllegalArgumentException("Unsupported picture format: " + format);
+	    }
+		byte[] data = IOUtils.safelyAllocate(pict.length(), MAX_RECORD_LENGTH);
+        FileInputStream is = new FileInputStream(pict);
+		try {
+			IOUtils.readFully(is, data);
 		} finally {
-            if(is != null) is.close();
+            is.close();
         }
 		return addPicture(data, format);
 	}
+	
+    /**
+     * check if a picture with this picture data already exists in this presentation
+     * 
+     * @param pictureData The picture data to find in the SlideShow
+     * @return {@code null} if picture data is not found in this slideshow
+     * @since 3.15 beta 3
+     */
+    @Override
+    public HSLFPictureData findPictureData(byte[] pictureData) {
+        byte[] uid = HSLFPictureData.getChecksum(pictureData);
+
+        for (HSLFPictureData pic : getPictureData()) {
+            if (Arrays.equals(pic.getUID(), uid)) {
+                return pic;
+            }
+        }
+        return null;
+    }
 
 	/**
 	 * Add a font in this presentation
 	 *
-	 * @param font
-	 *            the font to add
-	 * @return 0-based index of the font
+	 * @param fontInfo the font to add
+	 * @return the registered HSLFFontInfo - the font info object is unique based on the typeface
 	 */
-	public int addFont(PPFont font) {
-		FontCollection fonts = getDocumentRecord().getEnvironment().getFontCollection();
-		int idx = fonts.getFontIndex(font.getFontName());
-		if (idx == -1) {
-			idx = fonts.addFont(font.getFontName(), font.getCharSet(), font.getFontFlags(), font
-					.getFontType(), font.getPitchAndFamily());
-		}
-		return idx;
+	public HSLFFontInfo addFont(FontInfo fontInfo) {
+		return getDocumentRecord().getEnvironment().getFontCollection().addFont(fontInfo);
 	}
 
 	/**
@@ -877,17 +918,8 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	 * @return of an instance of <code>PPFont</code> or <code>null</code> if not
 	 *         found
 	 */
-	public PPFont getFont(int idx) {
-		FontCollection fonts = getDocumentRecord().getEnvironment().getFontCollection();
-		for (Record ch : fonts.getChildRecords()) {
-			if (ch instanceof FontEntityAtom) {
-				FontEntityAtom atom = (FontEntityAtom) ch;
-				if (atom.getFontIndex() == idx) {
-					return new PPFont(atom);
-				}
-			}
-		}
-		return null;
+	public HSLFFontInfo getFont(int idx) {
+	    return getDocumentRecord().getEnvironment().getFontCollection().getFontInfo(idx);
 	}
 
 	/**
@@ -905,24 +937,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	 * @return Header / Footer settings for slides
 	 */
 	public HeadersFooters getSlideHeadersFooters() {
-		// detect if this ppt was saved in Office2007
-		String tag = getSlideMasters().get(0).getProgrammableTag();
-		boolean ppt2007 = "___PPT12".equals(tag);
-
-		HeadersFootersContainer hdd = null;
-		for (Record ch : _documentRecord.getChildRecords()) {
-			if (ch instanceof HeadersFootersContainer
-				&& ((HeadersFootersContainer) ch).getOptions() == HeadersFootersContainer.SlideHeadersFootersContainer) {
-				hdd = (HeadersFootersContainer) ch;
-				break;
-			}
-		}
-		boolean newRecord = false;
-		if (hdd == null) {
-			hdd = new HeadersFootersContainer(HeadersFootersContainer.SlideHeadersFootersContainer);
-			newRecord = true;
-		}
-		return new HeadersFooters(hdd, this, newRecord, ppt2007);
+		return new HeadersFooters(this, HeadersFootersContainer.SlideHeadersFootersContainer);
 	}
 
 	/**
@@ -931,27 +946,11 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	 * @return Header / Footer settings for notes
 	 */
 	public HeadersFooters getNotesHeadersFooters() {
-		// detect if this ppt was saved in Office2007
-		String tag = getSlideMasters().get(0).getProgrammableTag();
-		boolean ppt2007 = "___PPT12".equals(tag);
-
-		HeadersFootersContainer hdd = null;
-		for (Record ch : _documentRecord.getChildRecords()) {
-			if (ch instanceof HeadersFootersContainer
-					&& ((HeadersFootersContainer) ch).getOptions() == HeadersFootersContainer.NotesHeadersFootersContainer) {
-				hdd = (HeadersFootersContainer) ch;
-				break;
-			}
-		}
-		boolean newRecord = false;
-		if (hdd == null) {
-			hdd = new HeadersFootersContainer(HeadersFootersContainer.NotesHeadersFootersContainer);
-			newRecord = true;
-		}
-		if (ppt2007 && !_notes.isEmpty()) {
-			return new HeadersFooters(hdd, _notes.get(0), newRecord, ppt2007);
-		}
-		return new HeadersFooters(hdd, this, newRecord, ppt2007);
+	    if (_notes.isEmpty()) {
+	        return new HeadersFooters(this, HeadersFootersContainer.NotesHeadersFootersContainer);
+	    } else {
+	        return new HeadersFooters(_notes.get(0), HeadersFootersContainer.NotesHeadersFootersContainer);
+	    }
 	}
 
 	/**
@@ -1094,8 +1093,8 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 	}
 
     protected static Map<String,ClassID> getOleMap() {
-    	Map<String,ClassID> olemap = new HashMap<String,ClassID>();
-    	olemap.put("PowerPoint Document", ClassID.PPT_SHOW);
+    	Map<String,ClassID> olemap = new HashMap<>();
+    	olemap.put(POWERPOINT_DOCUMENT, ClassID.PPT_SHOW);
     	olemap.put("Workbook", ClassID.EXCEL97); // as per BIFF8 spec
     	olemap.put("WORKBOOK", ClassID.EXCEL97); // Typically from third party programs
     	olemap.put("BOOK", ClassID.EXCEL97); // Typically odd Crystal Reports exports
@@ -1111,7 +1110,7 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
         // As we go along, update, and hand over, to any Position Dependent
         // records we happen across
 		Map<RecordTypes,PositionDependentRecord> interestingRecords =
-                new HashMap<RecordTypes,PositionDependentRecord>();
+                new HashMap<>();
 
 		try {
             _hslfSlideShow.updateAndWriteDependantRecords(null,interestingRecords);
@@ -1140,16 +1139,26 @@ public final class HSLFSlideShow implements SlideShow<HSLFShape,HSLFTextParagrap
 		return psrId;
     }
 
+    @Override
     public MasterSheet<HSLFShape,HSLFTextParagraph> createMasterSheet() throws IOException {
         // TODO Auto-generated method stub
         return null;
     }
 
+    @Override
     public Resources getResources() {
         // TODO Auto-generated method stub
         return null;
     }
 
+    /**
+     * @return the handler class which holds the hslf records
+     */
+    @Internal
+    public HSLFSlideShowImpl getSlideShowImpl() {
+        return _hslfSlideShow;
+    }
+    
     @Override
     public void close() throws IOException {
         _hslfSlideShow.close();

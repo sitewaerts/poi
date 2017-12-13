@@ -32,9 +32,10 @@ public class IndexedUDFFinder extends AggregatingUDFFinder {
 
     public IndexedUDFFinder(UDFFinder... usedToolPacks) {
         super(usedToolPacks);
-        _funcMap = new HashMap<Integer, String>();
+        _funcMap = new HashMap<>();
     }
 
+    @Override
     public FreeRefFunction findFunction(String name) {
         FreeRefFunction func = super.findFunction(name);
         if (func != null) {

@@ -28,7 +28,7 @@ import org.apache.poi.util.HexDump;
  * Negative zero is not easy to observe in Excel, since it is usually converted to 0.0.
  * (Note - the results of XLL add-in functions don't seem to be converted, so they are one
  * reliable avenue to observe Excel's treatment of '-0.0' as an operand.)
- * <p/>
+ * <p>
  * POI attempts to emulate Excel faithfully, so this class tests
  * two aspects of '-0.0' in formula evaluation:
  * <ol>
@@ -97,8 +97,7 @@ public final class TestMinusZeroResult extends TestCase {
 		for (int i = 0; i < evalArgs.length; i++) {
 			evalArgs[i] = new NumberEval(dArgs[i]);
 		}
-		ValueEval r = instance.evaluate(evalArgs, -1, (short)-1);
-		return r;
+        return instance.evaluate(evalArgs, -1, (short)-1);
 	}
 
 	/**

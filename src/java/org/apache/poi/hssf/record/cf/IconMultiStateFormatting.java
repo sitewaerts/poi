@@ -71,7 +71,7 @@ public final class IconMultiStateFormatting implements Cloneable {
         return thresholds;
     }
     public void setThresholds(Threshold[] thresholds) {
-        this.thresholds = thresholds;
+        this.thresholds = (thresholds == null) ? null : thresholds.clone();
     }
     
     public boolean isIconOnly() {
@@ -103,7 +103,7 @@ public final class IconMultiStateFormatting implements Cloneable {
         buffer.append("          .icon_only= ").append(isIconOnly()).append("\n");
         buffer.append("          .reversed = ").append(isReversed()).append("\n");
         for (Threshold t : thresholds) {
-            buffer.append(t.toString());
+            buffer.append(t);
         }
         buffer.append("    [/Icon Formatting]\n");
         return buffer.toString();

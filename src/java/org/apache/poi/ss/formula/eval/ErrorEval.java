@@ -26,7 +26,7 @@ import org.apache.poi.ss.usermodel.FormulaError;
  * Evaluations for formula errors
  */
 public final class ErrorEval implements ValueEval {
-    private static final Map<FormulaError,ErrorEval> evals = new HashMap<FormulaError, ErrorEval>();
+    private static final Map<FormulaError,ErrorEval> evals = new HashMap<>();
     
     /** <b>#NULL!</b>  - Intersection of two cell ranges is empty */
     public static final ErrorEval NULL_INTERSECTION = new ErrorEval(FormulaError.NULL);
@@ -51,7 +51,8 @@ public final class ErrorEval implements ValueEval {
 
     /**
      * Translates an Excel internal error code into the corresponding POI ErrorEval instance
-     * @param errorCode
+     * @param errorCode An error code listed in {@link FormulaError}
+     * @throws RuntimeException If an unknown errorCode is specified
      */
     public static ErrorEval valueOf(int errorCode) {
         FormulaError error = FormulaError.forInt(errorCode);
@@ -59,7 +60,7 @@ public final class ErrorEval implements ValueEval {
         if (eval != null) {
             return eval;
         } else {
-            throw new RuntimeException("Unhandled error type " + eval + " for code " + errorCode);
+            throw new RuntimeException("Unhandled error type for code " + errorCode);
         }
     }
 
@@ -89,10 +90,8 @@ public final class ErrorEval implements ValueEval {
         return _error.getString();
     }
     public String toString() {
-        StringBuffer sb = new StringBuffer(64);
-        sb.append(getClass().getName()).append(" [");
-        sb.append(_error.getString());
-        sb.append("]");
-        return sb.toString();
+        return getClass().getName() + " [" +
+                _error.getString() +
+                "]";
     }
 }

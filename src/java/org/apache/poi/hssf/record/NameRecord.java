@@ -26,13 +26,8 @@ import org.apache.poi.ss.formula.Formula;
 import org.apache.poi.util.*;
 
 /**
- * Title:        DEFINEDNAME Record (0x0018) <p/>
- * Description:  Defines a named range within a workbook. <P>
- * REFERENCE:  <P>
- * @author Libin Roman (Vista Portal LDT. Developer)
- * @author  Sergei Kozello (sergeikozello at mail.ru)
- * @author Glen Stampoultzis (glens at apache.org)
- * @author Petr Udalau - added method setFunction(boolean)
+ * Title:        DEFINEDNAME Record (0x0018)<p>
+ * Description:  Defines a named range within a workbook.
  */
 public final class NameRecord extends ContinuableRecord {
     public final static short sid = 0x0018;
@@ -71,7 +66,7 @@ public final class NameRecord extends ContinuableRecord {
 		public static final int OPT_COMPLEX =       0x0010;
 		public static final int OPT_BUILTIN =       0x0020;
 		public static final int OPT_BINDATA =       0x1000;
-		public static final boolean isFormula(int optValue) {
+		public static boolean isFormula(int optValue) {
 			return (optValue & 0x0F) == 0;
 		}
 	}
@@ -106,13 +101,15 @@ public final class NameRecord extends ContinuableRecord {
 	/**
 	 * Constructor to create a built-in named region
 	 * @param builtin Built-in byte representation for the name record, use the public constants
+	 * @param sheetNumber the sheet which the name applies to 
 	 */
 	public NameRecord(byte builtin, int sheetNumber)
 	{
 		this();
 		field_12_built_in_code = builtin;
 		setOptionFlag((short)(field_1_option_flag | Option.OPT_BUILTIN));
-		field_6_sheetNumber = sheetNumber; //the extern sheets are set through references
+		// the extern sheets are set through references
+		field_6_sheetNumber = sheetNumber;
 	}
 
 	/** sets the option flag for the named range
@@ -277,7 +274,10 @@ public final class NameRecord extends ContinuableRecord {
 		return (field_1_option_flag & Option.OPT_COMPLEX) != 0;
 	}
 
-	/**Convenience Function to determine if the name is a built-in name
+	/**
+	 * Convenience Function to determine if the name is a built-in name
+	 * 
+	 * @return true, if the name is a built-in name
 	 */
 	public boolean isBuiltInName()
 	{
@@ -346,7 +346,8 @@ public final class NameRecord extends ContinuableRecord {
      *
      * @param out a data output stream
      */
-	public void serialize(ContinuableRecordOutput out) {
+	@Override
+    public void serialize(ContinuableRecordOutput out) {
 
 		int field_7_length_custom_menu = field_14_custom_menu_text.length();
 		int field_8_length_description_text = field_15_description_text.length();
@@ -478,7 +479,8 @@ public final class NameRecord extends ContinuableRecord {
 	/**
 	 * return the non static version of the id for this record.
 	 */
-	public short getSid() {
+	@Override
+    public short getSid() {
 		return sid;
 	}
 	/*
@@ -532,8 +534,9 @@ public final class NameRecord extends ContinuableRecord {
 	  3B 00 00 07 00 07 00 00 00 FF 00 ]
 	 */
 
-	public String toString() {
-		StringBuffer sb = new StringBuffer();
+	@Override
+    public String toString() {
+		StringBuilder sb = new StringBuilder();
 
 		sb.append("[NAME]\n");
 		sb.append("    .option flags           = ").append(HexDump.shortToHex(field_1_option_flag)).append("\n");
@@ -549,9 +552,8 @@ public final class NameRecord extends ContinuableRecord {
 		sb.append("    .Name (Unicode text)    = ").append( getNameText() ).append("\n");
 		Ptg[] ptgs = field_13_name_definition.getTokens();
 		sb.append("    .Formula (nTokens=").append(ptgs.length).append("):") .append("\n");
-		for (int i = 0; i < ptgs.length; i++) {
-			Ptg ptg = ptgs[i];
-			sb.append("       " + ptg.toString()).append(ptg.getRVAType()).append("\n");
+		for (Ptg ptg : ptgs) {
+			sb.append("       ").append(ptg).append(ptg.getRVAType()).append("\n");
 		}
 
 		sb.append("    .Menu text       = ").append(field_14_custom_menu_text).append("\n");

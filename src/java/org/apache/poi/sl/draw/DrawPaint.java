@@ -18,10 +18,9 @@
 package org.apache.poi.sl.draw;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.LinearGradientPaint;
-import java.awt.MultipleGradientPaint.ColorSpaceType;
-import java.awt.MultipleGradientPaint.CycleMethod;
 import java.awt.Paint;
 import java.awt.RadialGradientPaint;
 import java.awt.geom.AffineTransform;
@@ -34,6 +33,7 @@ import java.io.InputStream;
 import org.apache.poi.sl.usermodel.ColorStyle;
 import org.apache.poi.sl.usermodel.PaintStyle;
 import org.apache.poi.sl.usermodel.PaintStyle.GradientPaint;
+import org.apache.poi.sl.usermodel.PaintStyle.PaintModifier;
 import org.apache.poi.sl.usermodel.PaintStyle.SolidPaint;
 import org.apache.poi.sl.usermodel.PaintStyle.TexturePaint;
 import org.apache.poi.sl.usermodel.PlaceableShape;
@@ -43,16 +43,18 @@ import org.apache.poi.util.POILogger;
 
 /**
  * This class handles color transformations.
- * 
+ *
  * @see <a href="https://tips4java.wordpress.com/2009/07/05/hsl-color/">HSL code taken from Java Tips Weblog</a>
  */
 public class DrawPaint {
     // HSL code is public domain - see https://tips4java.wordpress.com/contact-us/
-    
-    private final static POILogger LOG = POILogFactory.getLogger(DrawPaint.class);
+
+    private static final POILogger LOG = POILogFactory.getLogger(DrawPaint.class);
+
+    private static final Color TRANSPARENT = new Color(1f,1f,1f,0f);
 
     protected PlaceableShape<?,?> shape;
-    
+
     public DrawPaint(PlaceableShape<?,?> shape) {
         this.shape = shape;
     }
@@ -65,15 +67,27 @@ public class DrawPaint {
                 throw new NullPointerException("Color needs to be specified");
             }
             this.solidColor = new ColorStyle(){
-                    public Color getColor() { return color; }
-                    public int getAlpha() { return -1; }
+                    @Override
+                    public Color getColor() {
+                        return new Color(color.getRed(), color.getGreen(), color.getBlue());
+                    }
+                    @Override
+                    public int getAlpha() { return (int)Math.round(color.getAlpha()*100000./255.); }
+                    @Override
                     public int getHueOff() { return -1; }
+                    @Override
                     public int getHueMod() { return -1; }
+                    @Override
                     public int getSatOff() { return -1; }
+                    @Override
                     public int getSatMod() { return -1; }
+                    @Override
                     public int getLumOff() { return -1; }
+                    @Override
                     public int getLumMod() { return -1; }
+                    @Override
                     public int getShade() { return -1; }
+                    @Override
                     public int getTint() { return -1; }
                 };
         }
@@ -84,23 +98,31 @@ public class DrawPaint {
             }
             this.solidColor = color;
         }
-        
+
+        @Override
         public ColorStyle getSolidColor() {
             return solidColor;
         }
     }
-    
+
     public static SolidPaint createSolidPaint(final Color color) {
         return (color == null) ? null : new SimpleSolidPaint(color);
     }
-    
+
     public static SolidPaint createSolidPaint(final ColorStyle color) {
         return (color == null) ? null : new SimpleSolidPaint(color);
     }
-    
+
     public Paint getPaint(Graphics2D graphics, PaintStyle paint) {
+        return getPaint(graphics, paint, PaintModifier.NORM);
+    }
+
+    public Paint getPaint(Graphics2D graphics, PaintStyle paint, PaintModifier modifier) {
+        if (modifier == PaintModifier.NONE) {
+            return null;
+        }
         if (paint instanceof SolidPaint) {
-            return getSolidPaint((SolidPaint)paint, graphics);
+            return getSolidPaint((SolidPaint)paint, graphics, modifier);
         } else if (paint instanceof GradientPaint) {
             return getGradientPaint((GradientPaint)paint, graphics);
         } else if (paint instanceof TexturePaint) {
@@ -108,9 +130,78 @@ public class DrawPaint {
         }
         return null;
     }
-    
-    protected Paint getSolidPaint(SolidPaint fill, Graphics2D graphics) {
-        return applyColorTransform(fill.getSolidColor());
+
+    protected Paint getSolidPaint(SolidPaint fill, Graphics2D graphics, final PaintModifier modifier) {
+        final ColorStyle orig = fill.getSolidColor();
+        ColorStyle cs = new ColorStyle() {
+            @Override
+            public Color getColor() {
+                return orig.getColor();
+            }
+
+            @Override
+            public int getAlpha() {
+                return orig.getAlpha();
+            }
+
+            @Override
+            public int getHueOff() {
+                return orig.getHueOff();
+            }
+
+            @Override
+            public int getHueMod() {
+                return orig.getHueMod();
+            }
+
+            @Override
+            public int getSatOff() {
+                return orig.getSatOff();
+            }
+
+            @Override
+            public int getSatMod() {
+                return orig.getSatMod();
+            }
+
+            @Override
+            public int getLumOff() {
+                return orig.getLumOff();
+            }
+
+            @Override
+            public int getLumMod() {
+                return orig.getLumMod();
+            }
+
+            @Override
+            public int getShade() {
+                int shade = orig.getShade();
+                switch (modifier) {
+                    case DARKEN:
+                        return Math.min(100000, Math.max(0,shade)+40000);
+                    case DARKEN_LESS:
+                        return Math.min(100000, Math.max(0,shade)+20000);
+                    default:
+                        return shade;
+                }
+            }
+
+            @Override
+            public int getTint() {
+                int tint = orig.getTint();
+                switch (modifier) {
+                    case LIGHTEN:
+                        return Math.min(100000, Math.max(0,tint)+40000);
+                    case LIGHTEN_LESS:
+                        return Math.min(100000, Math.max(0,tint)+20000);
+                    default:
+                        return tint;
+                }
+            }
+        };
+
+        return applyColorTransform(cs);
     }
 
     protected Paint getGradientPaint(GradientPaint fill, Graphics2D graphics) {
@@ -128,14 +219,19 @@ public class DrawPaint {
 
     protected Paint getTexturePaint(TexturePaint fill, Graphics2D graphics) {
         InputStream is = fill.getImageData();
-        if (is == null) return null;
+        if (is == null) {
+            return null;
+        }
         assert(graphics != null);
-        
+
         ImageRenderer renderer = DrawPictureShape.getImageRenderer(graphics, fill.getContentType());
 
         try {
-            renderer.loadImage(is, fill.getContentType());
-            is.close();
+            try {
+                renderer.loadImage(is, fill.getContentType());
+            } finally {
+                is.close();
+            }
         } catch (IOException e) {
             LOG.log(POILogger.ERROR, "Can't load image data - using transparent color", e);
             return null;
@@ -145,21 +241,28 @@ public class DrawPaint {
         if (0 <= alpha && alpha < 100000) {
             renderer.setAlpha(alpha/100000.f);
         }
-        
-        BufferedImage image = renderer.getImage();
+
+        Rectangle2D textAnchor = shape.getAnchor();
+        BufferedImage image;
+        if ("image/x-wmf".equals(fill.getContentType())) {
+            // don't rely on wmf dimensions, use dimension of anchor
+            // TODO: check pixels vs. points for image dimension
+            image = renderer.getImage(new Dimension((int)textAnchor.getWidth(), (int)textAnchor.getHeight()));
+        } else {
+            image = renderer.getImage();
+        }
+
         if(image == null) {
             LOG.log(POILogger.ERROR, "Can't load image data");
             return null;
         }
-        Rectangle2D textAnchor = shape.getAnchor();
-        Paint paint = new java.awt.TexturePaint(image, textAnchor);
 
-        return paint;
+        return new java.awt.TexturePaint(image, textAnchor);
     }
-    
+
     /**
      * Convert color transformations in {@link ColorStyle} to a {@link Color} instance
-     * 
+     *
      * @see <a href="https://msdn.microsoft.com/en-us/library/dd560821%28v=office.12%29.aspx">Using Office Open XML to Customize Document Formatting in the 2007 Office System</a>
      * @see <a href="https://social.msdn.microsoft.com/Forums/office/en-US/040e0a1f-dbfe-4ce5-826b-38b4b6f6d3f7/saturation-modulation-satmod">saturation modulation (satMod)</a>
      * @see <a href="http://stackoverflow.com/questions/6754127/office-open-xml-satmod-results-in-more-than-100-saturation">Office Open XML satMod results in more than 100% saturation</a>
@@ -167,9 +270,11 @@ public class DrawPaint {
     public static Color applyColorTransform(ColorStyle color){
         // TODO: The colors don't match 100% the results of Powerpoint, maybe because we still
         // operate in sRGB and not scRGB ... work in progress ...
+        if (color == null || color.getColor() == null) {
+            return TRANSPARENT;
+        }
 
         Color result = color.getColor();
-        if (result == null) return null;
 
         double alpha = getAlpha(result, color);
         double hsl[] = RGB2HSL(result); // values are in the range [0..100] (usually ...)
@@ -180,7 +285,7 @@ public class DrawPaint {
         applyTint(hsl, color);
 
         result = HSL2RGB(hsl[0], hsl[1], hsl[2], alpha);
-        
+
         return result;
     }
 
@@ -192,10 +297,10 @@ public class DrawPaint {
         }
         return Math.min(1, Math.max(0, alpha));
     }
-    
+
     /**
      * Apply the modulation and offset adjustments to the given HSL part
-     * 
+     *
      * Example for lumMod/lumOff:
      * The lumMod value is the percent luminance. A lumMod value of "60000",
      * is 60% of the luminance of the original color.
@@ -203,104 +308,108 @@ public class DrawPaint {
      * attribute is the only one of the tags shown here that appears.
      * The <a:lumOff> tag appears after the <a:lumMod> tag when the color is a
      * tint of the original. The lumOff value always equals 1-lumMod, which is used in the tint calculation
-     * 
+     *
      * Despite having different ways to display the tint and shade percentages,
      * all of the programs use the same method to calculate the resulting color.
      * Convert the original RGB value to HSL ... and then adjust the luminance (L)
      * with one of the following equations before converting the HSL value back to RGB.
      * (The % tint in the following equations refers to the tint, themetint, themeshade,
      * or lumMod values, as applicable.)
-     * 
+     *
      * @param hsl the hsl values
      * @param hslPart the hsl part to modify [0..2]
      * @param mod the modulation adjustment
      * @param off the offset adjustment
      * @return the modified hsl value
-     * 
+     *
      */
     private static void applyHslModOff(double hsl[], int hslPart, int mod, int off) {
-        if (mod == -1) mod = 100000;
-        if (off == -1) off = 0;
+        if (mod == -1) {
+            mod = 100000;
+        }
+        if (off == -1) {
+            off = 0;
+        }
         if (!(mod == 100000 && off == 0)) {
             double fOff = off / 1000d;
             double fMod = mod / 100000d;
             hsl[hslPart] = hsl[hslPart]*fMod+fOff;
         }
     }
-    
+
     /**
      * Apply the shade
-     * 
+     *
      * For a shade, the equation is luminance * %tint.
      */
     private static void applyShade(double hsl[], ColorStyle fc) {
         int shade = fc.getShade();
-        if (shade == -1) return;
-        
-        double fshade = shade / 100000.d;
-        
-        hsl[2] *= fshade;
+        if (shade == -1) {
+            return;
+        }
+
+        double shadePct = shade / 100000.;
+
+        hsl[2] *= 1. - shadePct;
     }
 
     /**
      * Apply the tint
-     * 
+     *
      * For a tint, the equation is luminance * %tint + (1-%tint).
      * (Note that 1-%tint is equal to the lumOff value in DrawingML.)
      */
     private static void applyTint(double hsl[], ColorStyle fc) {
         int tint = fc.getTint();
-        if (tint == -1) return;
-        
-        double ftint = tint / 100000.f;
+        if (tint == -1) {
+            return;
+        }
 
-        hsl[2] = hsl[2] * ftint + (100 - ftint*100.);
+        // see 18.8.19 fgColor (Foreground Color)
+        double tintPct = tint / 100000.;
+        hsl[2] = hsl[2]*(1.-tintPct) + (100.-100.*(1.-tintPct));
     }
-    
 
     protected Paint createLinearGradientPaint(GradientPaint fill, Graphics2D graphics) {
+        // TODO: we need to find the two points for gradient - the problem is, which point at the outline
+        // do you take? My solution would be to apply the gradient rotation to the shape in reverse
+        // and then scan the shape for the largest possible horizontal distance
+
         double angle = fill.getGradientAngle();
+        if (!fill.isRotatedWithShape()) {
+            angle -= shape.getRotation();
+        }
+
         Rectangle2D anchor = DrawShape.getAnchor(graphics, shape);
+        final double h = anchor.getHeight(), w = anchor.getWidth(), x = anchor.getX(), y = anchor.getY();
 
-        AffineTransform at = AffineTransform.getRotateInstance(
-            Math.toRadians(angle),
-            anchor.getX() + anchor.getWidth() / 2,
-            anchor.getY() + anchor.getHeight() / 2);
+        AffineTransform at = AffineTransform.getRotateInstance(Math.toRadians(angle), anchor.getCenterX(), anchor.getCenterY());
 
-        double diagonal = Math.sqrt(anchor.getHeight() * anchor.getHeight() + anchor.getWidth() * anchor.getWidth());
-        Point2D p1 = new Point2D.Double(anchor.getX() + anchor.getWidth() / 2 - diagonal / 2,
-                anchor.getY() + anchor.getHeight() / 2);
+        double diagonal = Math.sqrt(h * h + w * w);
+        Point2D p1 = new Point2D.Double(x + w / 2 - diagonal / 2, y + h / 2);
         p1 = at.transform(p1, null);
 
-        Point2D p2 = new Point2D.Double(anchor.getX() + anchor.getWidth(), anchor.getY() + anchor.getHeight() / 2);
+        Point2D p2 = new Point2D.Double(x + w, y + h / 2);
         p2 = at.transform(p2, null);
 
-        snapToAnchor(p1, anchor);
-        snapToAnchor(p2, anchor);
+//        snapToAnchor(p1, anchor);
+//        snapToAnchor(p2, anchor);
+
+        if (p1.equals(p2)) {
+            // gradient paint on the same point throws an exception ... and doesn't make sense
+            return null;
+        }
 
         float[] fractions = fill.getGradientFractions();
         Color[] colors = new Color[fractions.length];
-        
+
         int i = 0;
         for (ColorStyle fc : fill.getGradientColors()) {
-            colors[i++] = applyColorTransform(fc);
+            // if fc is null, use transparent color to get color of background
+            colors[i++] = (fc == null) ? TRANSPARENT : applyColorTransform(fc);
         }
 
-        AffineTransform grAt  = new AffineTransform();
-        if(fill.isRotatedWithShape()) {
-            double rotation = shape.getRotation();
-            if (rotation != 0.) {
-                double centerX = anchor.getX() + anchor.getWidth() / 2;
-                double centerY = anchor.getY() + anchor.getHeight() / 2;
-
-                grAt.translate(centerX, centerY);
-                grAt.rotate(Math.toRadians(-rotation));
-                grAt.translate(-centerX, -centerY);
-            }
-        }
-
-        return new LinearGradientPaint
-            (p1, p2, fractions, colors, CycleMethod.NO_CYCLE, ColorSpaceType.SRGB, grAt);
+        return new LinearGradientPaint(p1, p2, fractions, colors);
     }
 
     protected Paint createRadialGradientPaint(GradientPaint fill, Graphics2D graphics) {
@@ -324,7 +433,7 @@ public class DrawPaint {
 
     protected Paint createPathGradientPaint(GradientPaint fill, Graphics2D graphics) {
         // currently we ignore an eventually center setting
-        
+
         float[] fractions = fill.getGradientFractions();
         Color[] colors = new Color[fractions.length];
 
@@ -335,7 +444,7 @@ public class DrawPaint {
 
         return new PathGradientPaint(colors, fractions);
     }
-    
+
     protected void snapToAnchor(Point2D p, Rectangle2D anchor) {
         if (p.getX() < anchor.getX()) {
             p.setLocation(anchor.getX(), p.getY());
@@ -358,9 +467,9 @@ public class DrawPaint {
      *  @param l Luminance is specified as a percentage in the range 1 - 100.
      *  @param alpha  the alpha value between 0 - 1
      *
-     *  @returns the RGB Color object
+     *  @return the RGB Color object
      */
-    private static Color HSL2RGB(double h, double s, double l, double alpha) {
+    public static Color HSL2RGB(double h, double s, double l, double alpha) {
         // we clamp the values, as it possible to come up with more than 100% sat/lum
         // (see links in applyColorTransform() for more info)
         s = Math.max(0, Math.min(100, s));
@@ -396,9 +505,13 @@ public class DrawPaint {
     }
 
     private static double HUE2RGB(double p, double q, double h) {
-        if (h < 0d) h += 1d;
+        if (h < 0d) {
+            h += 1d;
+        }
 
-        if (h > 1d) h -= 1d;
+        if (h > 1d) {
+            h -= 1d;
+        }
 
         if (6d * h < 1d) {
             return p + ((q - p) * 6d * h);
@@ -468,4 +581,33 @@ public class DrawPaint {
         return new double[] {h, s * 100, l * 100};
     }
 
+    /**
+     * Convert sRGB float component [0..1] from sRGB to linear RGB [0..100000]
+     *
+     * @see Color#getRGBColorComponents(float[])
+     */
+    public static int srgb2lin(float sRGB) {
+        // scRGB has a linear gamma of 1.0, scale the AWT-Color which is in sRGB to linear RGB
+        // see https://en.wikipedia.org/wiki/SRGB (the reverse transformation)
+        if (sRGB <= 0.04045d) {
+            return (int)Math.rint(100000d * sRGB / 12.92d);
+        } else {
+            return (int)Math.rint(100000d * Math.pow((sRGB + 0.055d) / 1.055d, 2.4d));
+        }
+    }
+
+    /**
+     * Convert linear RGB [0..100000] to sRGB float component [0..1]
+     *
+     * @see Color#getRGBColorComponents(float[])
+     */
+    public static float lin2srgb(int linRGB) {
+        // color in percentage is in linear RGB color space, i.e. needs to be gamma corrected for AWT color
+        // see https://en.wikipedia.org/wiki/SRGB (The forward transformation)
+        if (linRGB <= 0.0031308d) {
+            return (float)(linRGB / 100000d * 12.92d);
+        } else {
+            return (float)(1.055d * Math.pow(linRGB / 100000d, 1.0d/2.4d) - 0.055d);
+        }
+    }
 }

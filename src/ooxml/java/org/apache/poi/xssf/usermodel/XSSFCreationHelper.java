@@ -16,13 +16,22 @@
 ==================================================================== */
 package org.apache.poi.xssf.usermodel;
 
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.ss.usermodel.CreationHelper;
 import org.apache.poi.ss.usermodel.Hyperlink;
+import org.apache.poi.ss.util.AreaReference;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.Internal;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColor;
 
 public class XSSFCreationHelper implements CreationHelper {
-    private XSSFWorkbook workbook;
+    private final XSSFWorkbook workbook;
 
+    /**
+     * Should only be called by {@link XSSFWorkbook#getCreationHelper()}
+     *
+     * @param wb the workbook to create objects for
+     */
     @Internal
     public XSSFCreationHelper(XSSFWorkbook wb) {
         workbook = wb;
@@ -31,26 +40,30 @@ public class XSSFCreationHelper implements CreationHelper {
     /**
      * Creates a new XSSFRichTextString for you.
      */
+    @Override
     public XSSFRichTextString createRichTextString(String text) {
         XSSFRichTextString rt = new XSSFRichTextString(text);
         rt.setStylesTableReference(workbook.getStylesSource());
         return rt;
     }
 
+    @Override
     public XSSFDataFormat createDataFormat() {
         return workbook.createDataFormat();
     }
 
+    @Override
     public XSSFColor createExtendedColor() {
-        return new XSSFColor();
+        return XSSFColor.from(CTColor.Factory.newInstance(), workbook.getStylesSource().getIndexedColors());
     }
-
+    
     /**
      * Create a new XSSFHyperlink.
      *
      * @param type - the type of hyperlink to create, see {@link Hyperlink}
      */
-    public XSSFHyperlink createHyperlink(int type) {
+    @Override
+    public XSSFHyperlink createHyperlink(HyperlinkType type) {
         return new XSSFHyperlink(type);
     }
 
@@ -59,6 +72,7 @@ public class XSSFCreationHelper implements CreationHelper {
      *
      * @return a XSSFFormulaEvaluator instance
      */
+    @Override
     public XSSFFormulaEvaluator createFormulaEvaluator() {
         return new XSSFFormulaEvaluator(workbook);
     }
@@ -70,7 +84,24 @@ public class XSSFCreationHelper implements CreationHelper {
      * @return a XSSFClientAnchor instance
      * @see org.apache.poi.ss.usermodel.Drawing
      */
+    @Override
     public XSSFClientAnchor createClientAnchor() {
         return new XSSFClientAnchor();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AreaReference createAreaReference(String reference) {
+        return new AreaReference(reference, workbook.getSpreadsheetVersion());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public AreaReference createAreaReference(CellReference topLeft, CellReference bottomRight) {
+        return new AreaReference(topLeft, bottomRight, workbook.getSpreadsheetVersion());
     }
 }

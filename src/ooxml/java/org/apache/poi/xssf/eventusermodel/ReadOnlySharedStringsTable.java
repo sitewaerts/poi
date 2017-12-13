@@ -16,16 +16,19 @@
 ==================================================================== */
 package org.apache.poi.xssf.eventusermodel;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import static org.apache.poi.xssf.usermodel.XSSFRelation.NS_SPREADSHEETML;
 
 import javax.xml.parsers.ParserConfigurationException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PushbackInputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.util.SAXHelper;
 import org.apache.poi.xssf.usermodel.XSSFRelation;
 import org.xml.sax.Attributes;
@@ -75,6 +78,8 @@ import org.xml.sax.helpers.DefaultHandler;
  *
  */
 public class ReadOnlySharedStringsTable extends DefaultHandler {
+
+    private final boolean includePhoneticRuns;
     /**
      * An integer representing the total count of strings in the workbook. This count does not
      * include any numbers, it counts only the total of text strings in the workbook.
@@ -94,13 +99,35 @@ public class ReadOnlySharedStringsTable extends DefaultHandler {
     private List<String> strings;
 
     /**
-     * @param pkg
-     * @throws IOException
-     * @throws SAXException
-     * @throws ParserConfigurationException
+     * Map of phonetic strings (if they exist) indexed
+     * with the integer matching the index in strings
+     */
+    private Map<Integer, String> phoneticStrings;
+
+    /**
+     * Calls {{@link #ReadOnlySharedStringsTable(OPCPackage, boolean)}} with
+     * a value of <code>true</code> for including phonetic runs
+     *
+     * @param pkg The {@link OPCPackage} to use as basis for the shared-strings table.
+     * @throws IOException If reading the data from the package fails.
+     * @throws SAXException if parsing the XML data fails.
      */
     public ReadOnlySharedStringsTable(OPCPackage pkg)
             throws IOException, SAXException {
+        this(pkg, true);
+    }
+
+    /**
+     *
+     * @param pkg The {@link OPCPackage} to use as basis for the shared-strings table.
+     * @param includePhoneticRuns whether or not to concatenate phoneticRuns onto the shared string
+     * @since POI 3.14-Beta3
+     * @throws IOException If reading the data from the package fails.
+     * @throws SAXException if parsing the XML data fails.
+     */
+    public ReadOnlySharedStringsTable(OPCPackage pkg, boolean includePhoneticRuns)
+            throws IOException, SAXException {
+        this.includePhoneticRuns = includePhoneticRuns;
         ArrayList<PackagePart> parts =
                 pkg.getPartsByContentType(XSSFRelation.SHARED_STRINGS.getContentType());
 
@@ -113,33 +140,41 @@ public class ReadOnlySharedStringsTable extends DefaultHandler {
 
     /**
      * Like POIXMLDocumentPart constructor
-     * 
+     *
+     * Calls {@link #ReadOnlySharedStringsTable(PackagePart, boolean)}, with a
+     * value of <code>true</code> to include phonetic runs.
+     *
      * @since POI 3.14-Beta1
      */
     public ReadOnlySharedStringsTable(PackagePart part) throws IOException, SAXException {
-        readFrom(part.getInputStream());
+        this(part, true);
     }
 
     /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
+     * Like POIXMLDocumentPart constructor
+     *
+     * @since POI 3.14-Beta3
      */
-    @Deprecated
-    public ReadOnlySharedStringsTable(PackagePart part, PackageRelationship rel_ignored)
-    throws IOException, SAXException {
-        this(part);
+    public ReadOnlySharedStringsTable(PackagePart part, boolean includePhoneticRuns)
+        throws IOException, SAXException {
+        this.includePhoneticRuns = includePhoneticRuns;
+        readFrom(part.getInputStream());
     }
     
     /**
      * Read this shared strings table from an XML file.
      *
      * @param is The input stream containing the XML document.
-     * @throws IOException                  if an error occurs while reading.
-     * @throws SAXException
-     * @throws ParserConfigurationException
+     * @throws IOException if an error occurs while reading.
+     * @throws SAXException if parsing the XML data fails.
      */
     public void readFrom(InputStream is) throws IOException, SAXException {
-        if (is.available() > 0) {
-            InputSource sheetSource = new InputSource(is);
+        // test if the file is empty, otherwise parse it
+        PushbackInputStream pis = new PushbackInputStream(is, 1);
+        int emptyTest = pis.read();
+        if (emptyTest > -1) {
+            pis.unread(emptyTest);
+            InputSource sheetSource = new InputSource(pis);
             try {
                 XMLReader sheetParser = SAXHelper.newXMLReader();
                 sheetParser.setContentHandler(this);
@@ -188,33 +223,50 @@ public class ReadOnlySharedStringsTable extends DefaultHandler {
 
     //// ContentHandler methods ////
 
-    private StringBuffer characters;
+    private StringBuilder characters;
     private boolean tIsOpen;
+    private boolean inRPh;
 
     public void startElement(String uri, String localName, String name,
                              Attributes attributes) throws SAXException {
-        if ("sst".equals(name)) {
+        if (uri != null && ! uri.equals(NS_SPREADSHEETML)) {
+            return;
+        }
+
+        if ("sst".equals(localName)) {
             String count = attributes.getValue("count");
             if(count != null) this.count = Integer.parseInt(count);
             String uniqueCount = attributes.getValue("uniqueCount");
             if(uniqueCount != null) this.uniqueCount = Integer.parseInt(uniqueCount);
 
-            this.strings = new ArrayList<String>(this.uniqueCount);
-
-            characters = new StringBuffer();
-        } else if ("si".equals(name)) {
+            this.strings = new ArrayList<>(this.uniqueCount);
+            this.phoneticStrings = new HashMap<>();
+            characters = new StringBuilder(64);
+        } else if ("si".equals(localName)) {
             characters.setLength(0);
-        } else if ("t".equals(name)) {
+        } else if ("t".equals(localName)) {
             tIsOpen = true;
+        } else if ("rPh".equals(localName)) {
+            inRPh = true;
+            //append space...this assumes that rPh always comes after regular <t>
+            if (includePhoneticRuns && characters.length() > 0) {
+                characters.append(" ");
+            }
         }
     }
 
     public void endElement(String uri, String localName, String name)
             throws SAXException {
-        if ("si".equals(name)) {
+        if (uri != null && ! uri.equals(NS_SPREADSHEETML)) {
+            return;
+        }
+
+        if ("si".equals(localName)) {
             strings.add(characters.toString());
-        } else if ("t".equals(name)) {
-           tIsOpen = false;
+        } else if ("t".equals(localName)) {
+            tIsOpen = false;
+        } else if ("rPh".equals(localName)) {
+            inRPh = false;
         }
     }
 
@@ -223,8 +275,12 @@ public class ReadOnlySharedStringsTable extends DefaultHandler {
      */
     public void characters(char[] ch, int start, int length)
             throws SAXException {
-        if (tIsOpen)
-            characters.append(ch, start, length);
+        if (tIsOpen) {
+            if (inRPh && includePhoneticRuns) {
+                characters.append(ch, start, length);
+            } else if (! inRPh){
+                characters.append(ch, start, length);
+            }
+        }
     }
-
 }

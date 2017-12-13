@@ -30,8 +30,6 @@ import org.apache.poi.util.*;
 
 /**
  * A class that represents image data contained in a slide show.
- *
- *  @author Yegor Kozlov
  */
 public abstract class HSLFPictureData implements PictureData {
 
@@ -47,17 +45,17 @@ public abstract class HSLFPictureData implements PictureData {
     /**
      * The offset to the picture in the stream
      */
-    protected int offset;
+    private int offset;
 
     /**
      * The instance type/signatures defines if one or two UID instances will be included
      */
-    protected int uidInstanceCount = 1;
+    private int uidInstanceCount = 1;
 
     /**
      * The 1-based index within the pictures stream 
      */
-    protected int index = -1;
+    private int index = -1;
     
     /**
      * Blip signature.
@@ -73,6 +71,15 @@ public abstract class HSLFPictureData implements PictureData {
         return uidInstanceCount;
     }
 
+    /**
+     * The instance type/signatures defines if one or two UID instances will be included
+     * 
+     * @param uidInstanceCount the number of uid sequences
+     */
+    protected void setUIDInstanceCount(int uidInstanceCount) {
+        this.uidInstanceCount = uidInstanceCount;
+    }
+    
     /**
      * Returns the raw binary data of this Picture excluding the first 8 bytes
      * which hold image signature and size of the image data.
@@ -190,16 +197,6 @@ public abstract class HSLFPictureData implements PictureData {
         LittleEndian.putInt(header, 4, getRawData().length);
         System.arraycopy(rawdata, 0, header, 8, 16);
         return header;
-    }
-
-    /**
-    * Return image size in bytes
-    *
-    *  @return the size of the picture in bytes
-     * @deprecated Use <code>getData().length</code> instead.
-    */
-    public int getSize(){
-        return getData().length;
     }
 
     /**

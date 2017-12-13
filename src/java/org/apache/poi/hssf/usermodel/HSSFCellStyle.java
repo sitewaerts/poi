@@ -26,8 +26,13 @@ import org.apache.poi.hssf.record.FontRecord;
 import org.apache.poi.hssf.record.FormatRecord;
 import org.apache.poi.hssf.record.StyleRecord;
 import org.apache.poi.hssf.util.HSSFColor;
+import org.apache.poi.hssf.util.HSSFColor.HSSFColorPredefined;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
 
 /**
  * High level representation of the style of a cell in a sheet of a workbook.
@@ -45,7 +50,7 @@ public final class HSSFCellStyle implements CellStyle {
     /** Creates new HSSFCellStyle why would you want to do this?? */
     protected HSSFCellStyle(short index, ExtendedFormatRecord rec, HSSFWorkbook workbook)
     {
-    	this(index, rec, workbook.getWorkbook());
+        this(index, rec, workbook.getWorkbook());
     }
     protected HSSFCellStyle(short index, ExtendedFormatRecord rec, InternalWorkbook workbook)
     {
@@ -60,8 +65,7 @@ public final class HSSFCellStyle implements CellStyle {
      *  unless you're comparing which one is which)
      */
     @Override
-    public short getIndex()
-    {
+    public short getIndex() {
         return _index;
     }
 
@@ -73,14 +77,14 @@ public final class HSSFCellStyle implements CellStyle {
     public HSSFCellStyle getParentStyle() {
         short parentIndex = _format.getParentIndex();
         // parentIndex equal 0xFFF indicates no inheritance from a cell style XF (See 2.4.353 XF)
-    	if(parentIndex == 0 || parentIndex == 0xFFF) {
-    		return null;
-    	}
-    	return new HSSFCellStyle(
-    			parentIndex,
-    			_workbook.getExFormatAt(parentIndex),
-    			_workbook
-    	);
+        if(parentIndex == 0 || parentIndex == 0xFFF) {
+            return null;
+        }
+        return new HSSFCellStyle(
+                parentIndex,
+                _workbook.getExFormatAt(parentIndex),
+                _workbook
+        );
     }
 
     /**
@@ -107,12 +111,13 @@ public final class HSSFCellStyle implements CellStyle {
     // avoid multi-threading issues when different workbooks are accessed in 
     // multiple threads at the same time
     private static final ThreadLocal<Short> lastDateFormat = new ThreadLocal<Short>() {
+        @Override
         protected Short initialValue() {
             return Short.MIN_VALUE;
         }
     };
-    private static final ThreadLocal<List<FormatRecord>> lastFormats = new ThreadLocal<List<FormatRecord>>();
-    private static final ThreadLocal<String> getDataFormatStringCache = new ThreadLocal<String>();
+    private static final ThreadLocal<List<FormatRecord>> lastFormats = new ThreadLocal<>();
+    private static final ThreadLocal<String> getDataFormatStringCache = new ThreadLocal<>();
 
     /**
      * Get the contents of the format string, by looking up
@@ -144,7 +149,7 @@ public final class HSSFCellStyle implements CellStyle {
      * @return the format string or "General" if not found
      */
     public String getDataFormatString(org.apache.poi.ss.usermodel.Workbook workbook) {
-    	HSSFDataFormat format = new HSSFDataFormat( ((HSSFWorkbook)workbook).getWorkbook() );
+        HSSFDataFormat format = new HSSFDataFormat( ((HSSFWorkbook)workbook).getWorkbook() );
 
         int idx = getDataFormat();
         return idx == -1 ? "General" : format.getFormat(getDataFormat());
@@ -155,22 +160,22 @@ public final class HSSFCellStyle implements CellStyle {
      * @see org.apache.poi.hssf.usermodel.HSSFDataFormat
      */
     public String getDataFormatString(org.apache.poi.hssf.model.InternalWorkbook workbook) {
-    	HSSFDataFormat format = new HSSFDataFormat( workbook );
+        HSSFDataFormat format = new HSSFDataFormat( workbook );
 
         return format.getFormat(getDataFormat());
     }
 
     /**
      * set the font for this style
-     * @param font  a font object created or retreived from the HSSFWorkbook object
+     * @param font  a font object created or retrieved from the HSSFWorkbook object
      * @see org.apache.poi.hssf.usermodel.HSSFWorkbook#createFont()
      * @see org.apache.poi.hssf.usermodel.HSSFWorkbook#getFontAt(short)
      */
     @Override
     public void setFont(Font font) {
-		setFont((HSSFFont)font);
-	}
-	public void setFont(HSSFFont font) {
+        setFont((HSSFFont)font);
+    }
+    public void setFont(HSSFFont font) {
         _format.setIndentNotParentFont(true);
         short fontindex = font.getIndex();
         _format.setFontIndex(fontindex);
@@ -193,7 +198,7 @@ public final class HSSFCellStyle implements CellStyle {
      * @see org.apache.poi.hssf.usermodel.HSSFWorkbook#getFontAt(short)
      */
     public HSSFFont getFont(org.apache.poi.ss.usermodel.Workbook parentWorkbook) {
-    	return ((HSSFWorkbook) parentWorkbook).getFontAt(getFontIndex());
+        return ((HSSFWorkbook) parentWorkbook).getFontAt(getFontIndex());
     }
 
     /**
@@ -239,38 +244,44 @@ public final class HSSFCellStyle implements CellStyle {
     }
 
     /**
+     * Turn on or off "Quote Prefix" or "123 Prefix" for the style,
+     *  which is used to tell Excel that the thing which looks like
+     *  a number or a formula shouldn't be treated as on.
+     */
+    @Override
+    public void setQuotePrefixed(boolean quotePrefix) {
+        _format.set123Prefix(quotePrefix);
+    }
+    
+    /**
+     * Is "Quote Prefix" or "123 Prefix" enabled for the cell?
+     */
+    @Override
+    public boolean getQuotePrefixed() {
+        return _format.get123Prefix();
+    }
+    
+    /**
      * set the type of horizontal alignment for the cell
      * @param align - the type of alignment
-     * @see #ALIGN_GENERAL
-     * @see #ALIGN_LEFT
-     * @see #ALIGN_CENTER
-     * @see #ALIGN_RIGHT
-     * @see #ALIGN_FILL
-     * @see #ALIGN_JUSTIFY
-     * @see #ALIGN_CENTER_SELECTION
      */
     @Override
-    public void setAlignment(short align)
+    public void setAlignment(HorizontalAlignment align)
     {
         _format.setIndentNotParentAlignment(true);
-        _format.setAlignment(align);
+        _format.setAlignment(align.getCode());
     }
 
-    /**
-     * get the type of horizontal alignment for the cell
-     * @return align - the type of alignment
-     * @see #ALIGN_GENERAL
-     * @see #ALIGN_LEFT
-     * @see #ALIGN_CENTER
-     * @see #ALIGN_RIGHT
-     * @see #ALIGN_FILL
-     * @see #ALIGN_JUSTIFY
-     * @see #ALIGN_CENTER_SELECTION
-     */
     @Override
-    public short getAlignment()
+    public HorizontalAlignment getAlignment()
     {
-        return _format.getAlignment();
+        return HorizontalAlignment.forInt(_format.getAlignment());
+    }
+
+    @Override
+    public HorizontalAlignment getAlignmentEnum()
+    {
+        return getAlignment();
     }
 
     /**
@@ -297,29 +308,21 @@ public final class HSSFCellStyle implements CellStyle {
     /**
      * set the type of vertical alignment for the cell
      * @param align the type of alignment
-     * @see #VERTICAL_TOP
-     * @see #VERTICAL_CENTER
-     * @see #VERTICAL_BOTTOM
-     * @see #VERTICAL_JUSTIFY
      */
     @Override
-    public void setVerticalAlignment(short align)
+    public void setVerticalAlignment(VerticalAlignment align)
     {
-        _format.setVerticalAlignment(align);
+        _format.setVerticalAlignment(align.getCode());
     }
 
-    /**
-     * get the type of vertical alignment for the cell
-     * @return align the type of alignment
-     * @see #VERTICAL_TOP
-     * @see #VERTICAL_CENTER
-     * @see #VERTICAL_BOTTOM
-     * @see #VERTICAL_JUSTIFY
-     */
     @Override
-    public short getVerticalAlignment()
-    {
-        return _format.getVerticalAlignment();
+    public VerticalAlignment getVerticalAlignment() {
+        return VerticalAlignment.forInt(_format.getVerticalAlignment());
+    }
+
+    @Override
+    public VerticalAlignment getVerticalAlignmentEnum() {
+        return getVerticalAlignment();
     }
 
     /**
@@ -392,202 +395,90 @@ public final class HSSFCellStyle implements CellStyle {
     {
         return _format.getIndent();
     }
-
+    
     /**
      * set the type of border to use for the left border of the cell
      * @param border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
+     * @since POI 3.15
      */
     @Override
-    public void setBorderLeft(short border)
+    public void setBorderLeft(BorderStyle border)
     {
         _format.setIndentNotParentBorder(true);
-        _format.setBorderLeft(border);
+        _format.setBorderLeft(border.getCode());
     }
 
-    /**
-     * get the type of border to use for the left border of the cell
-     * @return border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderLeft()
+    public BorderStyle getBorderLeft()
     {
-        return _format.getBorderLeft();
+        return BorderStyle.valueOf(_format.getBorderLeft());
     }
+
+    @Override
+    public BorderStyle getBorderLeftEnum() { return getBorderLeft(); }
 
     /**
      * set the type of border to use for the right border of the cell
      * @param border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
+     * @since POI 3.15
      */
     @Override
-    public void setBorderRight(short border)
+    public void setBorderRight(BorderStyle border)
     {
         _format.setIndentNotParentBorder(true);
-        _format.setBorderRight(border);
+        _format.setBorderRight(border.getCode());
     }
 
-    /**
-     * get the type of border to use for the right border of the cell
-     * @return border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderRight()
+    public BorderStyle getBorderRight()
     {
-        return _format.getBorderRight();
+        return BorderStyle.valueOf(_format.getBorderRight());
     }
+
+    @Override
+    public BorderStyle getBorderRightEnum() { return getBorderRight(); }
 
     /**
      * set the type of border to use for the top border of the cell
      * @param border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
+     * @since POI 3.15
      */
     @Override
-    public void setBorderTop(short border)
+    public void setBorderTop(BorderStyle border)
     {
         _format.setIndentNotParentBorder(true);
-        _format.setBorderTop(border);
+        _format.setBorderTop(border.getCode());
     }
 
-    /**
-     * get the type of border to use for the top border of the cell
-     * @return border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderTop()
+    public BorderStyle getBorderTop()
     {
-        return _format.getBorderTop();
+        return BorderStyle.valueOf(_format.getBorderTop());
     }
+
+    @Override
+    public BorderStyle getBorderTopEnum() { return getBorderTop(); }
 
     /**
      * set the type of border to use for the bottom border of the cell
      * @param border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
+     * @since 3.15 beta 2
      */
     @Override
-    public void setBorderBottom(short border)
+    public void setBorderBottom(BorderStyle border)
     {
         _format.setIndentNotParentBorder(true);
-        _format.setBorderBottom(border);
+        _format.setBorderBottom(border.getCode());
     }
 
-    /**
-     * get the type of border to use for the bottom border of the cell
-     * @return border type
-     * @see #BORDER_NONE
-     * @see #BORDER_THIN
-     * @see #BORDER_MEDIUM
-     * @see #BORDER_DASHED
-     * @see #BORDER_DOTTED
-     * @see #BORDER_THICK
-     * @see #BORDER_DOUBLE
-     * @see #BORDER_HAIR
-     * @see #BORDER_MEDIUM_DASHED
-     * @see #BORDER_DASH_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT
-     * @see #BORDER_DASH_DOT_DOT
-     * @see #BORDER_MEDIUM_DASH_DOT_DOT
-     * @see #BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderBottom()
+    public BorderStyle getBorderBottom()
     {
-        return _format.getBorderBottom();
+        return BorderStyle.valueOf(_format.getBorderBottom());
     }
+
+    @Override
+    public BorderStyle getBorderBottomEnum() { return getBorderBottom(); }
 
     /**
      * set the color to use for the left border
@@ -672,46 +563,27 @@ public final class HSSFCellStyle implements CellStyle {
     {
         return _format.getBottomBorderPaletteIdx();
     }
-
+    
     /**
      * setting to one fills the cell with the foreground color... No idea about
      * other values
      *
-     * @see #NO_FILL
-     * @see #SOLID_FOREGROUND
-     * @see #FINE_DOTS
-     * @see #ALT_BARS
-     * @see #SPARSE_DOTS
-     * @see #THICK_HORZ_BANDS
-     * @see #THICK_VERT_BANDS
-     * @see #THICK_BACKWARD_DIAG
-     * @see #THICK_FORWARD_DIAG
-     * @see #BIG_SPOTS
-     * @see #BRICKS
-     * @see #THIN_HORZ_BANDS
-     * @see #THIN_VERT_BANDS
-     * @see #THIN_BACKWARD_DIAG
-     * @see #THIN_FORWARD_DIAG
-     * @see #SQUARES
-     * @see #DIAMONDS
-     *
-     * @param fp  fill pattern (set to 1 to fill w/foreground color)
+     * @param fp  fill pattern (set to {@link FillPatternType#SOLID_FOREGROUND} to fill w/foreground color)
      */
     @Override
-    public void setFillPattern(short fp)
+    public void setFillPattern(FillPatternType fp)
     {
-        _format.setAdtlFillPattern(fp);
+        _format.setAdtlFillPattern(fp.getCode());
     }
 
-    /**
-     * get the fill pattern (??) - set to 1 to fill with foreground color
-     * @return fill pattern
-     */
     @Override
-    public short getFillPattern()
+    public FillPatternType getFillPattern()
     {
-        return _format.getAdtlFillPattern();
+        return FillPatternType.forInt(_format.getAdtlFillPattern());
     }
+
+    @Override
+    public FillPatternType getFillPatternEnum() { return getFillPattern(); }
 
     /**
      * Checks if the background and foreground fills are set correctly when one
@@ -724,16 +596,20 @@ public final class HSSFCellStyle implements CellStyle {
      * <p>0x40         0xSOMETHING</p>
      */
     private void checkDefaultBackgroundFills() {
-      if (_format.getFillForeground() == org.apache.poi.hssf.util.HSSFColor.AUTOMATIC.index) {
-    	  //JMH: Why +1, hell why not. I guess it made some sense to someone at the time. Doesnt
-    	  //to me now.... But experience has shown that when the fore is set to AUTOMATIC then the
-    	  //background needs to be incremented......
-    	  if (_format.getFillBackground() != (org.apache.poi.hssf.util.HSSFColor.AUTOMATIC.index+1))
-    		  setFillBackgroundColor((short)(org.apache.poi.hssf.util.HSSFColor.AUTOMATIC.index+1));
-      } else if (_format.getFillBackground() == org.apache.poi.hssf.util.HSSFColor.AUTOMATIC.index+1)
-    	  //Now if the forground changes to a non-AUTOMATIC color the background resets itself!!!
-    	  if (_format.getFillForeground() != org.apache.poi.hssf.util.HSSFColor.AUTOMATIC.index)
-    		  setFillBackgroundColor(org.apache.poi.hssf.util.HSSFColor.AUTOMATIC.index);
+        final short autoIdx = HSSFColorPredefined.AUTOMATIC.getIndex();
+        if (_format.getFillForeground() == autoIdx) {
+            //JMH: Why +1, hell why not. I guess it made some sense to someone at the time. Doesnt
+            //to me now.... But experience has shown that when the fore is set to AUTOMATIC then the
+            //background needs to be incremented......
+            if (_format.getFillBackground() != autoIdx+1) {
+                setFillBackgroundColor((short)(autoIdx+1));
+            }
+        } else if (_format.getFillBackground() == autoIdx+1) {
+            //Now if the forground changes to a non-AUTOMATIC color the background resets itself!!!
+            if (_format.getFillForeground() != autoIdx) {
+                setFillBackgroundColor(autoIdx);
+            }
+        }
     }
 
     /**
@@ -776,15 +652,15 @@ public final class HSSFCellStyle implements CellStyle {
      * @return fill color
      */
     @Override
-    public short getFillBackgroundColor()
-    {
-    	short result = _format.getFillBackground();
-    	//JMH: Do this ridiculous conversion, and let HSSFCellStyle
-    	//internally migrate back and forth
-    	if (result == (HSSFColor.AUTOMATIC.index+1)) {
-			return HSSFColor.AUTOMATIC.index;
-		}
-    	return result;
+    public short getFillBackgroundColor() {
+        final short autoIndex = HSSFColorPredefined.AUTOMATIC.getIndex();
+        short result = _format.getFillBackground();
+        //JMH: Do this ridiculous conversion, and let HSSFCellStyle
+        //internally migrate back and forth
+        if (result == autoIndex+1) {
+            return autoIndex;
+        }
+        return result;
     }
     
     @Override
@@ -838,14 +714,14 @@ public final class HSSFCellStyle implements CellStyle {
      *  styles where no name has been defined
      */
     public String getUserStyleName() {
-    	StyleRecord sr = _workbook.getStyleRecord(_index);
-    	if(sr == null) {
-    		return null;
-    	}
-    	if(sr.isBuiltin()) {
-    		return null;
-    	}
-    	return sr.getName();
+        StyleRecord sr = _workbook.getStyleRecord(_index);
+        if(sr == null) {
+            return null;
+        }
+        if(sr.isBuiltin()) {
+            return null;
+        }
+        return sr.getName();
     }
 
     /**
@@ -853,16 +729,16 @@ public final class HSSFCellStyle implements CellStyle {
      * Will complain if you try this on a built in style.
      */
     public void setUserStyleName(String styleName) {
-    	StyleRecord sr = _workbook.getStyleRecord(_index);
-    	if(sr == null) {
-    		sr = _workbook.createStyleRecord(_index);
-    	}
-    	// All Style records start as "builtin", but generally
-    	//  only 20 and below really need to be
-    	if(sr.isBuiltin() && _index <= 20) {
-    		throw new IllegalArgumentException("Unable to set user specified style names for built in styles!");
-    	}
-    	sr.setName(styleName);
+        StyleRecord sr = _workbook.getStyleRecord(_index);
+        if(sr == null) {
+            sr = _workbook.createStyleRecord(_index);
+        }
+        // All Style records start as "builtin", but generally
+        //  only 20 and below really need to be
+        if(sr.isBuiltin() && _index <= 20) {
+            throw new IllegalArgumentException("Unable to set user specified style names for built in styles!");
+        }
+        sr.setName(styleName);
     }
 
     /**
@@ -871,7 +747,7 @@ public final class HSSFCellStyle implements CellStyle {
      */
     @Override
     public void setShrinkToFit(boolean shrinkToFit) {
-    	_format.setShrinkToFit(shrinkToFit);
+        _format.setShrinkToFit(shrinkToFit);
     }
     /**
      * Should the Cell be auto-sized by Excel to shrink
@@ -879,9 +755,9 @@ public final class HSSFCellStyle implements CellStyle {
      */
     @Override
     public boolean getShrinkToFit() {
-    	return _format.getShrinkToFit();
+        return _format.getShrinkToFit();
     }
-	
+    
     /**
      * Get the reading order, for RTL/LTR ordering of
      *  the text.
@@ -914,10 +790,10 @@ public final class HSSFCellStyle implements CellStyle {
      * @throws IllegalArgumentException if there's a workbook mis-match
      */
     public void verifyBelongsToWorkbook(HSSFWorkbook wb) {
-		if(wb.getWorkbook() != _workbook) {
-			throw new IllegalArgumentException("This Style does not belong to the supplied Workbook. Are you trying to assign a style from one workbook to the cell of a differnt workbook?");
-		}
-	}
+        if(wb.getWorkbook() != _workbook) {
+            throw new IllegalArgumentException("This Style does not belong to the supplied Workbook. Are you trying to assign a style from one workbook to the cell of a differnt workbook?");
+        }
+    }
 
     /**
      * Clones all the style information from another
@@ -933,71 +809,78 @@ public final class HSSFCellStyle implements CellStyle {
      */
     @Override
     public void cloneStyleFrom(CellStyle source) {
-		if(source instanceof HSSFCellStyle) {
-			this.cloneStyleFrom((HSSFCellStyle)source);
-		} else {
-		    throw new IllegalArgumentException("Can only clone from one HSSFCellStyle to another, not between HSSFCellStyle and XSSFCellStyle");
-		}
-	}
+        if(source instanceof HSSFCellStyle) {
+            this.cloneStyleFrom((HSSFCellStyle)source);
+        } else {
+            throw new IllegalArgumentException("Can only clone from one HSSFCellStyle to another, not between HSSFCellStyle and XSSFCellStyle");
+        }
+    }
     public void cloneStyleFrom(HSSFCellStyle source) {
-    	// First we need to clone the extended format
-    	//  record
-    	_format.cloneStyleFrom(source._format);
+        // First we need to clone the extended format
+        //  record
+        _format.cloneStyleFrom(source._format);
 
-    	// Handle matching things if we cross workbooks
-    	if(_workbook != source._workbook) {
+        // Handle matching things if we cross workbooks
+        if(_workbook != source._workbook) {
 
             lastDateFormat.set(Short.MIN_VALUE);
             lastFormats.set(null);
             getDataFormatStringCache.set(null);
-    	   
-			// Then we need to clone the format string,
-			//  and update the format record for this
-    		short fmt = (short)_workbook.createFormat(source.getDataFormatString() );
-    		setDataFormat(fmt);
+           
+            // Then we need to clone the format string,
+            //  and update the format record for this
+            short fmt = (short)_workbook.createFormat(source.getDataFormatString() );
+            setDataFormat(fmt);
 
-			// Finally we need to clone the font,
-			//  and update the format record for this
-    		FontRecord fr = _workbook.createNewFont();
-    		fr.cloneStyleFrom(
-    				source._workbook.getFontRecordAt(
-    						source.getFontIndex()
-    				)
-    		);
+            // Finally we need to clone the font,
+            //  and update the format record for this
+            FontRecord fr = _workbook.createNewFont();
+            fr.cloneStyleFrom(
+                    source._workbook.getFontRecordAt(
+                            source.getFontIndex()
+                    )
+            );
 
-    		HSSFFont font = new HSSFFont(
-    				(short)_workbook.getFontIndex(fr), fr
-    		);
-    		setFont(font);
-    	}
+            HSSFFont font = new HSSFFont(
+                    (short)_workbook.getFontIndex(fr), fr
+            );
+            setFont(font);
+        }
     }
 
 
-	@Override
-	public int hashCode() {
-		final int prime = 31;
-		int result = 1;
-		result = prime * result + ((_format == null) ? 0 : _format.hashCode());
-		result = prime * result + _index;
-		return result;
-	}
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((_format == null) ? 0 : _format.hashCode());
+        result = prime * result + _index;
+        return result;
+    }
 
-	@Override
-	public boolean equals(Object obj) {
-		if (this == obj) return true;
-		if (obj == null) return false;
-		if (obj instanceof HSSFCellStyle) {
-			final HSSFCellStyle other = (HSSFCellStyle) obj;
-			if (_format == null) {
-				if (other._format != null)
-					return false;
-			} else if (!_format.equals(other._format))
-				return false;
-			if (_index != other._index)
-				return false;
-			return true;
-		}
-		return false;
-	}
-	
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (obj instanceof HSSFCellStyle) {
+            final HSSFCellStyle other = (HSSFCellStyle) obj;
+            if (_format == null) {
+                if (other._format != null) {
+                    return false;
+                }
+            } else if (!_format.equals(other._format)) {
+                return false;
+            }
+            if (_index != other._index) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+    
 }

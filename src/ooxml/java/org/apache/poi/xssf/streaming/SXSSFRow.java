@@ -26,39 +26,27 @@ import java.util.TreeMap;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.util.Internal;
 
 /**
  * Streaming version of XSSFRow implementing the "BigGridDemo" strategy.
- *
- * @author Alex Geller, Four J's Development Tools
-*/
+ */
 public class SXSSFRow implements Row, Comparable<SXSSFRow>
 {
     private static final Boolean UNDEFINED = null;
     
     private final SXSSFSheet _sheet; // parent sheet
-    private final SortedMap<Integer, SXSSFCell> _cells = new TreeMap<Integer, SXSSFCell>();
+    private final SortedMap<Integer, SXSSFCell> _cells = new TreeMap<>();
     private short _style = -1; // index of cell style in style table
     private short _height = -1; // row height in twips (1/20 point)
-    private boolean _zHeight = false; // row zero-height (this is somehow different than being hidden)
-    private int _outlineLevel = 0;   // Outlining level of the row, when outlining is on
+    private boolean _zHeight; // row zero-height (this is somehow different than being hidden)
+    private int _outlineLevel;   // Outlining level of the row, when outlining is on
     // use Boolean to have a tri-state for on/off/undefined 
     private Boolean _hidden = UNDEFINED;
     private Boolean _collapsed = UNDEFINED;
-
-    /**
-     *
-     * @param sheet the parent sheet the row belongs to
-     * @param initialSize - no longer needed
-     * @deprecated 2015-11-30 (circa POI 3.14beta1). Use {@link #SXSSFRow(SXSSFSheet)} instead.
-     */
-    public SXSSFRow(SXSSFSheet sheet, int initialSize)
-    {
-        this(sheet);
-    }
     
     public SXSSFRow(SXSSFSheet sheet)
     {
@@ -74,6 +62,7 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
         return _height!=-1;
     }
 
+    @Override
     public int getOutlineLevel(){
         return _outlineLevel;
     }
@@ -119,7 +108,7 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
     /**
      * Use this to create new cells within the row and return it.
      * <p>
-     * The cell that is returned is a {@link Cell#CELL_TYPE_BLANK}. The type can be changed
+     * The cell that is returned is a {@link CellType#BLANK}. The type can be changed
      * either through calling <code>setCellValue</code> or <code>setCellType</code>.
      *
      * @param column - the column number this cell represents
@@ -130,13 +119,13 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
     @Override
     public SXSSFCell createCell(int column)
     {
-        return createCell(column, Cell.CELL_TYPE_BLANK);
+        return createCell(column, CellType.BLANK);
     }
 
     /**
      * Use this to create new cells within the row and return it.
      * <p>
-     * The cell that is returned is a {@link Cell#CELL_TYPE_BLANK}. The type can be changed
+     * The cell that is returned is a {@link CellType#BLANK}. The type can be changed
      * either through calling setCellValue or setCellType.
      *
      * @param column - the column number this cell represents
@@ -145,7 +134,7 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
      * (255 for *.xls, 1048576 for *.xlsx)
      */
     @Override
-    public SXSSFCell createCell(int column, int type)
+    public SXSSFCell createCell(int column, CellType type)
     {
         checkBounds(column);
         SXSSFCell cell = new SXSSFCell(this, type);
@@ -239,38 +228,24 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
      *
      * @return the cell at the given (0 based) index
      * @throws IllegalArgumentException if cellnum < 0 or the specified MissingCellPolicy is invalid
-     * @see Row#RETURN_NULL_AND_BLANK
-     * @see Row#RETURN_BLANK_AS_NULL
-     * @see Row#CREATE_NULL_AS_BLANK
      */
     @Override
     public SXSSFCell getCell(int cellnum, MissingCellPolicy policy)
     {
         checkBounds(cellnum);
         
-        // FIXME: replace with switch(enum)
         final SXSSFCell cell = _cells.get(cellnum);
-        if (policy == RETURN_NULL_AND_BLANK)
-        {
-            return cell;
+        switch (policy) {
+            case RETURN_NULL_AND_BLANK:
+                return cell;
+            case RETURN_BLANK_AS_NULL:
+                boolean isBlank = (cell != null && cell.getCellType() == CellType.BLANK);
+                return (isBlank) ? null : cell;
+            case CREATE_NULL_AS_BLANK:
+                return (cell == null) ? createCell(cellnum, CellType.BLANK) : cell;
+            default:
+                throw new IllegalArgumentException("Illegal policy " + policy);
         }
-        else if (policy == RETURN_BLANK_AS_NULL)
-        {
-            if (cell == null || cell.getCellType() == Cell.CELL_TYPE_BLANK)
-            {
-                return null;
-            }
-            return cell;
-        }
-        else if (policy == CREATE_NULL_AS_BLANK)
-        {
-            if (cell == null)
-            {
-                return createCell(cellnum, Cell.CELL_TYPE_BLANK);
-            }
-            return cell;
-        }
-        throw new IllegalArgumentException("Illegal policy " + policy + " (" + policy.id + ")");
     }
 
     /**
@@ -433,7 +408,6 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
     public void setRowStyle(CellStyle style) {
        if(style == null) {
           _style = -1;
-          return;
        } else {
           _style = style.getIndex();
        }
@@ -499,7 +473,7 @@ public class SXSSFRow implements Row, Comparable<SXSSFRow>
     public class CellIterator implements Iterator<Cell>
     {
         final int maxColumn = getLastCellNum(); //last column PLUS ONE
-        int pos = 0;
+        int pos;
 
         @Override
         public boolean hasNext()

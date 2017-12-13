@@ -37,13 +37,11 @@ import org.apache.poi.util.HexDump;
 /**
  * <p>Renders a {@link PropertySetDescriptor} by more or less dumping
  * the stuff into a {@link JTextArea}.</p>
- *
- * @author Rainer Klute <a
- * href="mailto:klute@rainer-klute.de">&lt;klute@rainer-klute.de&gt;</a>
  */
 public class PropertySetDescriptorRenderer extends DocumentDescriptorRenderer
 {
 
+    @Override
     public Component getTreeCellRendererComponent(final JTree tree,
                                                   final Object value,
                                                   final boolean selectedCell,
@@ -161,7 +159,7 @@ public class PropertySetDescriptorRenderer extends DocumentDescriptorRenderer
                 b.append(' ');
                 System.arraycopy(value, ((byte[])value).length - 4, buf, 0, 4);
             } else if (value != null) {
-                b.append(value.toString());
+                b.append(value);
             } else {
                 b.append("null");
             }

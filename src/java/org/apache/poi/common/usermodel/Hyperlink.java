@@ -16,30 +16,12 @@
 ==================================================================== */
 package org.apache.poi.common.usermodel;
 
+import org.apache.poi.util.Removal;
+
 /**
  * Represents a hyperlink.
  */
 public interface Hyperlink {
-    /**
-     * Link to an existing file or web page
-     */
-    public static final int LINK_URL = 1;
-
-    /**
-     * Link to a place in this document
-     */
-    public static final int LINK_DOCUMENT = 2;
-
-    /**
-     * Link to an E-mail address
-     */
-    public static final int LINK_EMAIL = 3;
-
-    /**
-     * Link to a file
-     */
-    public static final int LINK_FILE = 4;
-
     
     /**
      * Hyperlink address. Depending on the hyperlink type it can be URL, e-mail, path to a file, etc.
@@ -73,6 +55,18 @@ public interface Hyperlink {
      * Return the type of this hyperlink
      *
      * @return the type of this hyperlink
+     * @see HyperlinkType#forInt(int)
      */
-    public int getType();
+    public HyperlinkType getType();
+    
+    /**
+     * Return the type of this hyperlink
+     *
+     * @return the type of this hyperlink
+     * @since POI 3.15 beta 3
+     * @deprecated use <code>getType()</code> instead
+     */
+    @Deprecated
+    @Removal(version = "4.2")
+    public HyperlinkType getTypeEnum();
 }

@@ -20,7 +20,9 @@ package org.apache.poi.poifs.filesystem;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndianInput;
+import org.apache.poi.util.SuppressForbidden;
 
 /**
  * This class provides methods to read a DocumentEntry managed by a
@@ -86,6 +88,7 @@ public class DocumentInputStream extends InputStream implements LittleEndianInpu
    }
 
     @Override
+    @SuppressForbidden("just delegating")
 	public int available() {
 	   return delegate.available();
 	}
@@ -188,5 +191,10 @@ public class DocumentInputStream extends InputStream implements LittleEndianInpu
     public long readUInt() {
         int i = readInt();
         return i & 0xFFFFFFFFL;
+    }
+
+    @Override
+    public void readPlain(byte[] buf, int off, int len) {
+        readFully(buf, off, len);
     }
 }

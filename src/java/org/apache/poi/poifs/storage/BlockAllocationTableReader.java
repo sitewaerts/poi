@@ -45,7 +45,7 @@ public final class BlockAllocationTableReader {
 
     /**
      * Maximum number size (in blocks) of the allocation table as supported by
-     * POI.<br/>
+     * POI.<br>
      *
      * This constant has been chosen to help POI identify corrupted data in the
      * header block (rather than crash immediately with {@link OutOfMemoryError}
@@ -206,7 +206,7 @@ public final class BlockAllocationTableReader {
      */
     ListManagedBlock[] fetchBlocks(int startBlock, int headerPropertiesStartBlock,
             BlockList blockList) throws IOException {
-        List<ListManagedBlock> blocks = new ArrayList<ListManagedBlock>();
+        List<ListManagedBlock> blocks = new ArrayList<>();
         int  currentBlock = startBlock;
         boolean firstPass = true;
         ListManagedBlock dataBlock = null;

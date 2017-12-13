@@ -26,6 +26,7 @@ import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.ReadingOrder;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.util.Internal;
 import org.apache.poi.xssf.model.StylesTable;
@@ -38,13 +39,13 @@ import org.apache.xmlbeans.XmlException;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTBorder;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTBorderPr;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCellAlignment;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColor;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTFill;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTFont;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPatternFill;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTXf;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STBorderStyle;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STPatternType;
-
 
 /**
  *
@@ -160,8 +161,8 @@ public class XSSFCellStyle implements CellStyle {
 
                   // bug 56295: ensure that the fills is available and set correctly
                   CTFill fill = CTFill.Factory.parse(
-                		  src.getCTFill().toString(), DEFAULT_XML_OPTIONS
-                		  );
+                          src.getCTFill().toString(), DEFAULT_XML_OPTIONS
+                          );
                   addFill(fill);
 
                   // bug 58084: set borders correctly
@@ -203,211 +204,107 @@ public class XSSFCellStyle implements CellStyle {
         }
     }
 
-	private void addFill(CTFill fill) {
-		int idx = _stylesSource.putFill(new XSSFCellFill(fill));
+    private void addFill(CTFill fill) {
+        int idx = _stylesSource.putFill(new XSSFCellFill(fill,_stylesSource.getIndexedColors()));
 
-		_cellXf.setFillId(idx);
-		_cellXf.setApplyFill(true);
-	}
-	
-	private void addBorder(CTBorder border) {
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(border, _theme));
+        _cellXf.setFillId(idx);
+        _cellXf.setApplyFill(true);
+    }
+    
+    private void addBorder(CTBorder border) {
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(border, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
-	}
-
-    /**
-     * Get the type of horizontal alignment for the cell
-     *
-     * @return short - the type of alignment
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_GENERAL
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_LEFT
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_CENTER
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_RIGHT
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_FILL
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_JUSTIFY
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_CENTER_SELECTION
-     */
-    @Override
-    public short getAlignment() {
-        return (short)(getAlignmentEnum().ordinal());
     }
 
-    /**
-     * Get the type of horizontal alignment for the cell
-     *
-     * @return HorizontalAlignment - the type of alignment
-     * @see org.apache.poi.ss.usermodel.HorizontalAlignment
-     */
-    public HorizontalAlignment getAlignmentEnum() {
+    @Override
+    public HorizontalAlignment getAlignment() {
         CTCellAlignment align = _cellXf.getAlignment();
         if(align != null && align.isSetHorizontal()) {
-            return HorizontalAlignment.values()[align.getHorizontal().intValue()-1];
+            return HorizontalAlignment.forInt(align.getHorizontal().intValue()-1);
         }
         return HorizontalAlignment.GENERAL;
     }
 
-    /**
-     * Get the type of border to use for the bottom border of the cell
-     *
-     * @return short - border type
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderBottom() {
-        if(!_cellXf.getApplyBorder()) return BORDER_NONE;
+    public HorizontalAlignment getAlignmentEnum() {
+        return getAlignment();
+    }
+
+    @Override
+    public BorderStyle getBorderBottom() {
+        if(!_cellXf.getApplyBorder()) return BorderStyle.NONE;
 
         int idx = (int)_cellXf.getBorderId();
         CTBorder ct = _stylesSource.getBorderAt(idx).getCTBorder();
         STBorderStyle.Enum ptrn = ct.isSetBottom() ? ct.getBottom().getStyle() : null;
-        return ptrn == null ? BORDER_NONE : (short)(ptrn.intValue() - 1);
+        if (ptrn == null) {
+            return BorderStyle.NONE;
+        }
+        return BorderStyle.valueOf((short)(ptrn.intValue() - 1));
     }
 
-    /**
-     * Get the type of border to use for the bottom border of the cell
-     *
-     * @return border type as Java enum
-     * @see BorderStyle
-     */
-    public BorderStyle getBorderBottomEnum() {
-        int style  = getBorderBottom();
-        return BorderStyle.values()[style];
-    }
-
-    /**
-     * Get the type of border to use for the left border of the cell
-     *
-     * @return short - border type, default value is {@link org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE}
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderLeft() {
-        if(!_cellXf.getApplyBorder()) return BORDER_NONE;
+    public BorderStyle getBorderBottomEnum() {
+        return getBorderBottom();
+    }
+
+    @Override
+    public BorderStyle getBorderLeft() {
+        if(!_cellXf.getApplyBorder()) return BorderStyle.NONE;
 
         int idx = (int)_cellXf.getBorderId();
         CTBorder ct = _stylesSource.getBorderAt(idx).getCTBorder();
         STBorderStyle.Enum ptrn = ct.isSetLeft() ? ct.getLeft().getStyle() : null;
-        return ptrn == null ? BORDER_NONE : (short)(ptrn.intValue() - 1);
+        if (ptrn == null) {
+            return BorderStyle.NONE;
+        }
+        return BorderStyle.valueOf((short)(ptrn.intValue() - 1));
     }
 
-    /**
-     * Get the type of border to use for the left border of the cell
-     *
-     * @return border type, default value is {@link org.apache.poi.ss.usermodel.BorderStyle#NONE}
-     */
-    public BorderStyle getBorderLeftEnum() {
-        int style  = getBorderLeft();
-        return BorderStyle.values()[style];
-    }
-
-    /**
-     * Get the type of border to use for the right border of the cell
-     *
-     * @return short - border type, default value is {@link org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE}
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderRight() {
-        if(!_cellXf.getApplyBorder()) return BORDER_NONE;
+    public BorderStyle getBorderLeftEnum() { return getBorderLeft(); }
+
+    @Override
+    public BorderStyle getBorderRight() {
+        if(!_cellXf.getApplyBorder()) return BorderStyle.NONE;
 
         int idx = (int)_cellXf.getBorderId();
         CTBorder ct = _stylesSource.getBorderAt(idx).getCTBorder();
         STBorderStyle.Enum ptrn = ct.isSetRight() ? ct.getRight().getStyle() : null;
-        return ptrn == null ? BORDER_NONE : (short)(ptrn.intValue() - 1);
+        if (ptrn == null) {
+            return BorderStyle.NONE;
+        }
+        return BorderStyle.valueOf((short)(ptrn.intValue() - 1));
     }
 
-    /**
-     * Get the type of border to use for the right border of the cell
-     *
-     * @return border type, default value is {@link org.apache.poi.ss.usermodel.BorderStyle#NONE}
-     */
-    public BorderStyle getBorderRightEnum() {
-        int style  = getBorderRight();
-        return BorderStyle.values()[style];
-    }
-
-    /**
-     * Get the type of border to use for the top border of the cell
-     *
-     * @return short - border type, default value is {@link org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE}
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle #BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
-     */
     @Override
-    public short getBorderTop() {
-        if(!_cellXf.getApplyBorder()) return BORDER_NONE;
+    public BorderStyle getBorderRightEnum() {
+        return getBorderRight();
+    }
+
+    @Override
+    public BorderStyle getBorderTop() {
+        if(!_cellXf.getApplyBorder()) return BorderStyle.NONE;
 
         int idx = (int)_cellXf.getBorderId();
         CTBorder ct = _stylesSource.getBorderAt(idx).getCTBorder();
         STBorderStyle.Enum ptrn = ct.isSetTop() ? ct.getTop().getStyle() : null;
-        return ptrn == null ? BORDER_NONE : (short)(ptrn.intValue() - 1);
+        if (ptrn == null) {
+            return BorderStyle.NONE;
+        }
+        return BorderStyle.valueOf((short) (ptrn.intValue() - 1));
     }
 
-     /**
-     * Get the type of border to use for the top border of the cell
-     *
-     * @return border type, default value is {@link org.apache.poi.ss.usermodel.BorderStyle#NONE}
-     */
+    @Override
     public BorderStyle getBorderTopEnum() {
-         int style  = getBorderTop();
-         return BorderStyle.values()[style];
+         return getBorderTop();
     }
 
     /**
      * Get the color to use for the bottom border
-     * <br/>
+     * <br>
      * Color is optional. When missing, IndexedColors.AUTOMATIC is implied.
      * @return the index of the color definition, default value is {@link org.apache.poi.ss.usermodel.IndexedColors#AUTOMATIC}
      * @see org.apache.poi.ss.usermodel.IndexedColors
@@ -484,7 +381,7 @@ public class XSSFCellStyle implements CellStyle {
      * @return XSSFColor - fill color or <code>null</code> if not set
      */
     public XSSFColor getFillBackgroundXSSFColor() {
-    	// bug 56295: handle missing applyFill attribute as "true" because Excel does as well
+        // bug 56295: handle missing applyFill attribute as "true" because Excel does as well
         if(_cellXf.isSetApplyFill() && !_cellXf.getApplyFill()) return null;
 
         int fillIndex = (int)_cellXf.getFillId();
@@ -523,7 +420,7 @@ public class XSSFCellStyle implements CellStyle {
      * @return XSSFColor - fill color or <code>null</code> if not set
      */
     public XSSFColor getFillForegroundXSSFColor() {
-    	// bug 56295: handle missing applyFill attribute as "true" because Excel does as well
+        // bug 56295: handle missing applyFill attribute as "true" because Excel does as well
         if(_cellXf.isSetApplyFill() && !_cellXf.getApplyFill()) return null;
 
         int fillIndex = (int)_cellXf.getFillId();
@@ -536,55 +433,28 @@ public class XSSFCellStyle implements CellStyle {
         return fillForegroundColor;
     }
 
-    /**
-     * Get the fill pattern
-     * @return fill pattern, default value is {@link org.apache.poi.ss.usermodel.CellStyle#NO_FILL}
-     *
-     * @see org.apache.poi.ss.usermodel.CellStyle#NO_FILL
-     * @see org.apache.poi.ss.usermodel.CellStyle#SOLID_FOREGROUND
-     * @see org.apache.poi.ss.usermodel.CellStyle#FINE_DOTS
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALT_BARS
-     * @see org.apache.poi.ss.usermodel.CellStyle#SPARSE_DOTS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_HORZ_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_VERT_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_BACKWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_FORWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#BIG_SPOTS
-     * @see org.apache.poi.ss.usermodel.CellStyle#BRICKS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_HORZ_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_VERT_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_BACKWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_FORWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#SQUARES
-     * @see org.apache.poi.ss.usermodel.CellStyle#DIAMONDS
-     */
     @Override
-    public short getFillPattern() {
-    	// bug 56295: handle missing applyFill attribute as "true" because Excel does as well
-        if(_cellXf.isSetApplyFill() && !_cellXf.getApplyFill()) return 0;
+    public FillPatternType getFillPattern() {
+        // bug 56295: handle missing applyFill attribute as "true" because Excel does as well
+        if(_cellXf.isSetApplyFill() && !_cellXf.getApplyFill()) return FillPatternType.NO_FILL;
 
         int fillIndex = (int)_cellXf.getFillId();
         XSSFCellFill fill = _stylesSource.getFillAt(fillIndex);
 
         STPatternType.Enum ptrn = fill.getPatternType();
-        if(ptrn == null) return CellStyle.NO_FILL;
-        return (short)(ptrn.intValue() - 1);
+        if(ptrn == null) return FillPatternType.NO_FILL;
+        return FillPatternType.forInt(ptrn.intValue() - 1);
     }
 
-    /**
-     * Get the fill pattern
-     *
-     * @return the fill pattern, default value is {@link org.apache.poi.ss.usermodel.FillPatternType#NO_FILL}
-     */
+    @Override
     public FillPatternType getFillPatternEnum() {
-        int style  = getFillPattern();
-        return FillPatternType.values()[style];
+        return getFillPattern();
     }
 
     /**
-    * Gets the font for this style
-    * @return Font - font
-    */
+     * Gets the font for this style
+     * @return Font - font
+     */
     public XSSFFont getFont() {
         if (_font == null) {
             _font = _stylesSource.getFontAt(getFontId());
@@ -610,10 +480,7 @@ public class XSSFCellStyle implements CellStyle {
      */
     @Override
     public boolean getHidden() {
-        if (!_cellXf.isSetProtection() || !_cellXf.getProtection().isSetHidden()) {
-            return false;
-        }
-        return _cellXf.getProtection().getHidden();
+        return _cellXf.isSetProtection() && _cellXf.getProtection().isSetHidden() && _cellXf.getProtection().getHidden();
     }
 
     /**
@@ -682,12 +549,17 @@ public class XSSFCellStyle implements CellStyle {
      */
     @Override
     public boolean getLocked() {
-        if (!_cellXf.isSetProtection() || !_cellXf.getProtection().isSetLocked()) {
-            return true;
-        }
-        return _cellXf.getProtection().getLocked();
+        return !_cellXf.isSetProtection() || !_cellXf.getProtection().isSetLocked() || _cellXf.getProtection().getLocked();
     }
 
+    /**
+     * Is "Quote Prefix" or "123 Prefix" enabled for the cell?
+     */
+    @Override
+    public boolean getQuotePrefixed() {
+        return _cellXf.getQuotePrefix();
+    }
+    
     /**
      * Get the color to use for the right border
      *
@@ -718,10 +590,10 @@ public class XSSFCellStyle implements CellStyle {
      * <p>
      * Expressed in degrees. Values range from 0 to 180. The first letter of
      * the text is considered the center-point of the arc.
-     * <br/>
+     * <br>
      * For 0 - 90, the value represents degrees above horizon. For 91-180 the degrees below the
      * horizon is calculated as:
-     * <br/>
+     * <br>
      * <code>[degrees below horizon] = 90 - textRotation.</code>
      * </p>
      *
@@ -765,32 +637,18 @@ public class XSSFCellStyle implements CellStyle {
         return border.getBorderColor(BorderSide.TOP);
     }
 
-    /**
-     * Get the type of vertical alignment for the cell
-     *
-     * @return align the type of alignment, default value is {@link org.apache.poi.ss.usermodel.CellStyle#VERTICAL_BOTTOM}
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_TOP
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_CENTER
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_BOTTOM
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_JUSTIFY
-     */
     @Override
-    public short getVerticalAlignment() {
-        return (short) (getVerticalAlignmentEnum().ordinal());
-    }
-
-    /**
-     * Get the type of vertical alignment for the cell
-     *
-     * @return the type of alignment, default value is {@link org.apache.poi.ss.usermodel.VerticalAlignment#BOTTOM}
-     * @see org.apache.poi.ss.usermodel.VerticalAlignment
-     */
-    public VerticalAlignment getVerticalAlignmentEnum() {
+    public VerticalAlignment getVerticalAlignment() {
         CTCellAlignment align = _cellXf.getAlignment();
         if(align != null && align.isSetVertical()) {
-            return VerticalAlignment.values()[align.getVertical().intValue()-1];
+            return VerticalAlignment.forInt(align.getVertical().intValue()-1);
         }
         return VerticalAlignment.BOTTOM;
+    }
+
+    @Override
+    public VerticalAlignment getVerticalAlignmentEnum() {
+        return getVerticalAlignment();
     }
 
     /**
@@ -808,59 +666,10 @@ public class XSSFCellStyle implements CellStyle {
      * Set the type of horizontal alignment for the cell
      *
      * @param align - the type of alignment
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_GENERAL
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_LEFT
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_CENTER
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_RIGHT
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_FILL
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_JUSTIFY
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALIGN_CENTER_SELECTION
      */
     @Override
-    public void setAlignment(short align) {
-        getCellAlignment().setHorizontal(HorizontalAlignment.values()[align]);
-    }
-
-    /**
-     * Set the type of horizontal alignment for the cell
-     *
-     * @param align - the type of alignment
-     * @see org.apache.poi.ss.usermodel.HorizontalAlignment
-     */
     public void setAlignment(HorizontalAlignment align) {
-        setAlignment((short)align.ordinal());
-    }
-
-    /**
-     * Set the type of border to use for the bottom border of the cell
-     *
-     * @param border the type of border to use
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
-     */
-    @Override
-    public void setBorderBottom(short border) {
-        CTBorder ct = getCTBorder();
-        CTBorderPr pr = ct.isSetBottom() ? ct.getBottom() : ct.addNewBottom();
-        if(border == BORDER_NONE) ct.unsetBottom();
-        else pr.setStyle(STBorderStyle.Enum.forInt(border + 1));
-
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
-
-        _cellXf.setBorderId(idx);
-        _cellXf.setApplyBorder(true);
+        getCellAlignment().setHorizontal(align);
     }
 
     /**
@@ -868,131 +677,76 @@ public class XSSFCellStyle implements CellStyle {
      *
      * @param border - type of border to use
      * @see org.apache.poi.ss.usermodel.BorderStyle
-     */
-    public void setBorderBottom(BorderStyle border) {
-	    setBorderBottom((short)border.ordinal());
-    }
-
-    /**
-     * Set the type of border to use for the left border of the cell
-     * @param border the type of border to use
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
+     * @since POI 3.15
      */
     @Override
-    public void setBorderLeft(short border) {
+    public void setBorderBottom(BorderStyle border) {
+        CTBorder ct = getCTBorder();
+        CTBorderPr pr = ct.isSetBottom() ? ct.getBottom() : ct.addNewBottom();
+        if(border == BorderStyle.NONE) ct.unsetBottom();
+        else pr.setStyle(STBorderStyle.Enum.forInt(border.getCode() + 1));
+
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme, _stylesSource.getIndexedColors()));
+
+        _cellXf.setBorderId(idx);
+        _cellXf.setApplyBorder(true);
+    }
+
+     /**
+     * Set the type of border to use for the left border of the cell
+      *
+     * @param border the type of border to use
+     * @since POI 3.15
+     */
+    @Override
+    public void setBorderLeft(BorderStyle border) {
         CTBorder ct = getCTBorder();
         CTBorderPr pr = ct.isSetLeft() ? ct.getLeft() : ct.addNewLeft();
-        if(border == BORDER_NONE) ct.unsetLeft();
-        else pr.setStyle(STBorderStyle.Enum.forInt(border + 1));
+        if(border == BorderStyle.NONE) ct.unsetLeft();
+        else pr.setStyle(STBorderStyle.Enum.forInt(border.getCode() + 1));
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme, _stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
     }
 
      /**
-     * Set the type of border to use for the left border of the cell
+     * Set the type of border to use for the right border of the cell
       *
      * @param border the type of border to use
-     */
-    public void setBorderLeft(BorderStyle border) {
-	    setBorderLeft((short)border.ordinal());
-    }
-
-    /**
-     * Set the type of border to use for the right border of the cell
-     *
-     * @param border the type of border to use
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
+     * @since POI 3.15
      */
     @Override
-    public void setBorderRight(short border) {
+    public void setBorderRight(BorderStyle border) {
         CTBorder ct = getCTBorder();
         CTBorderPr pr = ct.isSetRight() ? ct.getRight() : ct.addNewRight();
-        if(border == BORDER_NONE) ct.unsetRight();
-        else pr.setStyle(STBorderStyle.Enum.forInt(border + 1));
+        if(border == BorderStyle.NONE) ct.unsetRight();
+        else pr.setStyle(STBorderStyle.Enum.forInt(border.getCode() + 1));
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
-    }
-
-     /**
-     * Set the type of border to use for the right border of the cell
-      *
-     * @param border the type of border to use
-     */
-    public void setBorderRight(BorderStyle border) {
-	    setBorderRight((short)border.ordinal());
     }
 
     /**
      * Set the type of border to use for the top border of the cell
      *
      * @param border the type of border to use
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_NONE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THIN
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOTTED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_THICK
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DOUBLE
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_HAIR
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASHED
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_MEDIUM_DASH_DOT_DOT
-     * @see org.apache.poi.ss.usermodel.CellStyle#BORDER_SLANTED_DASH_DOT
+     * @since POI 3.15
      */
-   @Override
-public void setBorderTop(short border) {
+    @Override
+    public void setBorderTop(BorderStyle border) {
         CTBorder ct = getCTBorder();
         CTBorderPr pr = ct.isSetTop() ? ct.getTop() : ct.addNewTop();
-        if(border == BORDER_NONE) ct.unsetTop();
-        else pr.setStyle(STBorderStyle.Enum.forInt(border + 1));
+        if(border == BorderStyle.NONE) ct.unsetTop();
+        else pr.setStyle(STBorderStyle.Enum.forInt(border.getCode() + 1));
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
-    }
-
-    /**
-     * Set the type of border to use for the top border of the cell
-     *
-     * @param border the type of border to use
-     */
-    public void setBorderTop(BorderStyle border) {
-	    setBorderTop((short)border.ordinal());
     }
 
     /**
@@ -1002,7 +756,7 @@ public void setBorderTop(short border) {
      */
     @Override
     public void setBottomBorderColor(short color) {
-        XSSFColor clr = new XSSFColor();
+        XSSFColor clr = XSSFColor.from(CTColor.Factory.newInstance(), _stylesSource.getIndexedColors());
         clr.setIndexed(color);
         setBottomBorderColor(clr);
     }
@@ -1020,7 +774,7 @@ public void setBorderTop(short border) {
         if(color != null)  pr.setColor(color.getCTColor());
         else pr.unsetColor();
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
@@ -1112,14 +866,14 @@ public void setBorderTop(short border) {
      */
     @Override
     public void setFillBackgroundColor(short bg) {
-        XSSFColor clr = new XSSFColor();
+        XSSFColor clr = XSSFColor.from(CTColor.Factory.newInstance(), _stylesSource.getIndexedColors());
         clr.setIndexed(bg);
         setFillBackgroundColor(clr);
     }
 
     /**
     * Set the foreground fill color represented as a {@link XSSFColor} value.
-     * <br/>
+     * <br>
     * <i>Note: Ensure Foreground color is set prior to background color.</i>
     * @param color the color to use
     * @see #setFillBackgroundColor(org.apache.poi.xssf.usermodel.XSSFColor) )
@@ -1140,14 +894,14 @@ public void setBorderTop(short border) {
 
     /**
      * Set the foreground fill color as a indexed color value
-     * <br/>
+     * <br>
      * <i>Note: Ensure Foreground color is set prior to background color.</i>
      * @param fg the color to use
      * @see org.apache.poi.ss.usermodel.IndexedColors
      */
     @Override
     public void setFillForegroundColor(short fg) {
-        XSSFColor clr = new XSSFColor();
+        XSSFColor clr = XSSFColor.from(CTColor.Factory.newInstance(), _stylesSource.getIndexedColors());
         clr.setIndexed(fg);
         setFillForegroundColor(clr);
     }
@@ -1157,7 +911,7 @@ public void setBorderTop(short border) {
      */
     private CTFill getCTFill(){
         CTFill ct;
-    	// bug 56295: handle missing applyFill attribute as "true" because Excel does as well
+        // bug 56295: handle missing applyFill attribute as "true" because Excel does as well
         if(!_cellXf.isSetApplyFill() || _cellXf.getApplyFill()) {
             int fillIndex = (int)_cellXf.getFillId();
             XSSFCellFill cf = _stylesSource.getFillAt(fillIndex);
@@ -1167,6 +921,24 @@ public void setBorderTop(short border) {
             ct = CTFill.Factory.newInstance();
         }
         return ct;
+    }
+    
+    /**
+     * Set reading order for the cell
+     *
+     * @param order - the reading order
+     */
+    public void setReadingOrder(ReadingOrder order) {
+        getCellAlignment().setReadingOrder(order);
+    }
+
+    /**
+     * Get reading order of the cell
+     *
+     * @return ReadingOrder - the reading order
+     */
+    public ReadingOrder getReadingOrder() {
+        return getCellAlignment().getReadingOrder();
     }
 
     /**
@@ -1186,58 +958,31 @@ public void setBorderTop(short border) {
     }
 
     /**
-     * This element is used to specify cell fill information for pattern and solid color cell fills.
-     * For solid cell fills (no pattern),  foregorund color is used.
-     * For cell fills with patterns specified, then the cell fill color is specified by the background color.
+     * This element is used to specify cell fill information for pattern and solid color cell fills. For solid cell fills (no pattern),
+     * foreground color is used is used. For cell fills with patterns specified, then the cell fill color is specified by the background color element.
      *
-     * @see org.apache.poi.ss.usermodel.CellStyle#NO_FILL
-     * @see org.apache.poi.ss.usermodel.CellStyle#SOLID_FOREGROUND
-     * @see org.apache.poi.ss.usermodel.CellStyle#FINE_DOTS
-     * @see org.apache.poi.ss.usermodel.CellStyle#ALT_BARS
-     * @see org.apache.poi.ss.usermodel.CellStyle#SPARSE_DOTS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_HORZ_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_VERT_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_BACKWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#THICK_FORWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#BIG_SPOTS
-     * @see org.apache.poi.ss.usermodel.CellStyle#BRICKS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_HORZ_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_VERT_BANDS
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_BACKWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#THIN_FORWARD_DIAG
-     * @see org.apache.poi.ss.usermodel.CellStyle#SQUARES
-     * @see org.apache.poi.ss.usermodel.CellStyle#DIAMONDS
-     * @see #setFillBackgroundColor(short)
-     * @see #setFillForegroundColor(short)
-     * @param fp  fill pattern (set to {@link org.apache.poi.ss.usermodel.CellStyle#SOLID_FOREGROUND} to fill w/foreground color)
+     * @param pattern the fill pattern to use
+     * @see #setFillBackgroundColor(XSSFColor)
+     * @see #setFillForegroundColor(XSSFColor)
+     * @see org.apache.poi.ss.usermodel.FillPatternType
      */
     @Override
-    public void setFillPattern(short fp) {
+    public void setFillPattern(FillPatternType pattern) {
         CTFill ct = getCTFill();
-        CTPatternFill ptrn = ct.isSetPatternFill() ? ct.getPatternFill() : ct.addNewPatternFill();
-        if(fp == NO_FILL && ptrn.isSetPatternType()) ptrn.unsetPatternType();
-        else ptrn.setPatternType(STPatternType.Enum.forInt(fp + 1));
+        CTPatternFill ctptrn = ct.isSetPatternFill() ? ct.getPatternFill() : ct.addNewPatternFill();
+        if (pattern == FillPatternType.NO_FILL && ctptrn.isSetPatternType()) {
+            ctptrn.unsetPatternType();
+        } else {
+            ctptrn.setPatternType(STPatternType.Enum.forInt(pattern.getCode() + 1));
+        }
 
         addFill(ct);
     }
 
     /**
-     * This element is used to specify cell fill information for pattern and solid color cell fills. For solid cell fills (no pattern),
-     * foreground color is used is used. For cell fills with patterns specified, then the cell fill color is specified by the background color element.
-     *
-     * @param ptrn the fill pattern to use
-     * @see #setFillBackgroundColor(short)
-     * @see #setFillForegroundColor(short)
-     * @see org.apache.poi.ss.usermodel.FillPatternType
-     */
-    public void setFillPattern(FillPatternType ptrn) {
-	    setFillPattern((short)ptrn.ordinal());
-    }
-
-    /**
      * Set the font for this style
      *
-     * @param font  a font object created or retreived from the XSSFWorkbook object
+     * @param font  a font object created or retrieved from the XSSFWorkbook object
      * @see org.apache.poi.xssf.usermodel.XSSFWorkbook#createFont()
      * @see org.apache.poi.xssf.usermodel.XSSFWorkbook#getFontAt(short)
      */
@@ -1283,7 +1028,7 @@ public void setBorderTop(short border) {
      */
     @Override
     public void setLeftBorderColor(short color) {
-        XSSFColor clr = new XSSFColor();
+        XSSFColor clr = XSSFColor.from(CTColor.Factory.newInstance(), _stylesSource.getIndexedColors());
         clr.setIndexed(color);
         setLeftBorderColor(clr);
     }
@@ -1301,7 +1046,7 @@ public void setBorderTop(short border) {
         if(color != null)  pr.setColor(color.getCTColor());
         else pr.unsetColor();
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
@@ -1319,6 +1064,16 @@ public void setBorderTop(short border) {
          }
         _cellXf.getProtection().setLocked(locked);
     }
+    
+    /**
+     * Turn on or off "Quote Prefix" or "123 Prefix" for the style,
+     *  which is used to tell Excel that the thing which looks like
+     *  a number or a formula shouldn't be treated as on.
+     */
+    @Override
+    public void setQuotePrefixed(boolean quotePrefix) {
+        _cellXf.setQuotePrefix(quotePrefix);
+    }
 
     /**
      * Set the color to use for the right border
@@ -1328,7 +1083,7 @@ public void setBorderTop(short border) {
      */
     @Override
     public void setRightBorderColor(short color) {
-        XSSFColor clr = new XSSFColor();
+        XSSFColor clr = XSSFColor.from(CTColor.Factory.newInstance(), _stylesSource.getIndexedColors());
         clr.setIndexed(color);
         setRightBorderColor(clr);
     }
@@ -1346,7 +1101,7 @@ public void setBorderTop(short border) {
         if(color != null)  pr.setColor(color.getCTColor());
         else pr.unsetColor();
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
@@ -1357,10 +1112,10 @@ public void setBorderTop(short border) {
      * <p>
      * Expressed in degrees. Values range from 0 to 180. The first letter of
      * the text is considered the center-point of the arc.
-     * <br/>
+     * <br>
      * For 0 - 90, the value represents degrees above horizon. For 91-180 the degrees below the
      * horizon is calculated as:
-     * <br/>
+     * <br>
      * <code>[degrees below horizon] = 90 - textRotation.</code>
      * </p>
      *
@@ -1385,7 +1140,7 @@ public void setBorderTop(short border) {
      */
     @Override
     public void setTopBorderColor(short color) {
-        XSSFColor clr = new XSSFColor();
+        XSSFColor clr = XSSFColor.from(CTColor.Factory.newInstance(), _stylesSource.getIndexedColors());
         clr.setIndexed(color);
         setTopBorderColor(clr);
     }
@@ -1403,25 +1158,10 @@ public void setBorderTop(short border) {
         if(color != null)  pr.setColor(color.getCTColor());
         else pr.unsetColor();
 
-        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme));
+        int idx = _stylesSource.putBorder(new XSSFCellBorder(ct, _theme,_stylesSource.getIndexedColors()));
 
         _cellXf.setBorderId(idx);
         _cellXf.setApplyBorder(true);
-    }
-
-    /**
-     * Set the type of vertical alignment for the cell
-     *
-     * @param align - align the type of alignment
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_TOP
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_CENTER
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_BOTTOM
-     * @see org.apache.poi.ss.usermodel.CellStyle#VERTICAL_JUSTIFY
-     * @see org.apache.poi.ss.usermodel.VerticalAlignment
-     */
-    @Override
-    public void setVerticalAlignment(short align) {
-        getCellAlignment().setVertical(VerticalAlignment.values()[align]);
     }
 
     /**

@@ -34,25 +34,19 @@ public class EntryUtils
      */
     @Internal
     public static void copyNodeRecursively( Entry entry, DirectoryEntry target )
-            throws IOException
-    {
+            throws IOException {
         // logger.log( POILogger.ERROR, "copyNodeRecursively called with "+entry.getName()+
         // ","+target.getName());
-        DirectoryEntry newTarget = null;
-        if ( entry.isDirectoryEntry() )
-        {
+        if ( entry.isDirectoryEntry() ) {
         	DirectoryEntry dirEntry = (DirectoryEntry)entry;
-            newTarget = target.createDirectory( entry.getName() );
+            DirectoryEntry newTarget = target.createDirectory( entry.getName() );
             newTarget.setStorageClsid( dirEntry.getStorageClsid() );
             Iterator<Entry> entries = dirEntry.getEntries();
 
-            while ( entries.hasNext() )
-            {
+            while ( entries.hasNext() ) {
                 copyNodeRecursively( entries.next(), newTarget );
             }
-        }
-        else
-        {
+        } else {
             DocumentEntry dentry = (DocumentEntry) entry;
             DocumentInputStream dstream = new DocumentInputStream( dentry );
             target.createDocument( dentry.getName(), dstream );
@@ -69,50 +63,9 @@ public class EntryUtils
      *            is the target Directory to copy to
      */
     public static void copyNodes(DirectoryEntry sourceRoot,
-            DirectoryEntry targetRoot) throws IOException
-    {
+            DirectoryEntry targetRoot) throws IOException {
         for (Entry entry : sourceRoot) {
             copyNodeRecursively( entry, targetRoot );
-        }
-    }
-
-    /**
-     * Copies nodes from one Directory to the other minus the excepts
-     * 
-     * @param filteredSource The filtering source Directory to copy from
-     * @param filteredTarget The filtering target Directory to copy to
-     */
-    public static void copyNodes( FilteringDirectoryNode filteredSource,
-            FilteringDirectoryNode filteredTarget ) throws IOException
-    {
-        // Nothing special here, just overloaded types to make the
-        //  recommended new way to handle this clearer
-        copyNodes( (DirectoryEntry)filteredSource, (DirectoryEntry)filteredTarget );
-    }
-
-    /**
-     * Copies nodes from one Directory to the other minus the excepts
-     * 
-     * @param sourceRoot
-     *            is the source Directory to copy from
-     * @param targetRoot
-     *            is the target Directory to copy to
-     * @param excepts
-     *            is a list of Strings specifying what nodes NOT to copy
-     * @deprecated use {@link FilteringDirectoryNode} instead
-     */
-    public static void copyNodes( DirectoryEntry sourceRoot,
-            DirectoryEntry targetRoot, List<String> excepts )
-            throws IOException
-    {
-        Iterator<Entry> entries = sourceRoot.getEntries();
-        while ( entries.hasNext() )
-        {
-            Entry entry = entries.next();
-            if ( !excepts.contains( entry.getName() ) )
-            {
-                copyNodeRecursively( entry, targetRoot );
-            }
         }
     }
 
@@ -200,7 +153,7 @@ public class EntryUtils
        }
        
        // Next, check entries and their types/sizes
-       Map<String,Integer> aSizes = new HashMap<String, Integer>();
+       Map<String,Integer> aSizes = new HashMap<>();
        final int isDirectory = -12345; 
        for (Entry a : dirA) {
           String aName = a.getName();

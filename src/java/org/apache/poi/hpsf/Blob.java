@@ -16,30 +16,25 @@
 ==================================================================== */
 package org.apache.poi.hpsf;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.Internal;
-import org.apache.poi.util.LittleEndian;
+import org.apache.poi.util.LittleEndianInput;
 
 @Internal
-class Blob
-{
+class Blob {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 1_000_000;
+
     private byte[] _value;
 
-    Blob( byte[] data, int offset )
-    {
-        int size = LittleEndian.getInt( data, offset );
-
-        if ( size == 0 )
-        {
-            _value = new byte[0];
-            return;
+    Blob() {}
+    
+    void read( LittleEndianInput lei ) {
+        int size = lei.readInt();
+        _value = IOUtils.safelyAllocate(size, MAX_RECORD_LENGTH);
+        if ( size > 0 ) {
+            lei.readFully(_value);
         }
-
-        _value = LittleEndian.getByteArray( data, offset
-                + LittleEndian.INT_SIZE, size );
-    }
-
-    int getSize()
-    {
-        return LittleEndian.INT_SIZE + _value.length;
     }
 }

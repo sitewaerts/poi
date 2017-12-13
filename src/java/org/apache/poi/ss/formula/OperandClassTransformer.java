@@ -28,6 +28,7 @@ import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.ptg.RangePtg;
 import org.apache.poi.ss.formula.ptg.UnionPtg;
 import org.apache.poi.ss.formula.ptg.ValueOperatorPtg;
+import org.apache.poi.util.Removal;
 
 /**
  * This class performs 'operand class' transformation. Non-base tokens are classified into three
@@ -37,18 +38,18 @@ import org.apache.poi.ss.formula.ptg.ValueOperatorPtg;
  * <li>value</li>
  * <li>array</li>
  * </ul>
- * <p/>
+ * <p>
  *
  * The final operand class chosen for each token depends on the formula type and the token's place
  * in the formula. If POI gets the operand class wrong, Excel <em>may</em> interpret the formula
  * incorrectly.  This condition is typically manifested as a formula cell that displays as '#VALUE!',
- * but resolves correctly when the user presses F2, enter.<p/>
+ * but resolves correctly when the user presses F2, enter.<p>
  *
  * The logic implemented here was partially inspired by the description in
  * "OpenOffice.org's Documentation of the Microsoft Excel File Format".  The model presented there
  * seems to be inconsistent with observed Excel behaviour (These differences have not been fully
  * investigated). The implementation in this class has been heavily modified in order to satisfy
- * concrete examples of how Excel performs the same logic (see TestRVA).<p/>
+ * concrete examples of how Excel performs the same logic (see TestRVA).<p>
  *
  * Hopefully, as additional important test cases are identified and added to the test suite,
  * patterns might become more obvious in this code and allow for simplification.
@@ -57,9 +58,9 @@ import org.apache.poi.ss.formula.ptg.ValueOperatorPtg;
  */
 final class OperandClassTransformer {
 
-	private final int _formulaType;
+	private final FormulaType _formulaType;
 
-	public OperandClassTransformer(int formulaType) {
+	public OperandClassTransformer(FormulaType formulaType) {
 		_formulaType = formulaType;
 	}
 
@@ -70,14 +71,14 @@ final class OperandClassTransformer {
 	public void transformFormula(ParseNode rootNode) {
 		byte rootNodeOperandClass;
 		switch (_formulaType) {
-			case FormulaType.CELL:
+			case CELL:
 				rootNodeOperandClass = Ptg.CLASS_VALUE;
 				break;
-			case FormulaType.ARRAY:
+			case ARRAY:
 				rootNodeOperandClass = Ptg.CLASS_ARRAY;
 				break;
-			case FormulaType.NAMEDRANGE:
-			case FormulaType.DATAVALIDATION_LIST:
+			case NAMEDRANGE:
+			case DATAVALIDATION_LIST:
 				rootNodeOperandClass = Ptg.CLASS_REF;
 				break;
 			default:

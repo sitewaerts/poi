@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.xml.crypto.MarshalException;
+import javax.xml.crypto.XMLStructure;
 import javax.xml.crypto.dom.DOMStructure;
 import javax.xml.crypto.dsig.dom.DOMSignContext;
 import javax.xml.crypto.dsig.keyinfo.KeyInfo;
@@ -74,10 +75,10 @@ public class KeyInfoSignatureFacet extends SignatureFacet {
          * Construct the ds:KeyInfo element using JSR 105.
          */
         KeyInfoFactory keyInfoFactory = signatureConfig.getKeyInfoFactory();
-        List<Object> x509DataObjects = new ArrayList<Object>();
+        List<Object> x509DataObjects = new ArrayList<>();
         X509Certificate signingCertificate = signatureConfig.getSigningCertificateChain().get(0);
 
-        List<Object> keyInfoContent = new ArrayList<Object>();
+        List<XMLStructure> keyInfoContent = new ArrayList<>();
 
         if (signatureConfig.isIncludeKeyValue()) {
             KeyValue keyValue;

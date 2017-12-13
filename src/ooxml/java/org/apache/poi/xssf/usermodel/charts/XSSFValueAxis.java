@@ -17,32 +17,36 @@
 
 package org.apache.poi.xssf.usermodel.charts;
 
-import org.apache.poi.ss.usermodel.charts.ChartAxis;
-import org.apache.poi.ss.usermodel.charts.ValueAxis;
-import org.apache.poi.ss.usermodel.charts.AxisPosition;
-import org.apache.poi.ss.usermodel.charts.AxisOrientation;
 import org.apache.poi.ss.usermodel.charts.AxisCrossBetween;
 import org.apache.poi.ss.usermodel.charts.AxisCrosses;
+import org.apache.poi.ss.usermodel.charts.AxisOrientation;
+import org.apache.poi.ss.usermodel.charts.AxisPosition;
 import org.apache.poi.ss.usermodel.charts.AxisTickMark;
-
-import org.apache.poi.util.Beta;
+import org.apache.poi.ss.usermodel.charts.ChartAxis;
+import org.apache.poi.ss.usermodel.charts.ValueAxis;
+import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
+import org.apache.poi.xddf.usermodel.chart.XDDFValueAxis;
 import org.apache.poi.xssf.usermodel.XSSFChart;
-import org.openxmlformats.schemas.drawingml.x2006.chart.CTValAx;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTAxPos;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTBoolean;
-import org.openxmlformats.schemas.drawingml.x2006.chart.CTNumFmt;
+import org.openxmlformats.schemas.drawingml.x2006.chart.CTChartLines;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTCrosses;
+import org.openxmlformats.schemas.drawingml.x2006.chart.CTNumFmt;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTScaling;
 import org.openxmlformats.schemas.drawingml.x2006.chart.CTTickMark;
+import org.openxmlformats.schemas.drawingml.x2006.chart.CTValAx;
 import org.openxmlformats.schemas.drawingml.x2006.chart.STCrossBetween;
 import org.openxmlformats.schemas.drawingml.x2006.chart.STTickLblPos;
+import org.openxmlformats.schemas.drawingml.x2006.main.CTShapeProperties;
 
 /**
  * Value axis type.
  *
- * @author Roman Kashitsyn
+ * @deprecated use {@link XDDFValueAxis} instead
  */
-@Beta
+@Deprecated
+@Removal(version="4.2")
 public class XSSFValueAxis extends XSSFChartAxis implements ValueAxis {
 
 	private CTValAx ctValAx;
@@ -57,14 +61,23 @@ public class XSSFValueAxis extends XSSFChartAxis implements ValueAxis {
 		this.ctValAx = ctValAx;
 	}
 
+	@Override
 	public long getId() {
 		return ctValAx.getAxId().getVal();
 	}
 
+	@Override
+	@Internal
+    public CTShapeProperties getLine() {
+        return ctValAx.getSpPr();
+    }
+
+	@Override
 	public void setCrossBetween(AxisCrossBetween crossBetween) {
 		ctValAx.getCrossBetween().setVal(fromCrossBetween(crossBetween));
 	}
 
+	@Override
 	public AxisCrossBetween getCrossBetween() {
 		return toCrossBetween(ctValAx.getCrossBetween().getVal());
 	}
@@ -107,6 +120,13 @@ public class XSSFValueAxis extends XSSFChartAxis implements ValueAxis {
 		return ctValAx.getMinorTickMark();
 	}
 
+	@Override
+	@Internal
+    public CTChartLines getMajorGridLines() {
+        return ctValAx.getMajorGridlines();
+    }
+
+    @Override
 	public void crossAxis(ChartAxis axis) {
 		ctValAx.getCrossAx().setVal(axis.getId());
 	}
@@ -150,4 +170,9 @@ public class XSSFValueAxis extends XSSFChartAxis implements ValueAxis {
 				throw new IllegalArgumentException();
 		}
 	}
+
+	@Override
+    public boolean hasNumberFormat() {
+        return ctValAx.isSetNumFmt();
+    }
 }

@@ -22,7 +22,9 @@ import org.apache.poi.ss.formula.IStabilityClassifier;
 import org.apache.poi.ss.formula.WorkbookEvaluator;
 import org.apache.poi.ss.formula.udf.UDFFinder;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 import org.apache.poi.xssf.usermodel.BaseXSSFFormulaEvaluator;
@@ -32,7 +34,7 @@ import org.apache.poi.xssf.usermodel.BaseXSSFFormulaEvaluator;
  *  lookup cells within the current Window.
  */
 public final class SXSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
-    private static POILogger logger = POILogFactory.getLogger(SXSSFFormulaEvaluator.class);
+    private static final POILogger logger = POILogFactory.getLogger(SXSSFFormulaEvaluator.class);
     
     private SXSSFWorkbook wb;
     
@@ -56,7 +58,17 @@ public final class SXSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
     public static SXSSFFormulaEvaluator create(SXSSFWorkbook workbook, IStabilityClassifier stabilityClassifier, UDFFinder udfFinder) {
         return new SXSSFFormulaEvaluator(workbook, stabilityClassifier, udfFinder);
     }
-    
+    public void notifySetFormula(Cell cell) {
+        _bookEvaluator.notifyUpdateCell(new SXSSFEvaluationCell((SXSSFCell)cell));
+    }
+    public void notifyDeleteCell(Cell cell) {
+        _bookEvaluator.notifyDeleteCell(new SXSSFEvaluationCell((SXSSFCell)cell));
+    }
+    public void notifyUpdateCell(Cell cell) {
+        _bookEvaluator.notifyUpdateCell(new SXSSFEvaluationCell((SXSSFCell)cell));
+    }
+
+
     /**
      * Turns a SXSSFCell into a SXSSFEvaluationCell
      */
@@ -70,24 +82,9 @@ public final class SXSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
         return new SXSSFEvaluationCell((SXSSFCell)cell);
     }
     
-    /**
-     * If cell contains formula, it evaluates the formula, and
-     *  puts the formula result back into the cell, in place
-     *  of the old formula.
-     * Else if cell does not contain formula, this method leaves
-     *  the cell unchanged.
-     * Note that the same instance of SXSSFCell is returned to
-     * allow chained calls like:
-     * <pre>
-     * int evaluatedCellType = evaluator.evaluateInCell(cell).getCellType();
-     * </pre>
-     * Be aware that your cell value will be changed to hold the
-     *  result of the formula. If you simply want the formula
-     *  value computed for you, use {@link #evaluateFormulaCell(org.apache.poi.ss.usermodel.Cell)} }
-     */
+    @Override
     public SXSSFCell evaluateInCell(Cell cell) {
-        doEvaluateInCell(cell);
-        return (SXSSFCell)cell;
+        return (SXSSFCell) super.evaluateInCell(cell);
     }
     
     /**
@@ -100,28 +97,26 @@ public final class SXSSFFormulaEvaluator extends BaseXSSFFormulaEvaluator {
         SXSSFFormulaEvaluator eval = new SXSSFFormulaEvaluator(wb);
         
         // Check they're all available
-        for (int i=0; i<wb.getNumberOfSheets(); i++) {
-            SXSSFSheet s = wb.getSheetAt(i);
-            if (s.areAllRowsFlushed()) {
+        for (Sheet sheet : wb) {
+            if (((SXSSFSheet)sheet).areAllRowsFlushed()) {
                 throw new SheetsFlushedException();
             }
         }
         
         // Process the sheets as best we can
-        for (int i=0; i<wb.getNumberOfSheets(); i++) {
-            SXSSFSheet s = wb.getSheetAt(i);
+        for (Sheet sheet : wb) {
             
             // Check if any rows have already been flushed out
-            int lastFlushedRowNum = s.getLastFlushedRowNum();
+            int lastFlushedRowNum = ((SXSSFSheet) sheet).getLastFlushedRowNum();
             if (lastFlushedRowNum > -1) {
                 if (! skipOutOfWindow) throw new RowFlushedException(0);
                 logger.log(POILogger.INFO, "Rows up to " + lastFlushedRowNum + " have already been flushed, skipping");
             }
             
             // Evaluate what we have
-            for (Row r : s) {
+            for (Row r : sheet) {
                 for (Cell c : r) {
-                    if (c.getCellType() == Cell.CELL_TYPE_FORMULA) {
+                    if (c.getCellType() == CellType.FORMULA) {
                         eval.evaluateFormulaCell(c);
                     }
                 }

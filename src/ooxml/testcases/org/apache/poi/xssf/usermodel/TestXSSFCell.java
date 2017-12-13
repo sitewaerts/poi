@@ -17,22 +17,19 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.hssf.HSSFITestDataProvider;
 import org.apache.poi.ss.SpreadsheetVersion;
+import org.apache.poi.ss.formula.FormulaParseException;
 import org.apache.poi.ss.usermodel.BaseTestXCell;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellCopyPolicy;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CreationHelper;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Font;
@@ -40,6 +37,7 @@ import org.apache.poi.ss.usermodel.Hyperlink;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Row.MissingCellPolicy;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -52,9 +50,8 @@ import org.junit.Test;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCell;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STCellType;
 
-/**
- * @author Yegor Kozlov
- */
+import static org.junit.Assert.*;
+
 public final class TestXSSFCell extends BaseTestXCell {
 
     public TestXSSFCell() {
@@ -66,18 +63,18 @@ public final class TestXSSFCell extends BaseTestXCell {
      * Shared String Table
      */
     @Test
-    public void test47026_1() throws Exception {
+    public void test47026_1() throws IOException {
         Workbook wb = _testDataProvider.openSampleWorkbook("47026.xlsm");
         Sheet sheet = wb.getSheetAt(0);
         Row row = sheet.getRow(0);
         Cell cell = row.getCell(0);
-        cell.setCellType(Cell.CELL_TYPE_STRING);
+        cell.setCellType(CellType.STRING);
         cell.setCellValue("456");
         wb.close();
     }
 
     @Test
-    public void test47026_2() throws Exception {
+    public void test47026_2() throws IOException {
         Workbook wb = _testDataProvider.openSampleWorkbook("47026.xlsm");
         Sheet sheet = wb.getSheetAt(0);
         Row row = sheet.getRow(0);
@@ -95,7 +92,7 @@ public final class TestXSSFCell extends BaseTestXCell {
      * instead of using the shared string table. See bug 47206
      */
     @Test
-    public void testInlineString() throws Exception {
+    public void testInlineString() throws IOException {
         XSSFWorkbook wb = (XSSFWorkbook)_testDataProvider.openSampleWorkbook("xlsx-jdbc.xlsx");
         XSSFSheet sheet = wb.getSheetAt(0);
         XSSFRow row = sheet.getRow(1);
@@ -121,7 +118,7 @@ public final class TestXSSFCell extends BaseTestXCell {
      *  Bug 47278 -  xsi:nil attribute for <t> tag caused Excel 2007 to fail to open workbook
      */
     @Test
-    public void test47278() throws Exception {
+    public void test47278() throws IOException {
         XSSFWorkbook wb = (XSSFWorkbook)_testDataProvider.createWorkbook();
         Sheet sheet = wb.createSheet();
         Row row = sheet.createRow(0);
@@ -134,52 +131,74 @@ public final class TestXSSFCell extends BaseTestXCell {
         assertNull(str.getString());
         cell_0.setCellValue(str);
         assertEquals(0, sst.getCount());
-        assertEquals(Cell.CELL_TYPE_BLANK, cell_0.getCellType());
+        assertEquals(CellType.BLANK, cell_0.getCellType());
 
         //case 2. cell.setCellValue((String)null);
         Cell cell_1 = row.createCell(1);
         cell_1.setCellValue((String)null);
         assertEquals(0, sst.getCount());
-        assertEquals(Cell.CELL_TYPE_BLANK, cell_1.getCellType());
+        assertEquals(CellType.BLANK, cell_1.getCellType());
         wb.close();
     }
 
     @Test
     public void testFormulaString() throws IOException {
-        XSSFWorkbook wb = (XSSFWorkbook)_testDataProvider.createWorkbook();
-        try {
+        try (XSSFWorkbook wb = (XSSFWorkbook) _testDataProvider.createWorkbook()) {
             XSSFCell cell = wb.createSheet().createRow(0).createCell(0);
             CTCell ctCell = cell.getCTCell(); //low-level bean holding cell's xml
-    
+
             cell.setCellFormula("A2");
-            assertEquals(XSSFCell.CELL_TYPE_FORMULA, cell.getCellType());
+            assertEquals(CellType.FORMULA, cell.getCellType());
             assertEquals("A2", cell.getCellFormula());
             //the value is not set and cell's type='N' which means blank
             assertEquals(STCellType.N, ctCell.getT());
-    
+
             //set cached formula value
             cell.setCellValue("t='str'");
             //we are still of 'formula' type
-            assertEquals(XSSFCell.CELL_TYPE_FORMULA, cell.getCellType());
+            assertEquals(CellType.FORMULA, cell.getCellType());
             assertEquals("A2", cell.getCellFormula());
             //cached formula value is set and cell's type='STR'
             assertEquals(STCellType.STR, ctCell.getT());
             assertEquals("t='str'", cell.getStringCellValue());
-    
+
             //now remove the formula, the cached formula result remains
             cell.setCellFormula(null);
-            assertEquals(XSSFCell.CELL_TYPE_STRING, cell.getCellType());
+            assertEquals(CellType.STRING, cell.getCellType());
             assertEquals(STCellType.STR, ctCell.getT());
             //the line below failed prior to fix of Bug #47889
             assertEquals("t='str'", cell.getStringCellValue());
-    
+
             //revert to a blank cell
-            cell.setCellValue((String)null);
-            assertEquals(XSSFCell.CELL_TYPE_BLANK, cell.getCellType());
+            cell.setCellValue((String) null);
+            assertEquals(CellType.BLANK, cell.getCellType());
             assertEquals(STCellType.N, ctCell.getT());
             assertEquals("", cell.getStringCellValue());
-        } finally {
-            wb.close();
+
+            // check behavior with setCellFormulaValidation
+            final String invalidFormula = "A", validFormula = "A2";
+
+            // check that default is true
+            assertTrue(wb.getCellFormulaValidation());
+
+            // check that valid formula does not throw exception
+            cell.setCellFormula(validFormula);
+
+            // check that invalid formula does throw exception
+            try {
+                cell.setCellFormula(invalidFormula);
+                fail("Should catch exception here");
+            } catch (FormulaParseException e) {
+                // expected here
+            }
+
+            // set cell formula validation to false
+            wb.setCellFormulaValidation(false);
+            assertFalse(wb.getCellFormulaValidation());
+
+            // check that neither valid nor invalid formula throw an exception
+            cell.setCellFormula(validFormula);
+            cell.setCellFormula(invalidFormula);
         }
     }
 
@@ -187,7 +206,7 @@ public final class TestXSSFCell extends BaseTestXCell {
      * Bug 47889: problems when calling XSSFCell.getStringCellValue() on a workbook created in Gnumeric
      */
     @Test
-    public void test47889() throws Exception {
+    public void test47889() throws IOException {
         XSSFWorkbook wb = (XSSFWorkbook)_testDataProvider.openSampleWorkbook("47889.xlsx");
         XSSFSheet sh = wb.getSheetAt(0);
 
@@ -195,7 +214,7 @@ public final class TestXSSFCell extends BaseTestXCell {
 
         //try a string cell
         cell = sh.getRow(0).getCell(0);
-        assertEquals(XSSFCell.CELL_TYPE_STRING, cell.getCellType());
+        assertEquals(CellType.STRING, cell.getCellType());
         assertEquals("a", cell.getStringCellValue());
         assertEquals("a", cell.toString());
         //Gnumeric produces spreadsheets without styles
@@ -204,7 +223,7 @@ public final class TestXSSFCell extends BaseTestXCell {
 
         //try a numeric cell
         cell = sh.getRow(1).getCell(0);
-        assertEquals(XSSFCell.CELL_TYPE_NUMERIC, cell.getCellType());
+        assertEquals(CellType.NUMERIC, cell.getCellType());
         assertEquals(1.0, cell.getNumericCellValue(), 0);
         assertEquals("1.0", cell.toString());
         //Gnumeric produces spreadsheets without styles
@@ -214,7 +233,7 @@ public final class TestXSSFCell extends BaseTestXCell {
     }
 
     @Test
-    public void testMissingRAttribute() throws Exception {
+    public void testMissingRAttribute() throws IOException {
         XSSFWorkbook wb1 = new XSSFWorkbook();
         XSSFSheet sheet = wb1.createSheet();
         XSSFRow row = sheet.createRow(0);
@@ -269,7 +288,7 @@ public final class TestXSSFCell extends BaseTestXCell {
     }
 
     @Test
-    public void testMissingRAttributeBug54288() throws Exception {
+    public void testMissingRAttributeBug54288() throws IOException {
         // workbook with cells missing the R attribute
         XSSFWorkbook wb = (XSSFWorkbook)_testDataProvider.openSampleWorkbook("54288.xlsx");
         // same workbook re-saved in Excel 2010, the R attribute is updated for every cell with the right value.
@@ -370,37 +389,34 @@ public final class TestXSSFCell extends BaseTestXCell {
     
     @Test
     public void test56170Reproduce() throws IOException {
-        final Workbook wb = new XSSFWorkbook();
-        try {
+        try (Workbook wb = new XSSFWorkbook()) {
             final Sheet sheet = wb.createSheet();
             Row row = sheet.createRow(0);
-            
+
             // by creating Cells out of order we trigger the handling in onDocumentWrite()
             Cell cell1 = row.createCell(1);
             Cell cell2 = row.createCell(0);
-    
+
             validateRow(row);
-            
+
             validateRow(row);
-    
+
             // once again with removing one cell
             row.removeCell(cell1);
-    
+
             validateRow(row);
-    
+
             // once again with removing one cell
             row.removeCell(cell1);
-    
+
             // now check again
             validateRow(row);
-    
+
             // once again with removing one cell
             row.removeCell(cell2);
-    
+
             // now check again
             validateRow(row);
-        } finally {
-            wb.close();
         }
     }
 
@@ -409,52 +425,43 @@ public final class TestXSSFCell extends BaseTestXCell {
         ((XSSFRow)row).onDocumentWrite();
         
         for(Cell cell : row) {
-            cell.toString();
+            assertNotNull(cell.toString());
         }
     }    
 
     @Test
     public void testBug56644ReturnNull() throws IOException {
-        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("56644.xlsx");
-        try {
-            wb.setMissingCellPolicy(Row.RETURN_BLANK_AS_NULL);
+        try (Workbook wb = XSSFTestDataSamples.openSampleWorkbook("56644.xlsx")) {
+            wb.setMissingCellPolicy(MissingCellPolicy.RETURN_BLANK_AS_NULL);
             Sheet sheet = wb.getSheet("samplelist");
             Row row = sheet.getRow(20);
             row.createCell(2);
-        } finally {
-            wb.close();
         }
     }
 
     @Test
     public void testBug56644ReturnBlank() throws IOException {
-        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("56644.xlsx");
-        try {
-            wb.setMissingCellPolicy(Row.RETURN_NULL_AND_BLANK);
+        try (Workbook wb = XSSFTestDataSamples.openSampleWorkbook("56644.xlsx")) {
+            wb.setMissingCellPolicy(MissingCellPolicy.RETURN_NULL_AND_BLANK);
             Sheet sheet = wb.getSheet("samplelist");
             Row row = sheet.getRow(20);
             row.createCell(2);
-        } finally {
-            wb.close();
         }
     }
 
     @Test
     public void testBug56644CreateBlank() throws IOException {
-        Workbook wb = XSSFTestDataSamples.openSampleWorkbook("56644.xlsx");
-        try {
-            wb.setMissingCellPolicy(Row.CREATE_NULL_AS_BLANK);
+        try (Workbook wb = XSSFTestDataSamples.openSampleWorkbook("56644.xlsx")) {
+            wb.setMissingCellPolicy(MissingCellPolicy.CREATE_NULL_AS_BLANK);
             Sheet sheet = wb.getSheet("samplelist");
             Row row = sheet.getRow(20);
             row.createCell(2);
-        } finally {
-            wb.close();
         }
     }
 
     @Test
-    public void testEncodingbeloAscii() throws Exception {
-        StringBuffer sb = new StringBuffer();
+    public void testEncodingBelowAscii() throws IOException {
+        StringBuilder sb = new StringBuilder();
         // test all possible characters
         for(int i = 0; i < Character.MAX_VALUE; i++) {
         	sb.append((char)i);
@@ -466,10 +473,10 @@ public final class TestXSSFCell extends BaseTestXCell {
         int pos = 0;
         while(pos < strAll.length()) {
         	String str = strAll.substring(pos, Math.min(strAll.length(), pos+SpreadsheetVersion.EXCEL2007.getMaxTextLength()));
-        	
+
             Workbook wb = HSSFITestDataProvider.instance.createWorkbook();
             Cell cell = wb.createSheet().createRow(0).createCell(0);
-            
+
             Workbook xwb = XSSFITestDataProvider.instance.createWorkbook();
             Cell xCell = xwb.createSheet().createRow(0).createCell(0);
 
@@ -482,19 +489,19 @@ public final class TestXSSFCell extends BaseTestXCell {
         	assertEquals(str, xCell.getStringCellValue());
         	sCell.setCellValue(str);
         	assertEquals(str, sCell.getStringCellValue());
-        	
+
         	Workbook wbBack = HSSFITestDataProvider.instance.writeOutAndReadBack(wb);
         	Workbook xwbBack = XSSFITestDataProvider.instance.writeOutAndReadBack(xwb);
         	Workbook swbBack = SXSSFITestDataProvider.instance.writeOutAndReadBack(swb);
         	cell = wbBack.getSheetAt(0).createRow(0).createCell(0);
         	xCell = xwbBack.getSheetAt(0).createRow(0).createCell(0);
         	sCell = swbBack.getSheetAt(0).createRow(0).createCell(0);
-        	
+
         	assertEquals(cell.getStringCellValue(), xCell.getStringCellValue());
         	assertEquals(cell.getStringCellValue(), sCell.getStringCellValue());
-        	
+
         	pos += SpreadsheetVersion.EXCEL97.getMaxTextLength();
-        	
+
         	swbBack.close();
         	xwbBack.close();
         	wbBack.close();
@@ -514,7 +521,7 @@ public final class TestXSSFCell extends BaseTestXCell {
         final CellCopyPolicy policy = new CellCopyPolicy();
         destCell.copyCellFrom(srcCell, policy);
         
-        assertEquals(Cell.CELL_TYPE_FORMULA, destCell.getCellType());
+        assertEquals(CellType.FORMULA, destCell.getCellType());
         assertEquals("2+3", destCell.getCellFormula());
         assertEquals(srcCell.getCellStyle(), destCell.getCellStyle());
     }
@@ -526,7 +533,7 @@ public final class TestXSSFCell extends BaseTestXCell {
         // Paste values only
         final CellCopyPolicy policy = new CellCopyPolicy.Builder().cellFormula(false).build();
         destCell.copyCellFrom(srcCell, policy);
-        assertEquals(Cell.CELL_TYPE_NUMERIC, destCell.getCellType());
+        assertEquals(CellType.NUMERIC, destCell.getCellType());
     }
     
     @Test
@@ -553,8 +560,8 @@ public final class TestXSSFCell extends BaseTestXCell {
         assertEquals(srcCell.getCellStyle(), destCell.getCellStyle());
         
         // Old cell value should not have been overwritten
-        assertNotEquals(Cell.CELL_TYPE_BLANK, destCell.getCellType());
-        assertEquals(Cell.CELL_TYPE_BOOLEAN, destCell.getCellType());
+        assertNotEquals(CellType.BLANK, destCell.getCellType());
+        assertEquals(CellType.BOOLEAN, destCell.getCellType());
         assertEquals(true, destCell.getBooleanCellValue());
     }
     
@@ -565,7 +572,7 @@ public final class TestXSSFCell extends BaseTestXCell {
         final CreationHelper createHelper = wb.getCreationHelper();
 
         srcCell.setCellValue("URL LINK");
-        Hyperlink link = createHelper.createHyperlink(Hyperlink.LINK_URL);
+        Hyperlink link = createHelper.createHyperlink(HyperlinkType.URL);
         link.setAddress("http://poi.apache.org/");
         srcCell.setHyperlink(link);
 
@@ -602,7 +609,7 @@ public final class TestXSSFCell extends BaseTestXCell {
         final CreationHelper createHelper = wb.getCreationHelper();
 
         srcCell.setCellValue("URL LINK");
-        Hyperlink link = createHelper.createHyperlink(Hyperlink.LINK_URL);
+        Hyperlink link = createHelper.createHyperlink(HyperlinkType.URL);
         link.setAddress("http://poi.apache.org/");
         destCell.setHyperlink(link);
 
@@ -647,7 +654,7 @@ public final class TestXSSFCell extends BaseTestXCell {
         wb.close();
     }
     
-    private final void setUp_testCopyCellFrom_CellCopyPolicy() {
+    private void setUp_testCopyCellFrom_CellCopyPolicy() {
         @SuppressWarnings("resource")
         final XSSFWorkbook wb = new XSSFWorkbook();
         final XSSFRow row = wb.createSheet("Sheet1").createRow(0);
@@ -657,7 +664,7 @@ public final class TestXSSFCell extends BaseTestXCell {
         srcCell.setCellFormula("2+3");
         
         final CellStyle style = wb.createCellStyle();
-        style.setBorderTop(CellStyle.BORDER_THICK);
+        style.setBorderTop(BorderStyle.THICK);
         style.setFillBackgroundColor((short) 5);
         srcCell.setCellStyle(style);
         

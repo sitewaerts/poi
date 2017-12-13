@@ -28,7 +28,7 @@ import java.util.Locale;
 
 import org.apache.poi.hmef.Attachment;
 import org.apache.poi.hmef.HMEFMessage;
-import org.apache.poi.hpsf.Util;
+import org.apache.poi.hpsf.Filetime;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LocaleUtil;
 import org.apache.poi.util.POILogFactory;
@@ -39,7 +39,7 @@ import org.apache.poi.util.POILogger;
  *  or one of its {@link Attachment}s.
  */
 public final class TNEFDateAttribute extends TNEFAttribute {
-   private static POILogger logger = POILogFactory.getLogger(TNEFDateAttribute.class);
+   private final static POILogger logger = POILogFactory.getLogger(TNEFDateAttribute.class);
    private Date data;
    
    /**
@@ -52,7 +52,7 @@ public final class TNEFDateAttribute extends TNEFAttribute {
       byte[] binData = getData();
       if(binData.length == 8) {
          // The value is a 64 bit Windows Filetime
-         this.data = Util.filetimeToDate(
+         this.data = Filetime.filetimeToDate(
                LittleEndian.getLong(getData(), 0)
          );
       } else if(binData.length == 14) {
@@ -80,7 +80,7 @@ public final class TNEFDateAttribute extends TNEFAttribute {
        DateFormatSymbols dfs = DateFormatSymbols.getInstance(Locale.ROOT);
        DateFormat df = new SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy", dfs);
        df.setTimeZone(LocaleUtil.TIMEZONE_UTC);       
-      return "Attribute " + getProperty().toString() + ", type=" + getType() + 
+      return "Attribute " + getProperty() + ", type=" + getType() +
              ", date=" + df.format(data); 
    }
    
@@ -95,7 +95,7 @@ public final class TNEFDateAttribute extends TNEFAttribute {
          return ((TNEFDateAttribute)attr).getDate();
       }
       
-      logger.log(POILogger.WARN, "Warning, non date property found: " + attr.toString());
+      logger.log(POILogger.WARN, "Warning, non date property found: " + attr);
       return null;
   }
 }

@@ -20,8 +20,10 @@ package org.apache.poi.hssf.record;
 
 import java.util.Arrays;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.RecordFormatException;
 import org.apache.poi.util.StringUtil;
 
 /**
@@ -52,8 +54,8 @@ import org.apache.poi.util.StringUtil;
  * Where
  * <ul>
  * <li><code>DConFile.h = 0x00</code> if the characters in<code>rgb</code> are single byte, and
- * <code>DConFile.h = 0x01</code> if they are double byte. <br/>
- * If they are double byte, then<br/>
+ * <code>DConFile.h = 0x01</code> if they are double byte.<p>
+ * If they are double byte, then
  * <ul>
  * <li> If it exists, the length of <code>DConRef.un = 2</code>. Otherwise it is 1.
  * <li> The length of <code>DConFile.rgb = (2 * DConRef.cch)</code>. Otherwise it is equal to
@@ -64,11 +66,12 @@ import org.apache.poi.util.StringUtil;
  * </ul>
  *
  * At the moment this class is read-only.
- *
- * @author Niklas Rehfeld
  */
 public class DConRefRecord extends StandardRecord
 {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
 
     /**
      * The id of the record type,
@@ -92,12 +95,12 @@ public class DConRefRecord extends StandardRecord
     /**
      * The link's path string. This is the <code>rgb</code> field of a
      * <code>XLUnicodeStringNoCch</code>. Therefore it will contain at least one leading special
-     * character (0x01 or 0x02) and probably other ones.<p/>
+     * character (0x01 or 0x02) and probably other ones.<p>
      * @see <A href="http://msdn.microsoft.com/en-us/library/dd923491(office.12).aspx">
      * DConFile [MS-XLS s. 2.5.77]</A> and
      * <A href="http://msdn.microsoft.com/en-us/library/dd950157(office.12).aspx">
      * VirtualPath [MS-XLS s. 2.5.69]</a>
-     * <p/>
+     * <p>
      */
     private byte[] path;
     /**
@@ -131,8 +134,7 @@ public class DConRefRecord extends StandardRecord
         charCount = LittleEndian.getUShort(data, offset);
         offset += LittleEndian.SHORT_SIZE;
         if (charCount < 2)
-            throw new org.apache.poi.hssf.record.RecordFormatException(
-                    "Character count must be >= 2");
+            throw new RecordFormatException("Character count must be >= 2");
 
         charType = LittleEndian.getUByte(data, offset);
         offset += LittleEndian.BYTE_SIZE; //7 bits reserved + 1 bit type
@@ -144,7 +146,7 @@ public class DConRefRecord extends StandardRecord
          */
         int byteLength = charCount * ((charType & 1) + 1);
 
-        path = LittleEndian.getByteArray(data, offset, byteLength);
+        path = LittleEndian.getByteArray(data, offset, byteLength, MAX_RECORD_LENGTH);
         offset += byteLength;
 
         /*
@@ -152,7 +154,7 @@ public class DConRefRecord extends StandardRecord
          * unused field. Not sure If i need to bother with this...
          */
         if (path[0] == 0x02)
-            _unused = LittleEndian.getByteArray(data, offset, (charType + 1));
+            _unused = LittleEndian.getByteArray(data, offset, (charType + 1), MAX_RECORD_LENGTH);
 
     }
 
@@ -177,7 +179,7 @@ public class DConRefRecord extends StandardRecord
         // byteLength depends on whether we are using single- or double-byte chars.
         int byteLength = charCount * (charType + 1);
 
-        path = new byte[byteLength];
+        path = IOUtils.safelyAllocate(byteLength, MAX_RECORD_LENGTH);
         inStream.readFully(path);
 
         if (path[0] == 0x02)

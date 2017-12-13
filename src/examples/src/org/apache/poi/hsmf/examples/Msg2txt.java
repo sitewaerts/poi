@@ -131,16 +131,16 @@ public class Msg2txt {
 	 */
 	public void processAttachment(AttachmentChunks attachment, 
 	      File dir) throws IOException {
-	   String fileName = attachment.attachFileName.toString();
-	   if(attachment.attachLongFileName != null) {
-	      fileName = attachment.attachLongFileName.toString();
+	   String fileName = attachment.getAttachFileName().toString();
+	   if(attachment.getAttachLongFileName() != null) {
+	      fileName = attachment.getAttachLongFileName().toString();
 	   }
 	   
 		File f = new File(dir, fileName);
 		OutputStream fileOut = null;
 		try {
 			fileOut = new FileOutputStream(f);
-			fileOut.write(attachment.attachData.getValue());
+			fileOut.write(attachment.getAttachData().getValue());
 		} finally {
 			if(fileOut != null) {
 				fileOut.close();
@@ -157,12 +157,12 @@ public class Msg2txt {
 		if(args.length <= 0) {
 			System.err.println("No files names provided");
 		} else {
-			for(int i = 0; i < args.length; i++) {
+			for (String arg : args) {
 				try {
-					Msg2txt processor = new Msg2txt(args[i]);
+					Msg2txt processor = new Msg2txt(arg);
 					processor.processMessage();
 				} catch (IOException e) {
-					System.err.println("Could not process "+args[i]+": "+e);
+					System.err.println("Could not process " + arg + ": " + e);
 				}
 			}
 		}

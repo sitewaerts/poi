@@ -23,6 +23,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.FileNotFoundException;
 
 import org.apache.poi.EmptyFileException;
 import org.apache.poi.EncryptedDocumentException;
@@ -313,6 +314,9 @@ public final class TestWorkbookFactory {
         );
         assertNotNull(wb);
         assertTrue(wb instanceof XSSFWorkbook);
+        assertTrue(wb.getNumberOfSheets() > 0);
+        assertNotNull(wb.getSheetAt(0));
+        assertNotNull(wb.getSheetAt(0).getRow(0));
         assertCloseDoesNotModifyFile(xlsx_prot[0], wb);
 
         // Protected, wrong password, throws Exception
@@ -322,7 +326,9 @@ public final class TestWorkbookFactory {
             );
             assertCloseDoesNotModifyFile(xls_prot[0], wb);
             fail("Shouldn't be able to open with the wrong password");
-        } catch (EncryptedDocumentException e) {}
+        } catch (EncryptedDocumentException e) {
+            // expected here
+        }
 
         try {
             wb = WorkbookFactory.create(
@@ -330,7 +336,9 @@ public final class TestWorkbookFactory {
             );
             assertCloseDoesNotModifyFile(xlsx_prot[0], wb);
             fail("Shouldn't be able to open with the wrong password");
-        } catch (EncryptedDocumentException e) {}
+        } catch (EncryptedDocumentException e) {
+            // expected here
+        }
     }
     
     /**
@@ -357,4 +365,21 @@ public final class TestWorkbookFactory {
         } catch (final EmptyFileException expected) {}
         emptyFile.delete();
     }
+
+    /**
+      * Check that a helpful exception is raised on a non-existing file
+      */
+    @Test
+    public void testNonExistantFile() throws Exception {
+        File nonExistantFile = new File("notExistantFile");
+        assertFalse(nonExistantFile.exists());
+
+        try {
+            WorkbookFactory.create(nonExistantFile, "password", true);
+            fail("Should not be able to create for a non-existant file");
+        } catch (final FileNotFoundException e) {
+            // expected
+        }
+    }
+
 }

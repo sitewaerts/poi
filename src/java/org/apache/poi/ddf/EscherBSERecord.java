@@ -17,18 +17,21 @@
 
 package org.apache.poi.ddf;
 
-import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 
 /**
- * The BSE record is related closely to the <code>EscherBlipRecord</code> and stores
+ * The BSE record is related closely to the {@code EscherBlipRecord} and stores
  * extra information about the blip.  A blip record is actually stored inside
  * the BSE record even though the BSE record isn't actually a container record.
  *
- * @author Glen Stampoultzis
  * @see EscherBlipRecord
  */
 public final class EscherBSERecord extends EscherRecord {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
     public static final short RECORD_ID = (short) 0xF007;
     public static final String RECORD_DESCRIPTION = "MsofbtBSE";
 
@@ -56,6 +59,11 @@ public final class EscherBSERecord extends EscherRecord {
 
     private byte[] _remainingData = new byte[0];
 
+    public EscherBSERecord() {
+        setRecordId(RECORD_ID);
+    }
+    
+    @Override
     public int fillFields(byte[] data, int offset, EscherRecordFactory recordFactory) {
         int bytesRemaining = readHeader( data, offset );
         int pos = offset + 8;
@@ -81,12 +89,13 @@ public final class EscherBSERecord extends EscherRecord {
         pos += 36 + bytesRead;
         bytesRemaining -= bytesRead;
 
-        _remainingData = new byte[bytesRemaining];
+        _remainingData = IOUtils.safelyAllocate(bytesRemaining, MAX_RECORD_LENGTH);
         System.arraycopy( data, pos, _remainingData, 0, bytesRemaining );
         return bytesRemaining + 8 + 36 + (field_12_blipRecord == null ? 0 : field_12_blipRecord.getRecordSize()) ;
 
     }
 
+    @Override
     public int serialize(int offset, byte[] data, EscherSerializationListener listener) {
         listener.beforeRecordSerialize( offset, getRecordId(), this );
 
@@ -102,8 +111,7 @@ public final class EscherBSERecord extends EscherRecord {
 
         data[offset + 8] = field_1_blipTypeWin32;
         data[offset + 9] = field_2_blipTypeMacOS;
-        for ( int i = 0; i < 16; i++ )
-            data[offset + 10 + i] = field_3_uid[i];
+        System.arraycopy(field_3_uid, 0, data, offset + 10, 16);
         LittleEndian.putShort( data, offset + 26, field_4_tag );
         LittleEndian.putInt( data, offset + 28, field_5_size );
         LittleEndian.putInt( data, offset + 32, field_6_ref );
@@ -113,8 +121,7 @@ public final class EscherBSERecord extends EscherRecord {
         data[offset + 42] = field_10_unused2;
         data[offset + 43] = field_11_unused3;
         int bytesWritten = 0;
-        if (field_12_blipRecord != null)
-        {
+        if (field_12_blipRecord != null) {
             bytesWritten = field_12_blipRecord.serialize( offset + 44, data, new NullEscherSerializationListener() );
         }
         System.arraycopy( _remainingData, 0, data, offset + 44 + bytesWritten, _remainingData.length );
@@ -124,6 +131,7 @@ public final class EscherBSERecord extends EscherRecord {
         return pos - offset;
     }
 
+    @Override
     public int getRecordSize() {
         int field_12_size = 0;
         if(field_12_blipRecord != null) {
@@ -137,6 +145,7 @@ public final class EscherBSERecord extends EscherRecord {
             1 + 1 + field_12_size + remaining_size;
     }
 
+    @Override
     public String getRecordName() {
         return "BSE";
     }
@@ -144,6 +153,8 @@ public final class EscherBSERecord extends EscherRecord {
     /**
      * The expected blip type under windows (failure to match this blip type will result in
      * Excel converting to this format).
+     * 
+     * @return win32 blip type
      */
     public byte getBlipTypeWin32() {
         return field_1_blipTypeWin32;
@@ -151,6 +162,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Set the expected win32 blip type
+     * 
+     * @param blipTypeWin32 win32 blip type
      */
     public void setBlipTypeWin32(byte blipTypeWin32) {
         field_1_blipTypeWin32 = blipTypeWin32;
@@ -159,6 +172,8 @@ public final class EscherBSERecord extends EscherRecord {
     /**
      * The expected blip type under MacOS (failure to match this blip type will result in
      * Excel converting to this format).
+     * 
+     * @return MacOS blip type
      */
     public byte getBlipTypeMacOS() {
         return field_2_blipTypeMacOS;
@@ -166,6 +181,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Set the expected MacOS blip type
+     * 
+     * @param blipTypeMacOS MacOS blip type
      */
     public void setBlipTypeMacOS(byte blipTypeMacOS) {
         field_2_blipTypeMacOS = blipTypeMacOS;
@@ -173,6 +190,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * 16 byte MD4 checksum.
+     * 
+     * @return 16 byte MD4 checksum
      */
     public byte[] getUid() {
         return field_3_uid;
@@ -180,6 +199,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * 16 byte MD4 checksum.
+     * 
+     * @param uid 16 byte MD4 checksum
      */
     public void setUid(byte[] uid) {
         if (uid == null || uid.length != 16) {
@@ -190,6 +211,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * unused
+     * 
+     * @return an unknown tag
      */
     public short getTag() {
         return field_4_tag;
@@ -197,6 +220,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * unused
+     * 
+     * @param tag unknown tag
      */
     public void setTag(short tag) {
         field_4_tag = tag;
@@ -204,6 +229,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Blip size in stream.
+     * 
+     * @return the blip size
      */
     public int getSize() {
         return field_5_size;
@@ -211,6 +238,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Blip size in stream.
+     * 
+     * @param size blip size
      */
     public void setSize(int size) {
         field_5_size = size;
@@ -218,6 +247,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * The reference count of this blip.
+     * 
+     * @return the reference count
      */
     public int getRef() {
         return field_6_ref;
@@ -225,6 +256,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * The reference count of this blip.
+     * 
+     * @param ref the reference count
      */
     public void setRef(int ref) {
         field_6_ref = ref;
@@ -232,6 +265,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * File offset in the delay stream.
+     * 
+     * @return the file offset
      */
     public int getOffset() {
         return field_7_offset;
@@ -239,6 +274,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * File offset in the delay stream.
+     * 
+     * @param offset the file offset
      */
     public void setOffset(int offset) {
         field_7_offset = offset;
@@ -246,6 +283,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Defines the way this blip is used.
+     * 
+     * @return the blip usage
      */
     public byte getUsage() {
         return field_8_usage;
@@ -253,6 +292,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Defines the way this blip is used.
+     * 
+     * @param usage the blip usae
      */
     public void setUsage(byte usage) {
         field_8_usage = usage;
@@ -260,6 +301,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * The length in characters of the blip name.
+     * 
+     * @return the blip name length
      */
     public byte getName() {
         return field_9_name;
@@ -267,6 +310,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * The length in characters of the blip name.
+     * 
+     * @param name the blip name length
      */
     public void setName(byte name) {
         field_9_name = name;
@@ -298,6 +343,8 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Any remaining data in this record.
+     * 
+     * @return the remaining bytes
      */
     public byte[] getRemainingData() {
         return _remainingData;
@@ -305,57 +352,19 @@ public final class EscherBSERecord extends EscherRecord {
 
     /**
      * Any remaining data in this record.
+     * 
+     * @param remainingData the remaining bytes
      */
     public void setRemainingData(byte[] remainingData) {
-        if (remainingData == null) {
-            _remainingData = new byte[0];
-        } else {
-            _remainingData = remainingData.clone();
-        }
-    }
-
-    public String toString() {
-        String extraData = _remainingData == null ? null : HexDump.toHex(_remainingData, 32);
-        return getClass().getName() + ":" + '\n' +
-                "  RecordId: 0x" + HexDump.toHex( RECORD_ID ) + '\n' +
-                "  Version: 0x" + HexDump.toHex( getVersion() ) + '\n' +
-                "  Instance: 0x" + HexDump.toHex( getInstance() ) + '\n' +
-                "  BlipTypeWin32: " + field_1_blipTypeWin32 + '\n' +
-                "  BlipTypeMacOS: " + field_2_blipTypeMacOS + '\n' +
-                "  SUID: " + (field_3_uid == null ? "" : HexDump.toHex(field_3_uid)) + '\n' +
-                "  Tag: " + field_4_tag + '\n' +
-                "  Size: " + field_5_size + '\n' +
-                "  Ref: " + field_6_ref + '\n' +
-                "  Offset: " + field_7_offset + '\n' +
-                "  Usage: " + field_8_usage + '\n' +
-                "  Name: " + field_9_name + '\n' +
-                "  Unused2: " + field_10_unused2 + '\n' +
-                "  Unused3: " + field_11_unused3 + '\n' +
-                "  blipRecord: " + field_12_blipRecord + '\n' +
-                "  Extra Data:" + '\n' + extraData;
-    }
-
-    @Override
-    public String toXml(String tab) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())))
-                .append(tab).append("\t").append("<BlipTypeWin32>").append(field_1_blipTypeWin32).append("</BlipTypeWin32>\n")
-                .append(tab).append("\t").append("<BlipTypeMacOS>").append(field_2_blipTypeMacOS).append("</BlipTypeMacOS>\n")
-                .append(tab).append("\t").append("<SUID>").append(field_3_uid == null ? "" : HexDump.toHex(field_3_uid)).append("</SUID>\n")
-                .append(tab).append("\t").append("<Tag>").append(field_4_tag).append("</Tag>\n")
-                .append(tab).append("\t").append("<Size>").append(field_5_size).append("</Size>\n")
-                .append(tab).append("\t").append("<Ref>").append(field_6_ref).append("</Ref>\n")
-                .append(tab).append("\t").append("<Offset>").append(field_7_offset).append("</Offset>\n")
-                .append(tab).append("\t").append("<Usage>").append(field_8_usage).append("</Usage>\n")
-                .append(tab).append("\t").append("<Name>").append(field_9_name).append("</Name>\n")
-                .append(tab).append("\t").append("<Unused2>").append(field_10_unused2).append("</Unused2>\n")
-                .append(tab).append("\t").append("<Unused3>").append(field_11_unused3).append("</Unused3>\n");
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
+        _remainingData = (remainingData == null) ? new byte[0] : remainingData.clone();
     }
 
     /**
      * Retrieve the string representation given a blip id.
+     * 
+     * @param b the blip type byte-encoded
+     * 
+     * @return the blip type as string
      */
     public static String getBlipType(byte b) {
         switch (b) {
@@ -372,5 +381,24 @@ public final class EscherBSERecord extends EscherRecord {
             return " NotKnown";
         }
         return " Client";
+    }
+
+    @Override
+    protected Object[][] getAttributeMap() {
+        return new Object[][] {
+            { "BlipTypeWin32", field_1_blipTypeWin32 },
+            { "BlipTypeMacOS", field_2_blipTypeMacOS },
+            { "SUID", field_3_uid },
+            { "Tag", field_4_tag },
+            { "Size", field_5_size },
+            { "Ref", field_6_ref },
+            { "Offset", field_7_offset },
+            { "Usage", field_8_usage },
+            { "Name", field_9_name },
+            { "Unused2", field_10_unused2 },
+            { "Unused3", field_11_unused3 },
+            { "Blip Record", field_12_blipRecord },
+            { "Extra Data", _remainingData }
+        };
     }
 }

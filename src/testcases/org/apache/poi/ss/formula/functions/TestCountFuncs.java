@@ -17,10 +17,12 @@
 
 package org.apache.poi.ss.formula.functions;
 
-import junit.framework.AssertionFailedError;
-import junit.framework.TestCase;
-
 import org.apache.poi.hssf.HSSFTestDataSamples;
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFFormulaEvaluator;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.eval.AreaEval;
 import org.apache.poi.ss.formula.eval.BlankEval;
 import org.apache.poi.ss.formula.eval.BoolEval;
@@ -30,14 +32,13 @@ import org.apache.poi.ss.formula.eval.OperandResolver;
 import org.apache.poi.ss.formula.eval.StringEval;
 import org.apache.poi.ss.formula.eval.ValueEval;
 import org.apache.poi.ss.formula.functions.CountUtils.I_MatchPredicate;
-import org.apache.poi.hssf.usermodel.HSSFCell;
-import org.apache.poi.hssf.usermodel.HSSFFormulaEvaluator;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.util.CellReference;
+
+import junit.framework.AssertionFailedError;
+import junit.framework.TestCase;
 
 /**
  * Test cases for COUNT(), COUNTA() COUNTIF(), COUNTBLANK()
@@ -47,35 +48,33 @@ public final class TestCountFuncs extends TestCase {
 	private static final String NULL = null;
 
 	public void testCountBlank() {
-
 		AreaEval range;
 		ValueEval[] values;
 
 		values = new ValueEval[] {
 				new NumberEval(0),
-				new StringEval(""),	// note - does not match blank
+				new StringEval(""),	// note - does match blank
 				BoolEval.TRUE,
 				BoolEval.FALSE,
 				ErrorEval.DIV_ZERO,
 				BlankEval.instance,
 		};
 		range = EvalFactory.createAreaEval("A1:B3", values);
-		confirmCountBlank(1, range);
+		confirmCountBlank(2, range);
 
 		values = new ValueEval[] {
 				new NumberEval(0),
-				new StringEval(""),	// note - does not match blank
+				new StringEval(""),	// does match blank
 				BlankEval.instance,
 				BoolEval.FALSE,
 				BoolEval.TRUE,
 				BlankEval.instance,
 		};
 		range = EvalFactory.createAreaEval("A1:B3", values);
-		confirmCountBlank(2, range);
+		confirmCountBlank(3, range);
 	}
 
 	public void testCountA() {
-
 		ValueEval[] args;
 
 		args = new ValueEval[] {
@@ -105,7 +104,6 @@ public final class TestCountFuncs extends TestCase {
 	}
 
 	public void testCountIf() {
-
 		AreaEval range;
 		ValueEval[] values;
 
@@ -143,6 +141,7 @@ public final class TestCountFuncs extends TestCase {
 
 	public void testCriteriaPredicateNe_Bug46647() {
 		I_MatchPredicate mp = Countif.createCriteriaPredicate(new StringEval("<>aa"), 0, 0);
+		assertNotNull(mp);
 		StringEval seA = new StringEval("aa"); // this should not match the criteria '<>aa'
 		StringEval seB = new StringEval("bb"); // this should match
 		if (mp.matches(seA) && !mp.matches(seB)) {
@@ -506,9 +505,9 @@ public final class TestCountFuncs extends TestCase {
         for (int rowIx=7; rowIx<=12; rowIx++) {
             HSSFRow row = sheet1.getRow(rowIx-1);
             HSSFCell cellA = row.getCell(0);  // cell containing a formula with COUNTIF
-            assertEquals(HSSFCell.CELL_TYPE_FORMULA, cellA.getCellType());
+            assertEquals(CellType.FORMULA, cellA.getCellType());
             HSSFCell cellC = row.getCell(2);  // cell with a reference value
-            assertEquals(HSSFCell.CELL_TYPE_NUMERIC, cellC.getCellType());
+            assertEquals(CellType.NUMERIC, cellC.getCellType());
 
             CellValue cv = fe.evaluate(cellA);
             double actualValue = cv.getNumberValue();
@@ -524,9 +523,9 @@ public final class TestCountFuncs extends TestCase {
         for (int rowIx=9; rowIx<=14; rowIx++) {
             HSSFRow row = sheet2.getRow(rowIx-1);
             HSSFCell cellA = row.getCell(0);  // cell containing a formula with COUNTIF
-            assertEquals(HSSFCell.CELL_TYPE_FORMULA, cellA.getCellType());
+            assertEquals(CellType.FORMULA, cellA.getCellType());
             HSSFCell cellC = row.getCell(2);  // cell with a reference value
-            assertEquals(HSSFCell.CELL_TYPE_NUMERIC, cellC.getCellType());
+            assertEquals(CellType.NUMERIC, cellC.getCellType());
 
             CellValue cv = fe.evaluate(cellA);
             double actualValue = cv.getNumberValue();

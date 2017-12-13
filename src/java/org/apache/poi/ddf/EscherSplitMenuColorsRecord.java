@@ -17,15 +17,12 @@
 
 package org.apache.poi.ddf;
 
-import org.apache.poi.util.HexDump;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.RecordFormatException;
 
 /**
  * A list of the most recently used colours for the drawings contained in
  * this document.
- *
- * @author Glen Stampoultzis (glens at apache.org)
  */
 public class EscherSplitMenuColorsRecord
     extends EscherRecord
@@ -38,6 +35,7 @@ public class EscherSplitMenuColorsRecord
     private int field_3_color3;
     private int field_4_color4;
 
+    @Override
     public int fillFields(byte[] data, int offset, EscherRecordFactory recordFactory) {
         int bytesRemaining = readHeader( data, offset );
         int pos            = offset + 8;
@@ -47,13 +45,14 @@ public class EscherSplitMenuColorsRecord
         field_3_color3 =  LittleEndian.getInt( data, pos + size );size+=4;
         field_4_color4 =  LittleEndian.getInt( data, pos + size );size+=4;
         bytesRemaining -= size;
-        if (bytesRemaining != 0)
+        if (bytesRemaining != 0) {
             throw new RecordFormatException("Expecting no remaining data but got " + bytesRemaining + " byte(s).");
+        }
         return 8 + size + bytesRemaining;
     }
 
-    public int serialize( int offset, byte[] data, EscherSerializationListener listener )
-    {
+    @Override
+    public int serialize( int offset, byte[] data, EscherSerializationListener listener ) {
 //        int field_2_numIdClusters = field_5_fileIdClusters.length + 1;
         listener.beforeRecordSerialize( offset, getRecordId(), this );
 
@@ -71,84 +70,100 @@ public class EscherSplitMenuColorsRecord
         return getRecordSize();
     }
 
-    public int getRecordSize()
-    {
+    @Override
+    public int getRecordSize() {
         return 8 + 4 * 4;
     }
 
+    @Override
     public short getRecordId() {
         return RECORD_ID;
     }
 
+    @Override
     public String getRecordName() {
         return "SplitMenuColors";
     }
 
     /**
-     * @return  a string representation of this record.
+     * Gets the fill color 
+     *
+     * @return the fill color
      */
-    public String toString() {
-        return getClass().getName() + ":" + '\n' +
-                "  RecordId: 0x" + HexDump.toHex(RECORD_ID) + '\n' +
-                "  Version: 0x" + HexDump.toHex(getVersion()) + '\n' +
-                "  Instance: 0x" + HexDump.toHex(getInstance()) + '\n' +
-                "  Color1: 0x" + HexDump.toHex(field_1_color1) + '\n' +
-                "  Color2: 0x" + HexDump.toHex(field_2_color2) + '\n' +
-                "  Color3: 0x" + HexDump.toHex(field_3_color3) + '\n' +
-                "  Color4: 0x" + HexDump.toHex(field_4_color4) + '\n' +
-                "";
-    }
-
-    @Override
-    public String toXml(String tab) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())))
-                .append(tab).append("\t").append("<Color1>0x").append(HexDump.toHex(field_1_color1)).append("</Color1>\n")
-                .append(tab).append("\t").append("<Color2>0x").append(HexDump.toHex(field_2_color2)).append("</Color2>\n")
-                .append(tab).append("\t").append("<Color3>0x").append(HexDump.toHex(field_3_color3)).append("</Color3>\n")
-                .append(tab).append("\t").append("<Color4>0x").append(HexDump.toHex(field_4_color4)).append("</Color4>\n");
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
-    }
-
-    public int getColor1()
-    {
+    public int getColor1() {
         return field_1_color1;
     }
 
-    public void setColor1( int field_1_color1 )
-    {
+    /**
+     * Sets the fill color
+     *
+     * @param field_1_color1 the fill color
+     */
+    public void setColor1( int field_1_color1 ) {
         this.field_1_color1 = field_1_color1;
     }
 
-    public int getColor2()
-    {
+    /**
+     * Gets the line color
+     *
+     * @return the line color
+     */
+    public int getColor2() {
         return field_2_color2;
     }
 
-    public void setColor2( int field_2_color2 )
-    {
+    /**
+     * Sets the line color
+     *
+     * @param field_2_color2 the line color
+     */
+    public void setColor2( int field_2_color2 ) {
         this.field_2_color2 = field_2_color2;
     }
 
-    public int getColor3()
-    {
+    /**
+     * Gets the shadow color
+     *
+     * @return the shadow color
+     */
+    public int getColor3() {
         return field_3_color3;
     }
 
-    public void setColor3( int field_3_color3 )
-    {
+    /**
+     * Sets the shadow color
+     *
+     * @param field_3_color3 the shadow color
+     */
+    public void setColor3( int field_3_color3 ) {
         this.field_3_color3 = field_3_color3;
     }
 
-    public int getColor4()
-    {
+    /**
+     * Gets the 3-D color
+     *
+     * @return the 3-D color
+     */
+    public int getColor4() {
         return field_4_color4;
     }
 
-    public void setColor4( int field_4_color4 )
-    {
+    /**
+     * Sets the 3-D color
+     *
+     * @param field_4_color4 the 3-D color
+     */
+    public void setColor4( int field_4_color4 ) {
         this.field_4_color4 = field_4_color4;
     }
 
+    @Override
+    protected Object[][] getAttributeMap() {
+        return new Object[][] {
+            { "Color1", field_1_color1 },
+            { "Color2", field_2_color2 },
+            { "Color3", field_3_color3 },
+            { "Color4", field_4_color4 }
+        };
+    }
 }

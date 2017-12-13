@@ -1,4 +1,5 @@
 /* ====================================================================
+/* ====================================================================
    Licensed to the Apache Software Foundation (ASF) under one or more
    contributor license agreements.  See the NOTICE file distributed with
    this work for additional information regarding copyright ownership.
@@ -31,10 +32,10 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTc;
 
 public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
-    private List<XWPFParagraph> paragraphs = new ArrayList<XWPFParagraph>();
-    private List<XWPFTable> tables = new ArrayList<XWPFTable>();
-    private List<XWPFPictureData> pictures = new ArrayList<XWPFPictureData>();
-    private List<IBodyElement> bodyElements = new ArrayList<IBodyElement>();
+    private List<XWPFParagraph> paragraphs = new ArrayList<>();
+    private List<XWPFTable> tables = new ArrayList<>();
+    private List<XWPFPictureData> pictures = new ArrayList<>();
+    private List<IBodyElement> bodyElements = new ArrayList<>();
 
     private CTFtnEdn ctFtnEdn;
     private XWPFFootnotes footnotes;
@@ -111,7 +112,7 @@ public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
      * @see org.apache.poi.xwpf.usermodel.IBody#getTableArray(int)
      */
     public XWPFTable getTableArray(int pos) {
-        if (pos > 0 && pos < tables.size()) {
+        if (pos >= 0 && pos < tables.size()) {
             return tables.get(pos);
         }
         return null;
@@ -180,8 +181,10 @@ public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
      * @see org.apache.poi.xwpf.usermodel.IBody#getParagraphArray(int pos)
      */
     public XWPFParagraph getParagraphArray(int pos) {
-
-        return paragraphs.get(pos);
+        if(pos >=0 && pos < paragraphs.size()) {
+            return paragraphs.get(pos);
+        }
+        return null;
     }
 
     /**
@@ -210,6 +213,9 @@ public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
             return null;
         }
         XWPFTableRow tableRow = table.getRow(row);
+        if(tableRow == null){
+            return null;
+        }
         return tableRow.getTableCell(cell);
     }
 
@@ -263,8 +269,10 @@ public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
                     i++;
             }
             bodyElements.add(i, newT);
-            cursor = t.newCursor();
+            XmlCursor c2 = t.newCursor();
+            cursor.toCursor(c2);
             cursor.toEndToken();
+            c2.dispose();
             return newT;
         }
         return null;
@@ -277,7 +285,7 @@ public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
      * @return the inserted paragraph
      * @see org.apache.poi.xwpf.usermodel.IBody#insertNewParagraph(XmlCursor cursor)
      */
-    public XWPFParagraph insertNewParagraph(XmlCursor cursor) {
+    public XWPFParagraph insertNewParagraph(final XmlCursor cursor) {
         if (isCursorInFtn(cursor)) {
             String uri = CTP.type.getName().getNamespaceURI();
             String localPart = "p";
@@ -289,22 +297,26 @@ public class XWPFFootnote implements Iterable<XWPFParagraph>, IBody {
             while (!(o instanceof CTP) && (cursor.toPrevSibling())) {
                 o = cursor.getObject();
             }
-            if ((!(o instanceof CTP)) || (CTP) o == p) {
+            if ((!(o instanceof CTP)) || o == p) {
                 paragraphs.add(0, newP);
             } else {
                 int pos = paragraphs.indexOf(getParagraph((CTP) o)) + 1;
                 paragraphs.add(pos, newP);
             }
             int i = 0;
-            cursor.toCursor(p.newCursor());
+            XmlCursor p2 = p.newCursor();
+            cursor.toCursor(p2);
+            p2.dispose();
             while (cursor.toPrevSibling()) {
                 o = cursor.getObject();
                 if (o instanceof CTP || o instanceof CTTbl)
                     i++;
             }
             bodyElements.add(i, newP);
-            cursor.toCursor(p.newCursor());
+            p2 = p.newCursor();
+            cursor.toCursor(p2);
             cursor.toEndToken();
+            p2.dispose();
             return newP;
         }
         return null;

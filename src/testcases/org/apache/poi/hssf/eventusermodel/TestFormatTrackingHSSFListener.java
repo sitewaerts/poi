@@ -55,8 +55,8 @@ public final class TestFormatTrackingHSSFListener {
 	public void testFormats() throws Exception {
 		processFile("MissingBits.xls");
 
-		assertEquals("_(\"$\"* #,##0_);_(\"$\"* (#,##0);_(\"$\"* \"-\"_);_(@_)", listener.getFormatString(41));
-		assertEquals("_(* #,##0_);_(* (#,##0);_(* \"-\"_);_(@_)", listener.getFormatString(42));
+		assertEquals("_(* #,##0_);_(* (#,##0);_(* \"-\"_);_(@_)", listener.getFormatString(41));
+		assertEquals("_(\"$\"* #,##0_);_(\"$\"* (#,##0);_(\"$\"* \"-\"_);_(@_)", listener.getFormatString(42));
 		assertEquals("_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)", listener.getFormatString(43));
 		assertEquals("_(\"$\"* #,##0.00_);_(\"$\"* (#,##0.00);_(\"$\"* \"-\"??_);_(@_)", listener.getFormatString(44));
 	}
@@ -73,8 +73,8 @@ public final class TestFormatTrackingHSSFListener {
 		String[] files = new String[] { 
 				"45365.xls", "45365-2.xls", "MissingBits.xls" 
 		};
-		for(int k=0; k<files.length; k++) {
-			processFile(files[k]);
+		for (String file : files) {
+			processFile(file);
 			
 			// Check we found our formats
 			assertTrue(listener.getNumberOfCustomFormats() > 5);
@@ -106,9 +106,10 @@ public final class TestFormatTrackingHSSFListener {
 	
 	private static final class MockHSSFListener implements HSSFListener {
 		public MockHSSFListener() {}
-		private final List<Record> _records = new ArrayList<Record>();
+		private final List<Record> _records = new ArrayList<>();
 
-		public void processRecord(Record record) {
+		@Override
+        public void processRecord(Record record) {
 			_records.add(record);
 		}
 	}

@@ -23,11 +23,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
-import org.apache.poi.ss.SpreadsheetVersion;
-import org.apache.poi.ss.usermodel.BaseTestSheet;
+import org.apache.poi.ss.usermodel.BaseTestXSheet;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.SXSSFITestDataProvider;
@@ -36,7 +33,7 @@ import org.junit.After;
 import org.junit.Test;
 
 
-public class TestSXSSFSheet extends BaseTestSheet {
+public final class TestSXSSFSheet extends BaseTestXSheet {
 
     public TestSXSSFSheet() {
         super(SXSSFITestDataProvider.instance);
@@ -98,6 +95,7 @@ public class TestSXSSFSheet extends BaseTestSheet {
         super.bug35084();
     }
 
+    @Override
     @Test
     public void getCellComment() throws IOException {
         // TODO: reading cell comments via Sheet does not work currently as it tries 
@@ -158,8 +156,20 @@ public class TestSXSSFSheet extends BaseTestSheet {
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
-    public void createRowAfterLastRow() throws IOException {
-        createRowAfterLastRow(SpreadsheetVersion.EXCEL2007);
+    @Test
+    public void changeRowNum() throws IOException {
+        SXSSFWorkbook wb = new SXSSFWorkbook(3);
+        SXSSFSheet sheet = wb.createSheet();
+        SXSSFRow row0 = sheet.createRow(0);
+        SXSSFRow row1 = sheet.createRow(1);
+        sheet.changeRowNum(row0, 2);
+        
+        assertEquals("Row 1 knows its row number", 1, row1.getRowNum());
+        assertEquals("Row 2 knows its row number", 2, row0.getRowNum());
+        assertEquals("Sheet knows Row 1's row number", 1, sheet.getRowNum(row1));
+        assertEquals("Sheet knows Row 2's row number", 2, sheet.getRowNum(row0));
+        assertEquals("Sheet row iteratation order should be ascending", row1, sheet.iterator().next());
+        
+        wb.close();
     }
 }

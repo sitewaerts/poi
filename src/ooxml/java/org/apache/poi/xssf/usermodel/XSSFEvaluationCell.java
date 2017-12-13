@@ -19,6 +19,10 @@ package org.apache.poi.xssf.usermodel;
 
 import org.apache.poi.ss.formula.EvaluationCell;
 import org.apache.poi.ss.formula.EvaluationSheet;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 
 /**
  * XSSF wrapper for a cell under evaluation
@@ -37,6 +41,7 @@ final class XSSFEvaluationCell implements EvaluationCell {
 		this(cell, new XSSFEvaluationSheet(cell.getSheet()));
 	}
 
+	@Override
 	public Object getIdentityKey() {
 		// save memory by just using the cell itself as the identity key
 		// Note - this assumes XSSFCell has not overridden hashCode and equals
@@ -46,31 +51,79 @@ final class XSSFEvaluationCell implements EvaluationCell {
 	public XSSFCell getXSSFCell() {
 		return _cell;
 	}
+	@Override
 	public boolean getBooleanCellValue() {
 		return _cell.getBooleanCellValue();
 	}
-	public int getCellType() {
+	/**
+	 * @return cell type
+	 */
+	@Override
+	public CellType getCellType() {
 		return _cell.getCellType();
 	}
+	/**
+	 * @since POI 3.15 beta 3
+	 * @deprecated use <code>getCellType</code> instead
+	 */
+	@Deprecated
+	@Removal(version = "4.2")
+	@Override
+	public CellType getCellTypeEnum() {
+		return getCellType();
+	}
+	@Override
 	public int getColumnIndex() {
 		return _cell.getColumnIndex();
 	}
+	@Override
 	public int getErrorCellValue() {
 		return _cell.getErrorCellValue();
 	}
+	@Override
 	public double getNumericCellValue() {
 		return _cell.getNumericCellValue();
 	}
+	@Override
 	public int getRowIndex() {
 		return _cell.getRowIndex();
 	}
+	@Override
 	public EvaluationSheet getSheet() {
 		return _evalSheet;
 	}
+	@Override
 	public String getStringCellValue() {
 		return _cell.getRichStringCellValue().getString();
 	}
-	public int getCachedFormulaResultType() {
+	
+	@Override
+	public CellRangeAddress getArrayFormulaRange() {
+		return _cell.getArrayFormulaRange();
+	}
+	
+	@Override
+	public boolean isPartOfArrayFormulaGroup() {
+		return _cell.isPartOfArrayFormulaGroup();
+	}
+	
+	/**
+	 * @return cell type of cached formula result
+	 */
+	@Override
+	public CellType getCachedFormulaResultType() {
 		return _cell.getCachedFormulaResultType();
+	}
+	/**
+	 * @since POI 3.15 beta 3
+	 * @deprecated use <code>getCachedFormulaResultType</code> instead
+	 * Will be deleted when we make the CellType enum transition. See bug 59791.
+	 */
+	@Deprecated
+    @Removal(version = "4.2")
+	@Internal(since="POI 3.15 beta 3")
+	@Override
+	public CellType getCachedFormulaResultTypeEnum() {
+		return getCachedFormulaResultType();
 	}
 }

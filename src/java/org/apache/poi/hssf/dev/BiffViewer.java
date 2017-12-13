@@ -44,18 +44,20 @@ import org.apache.poi.hssf.record.pivottable.ViewSourceRecord;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
 import org.apache.poi.util.StringUtil;
+import org.apache.poi.util.SuppressForbidden;
 
 /**
- *  Utillity for reading in BIFF8 records and displaying data from them.
+ *  Utility for reading in BIFF8 records and displaying data from them.
  * @see        #main
  */
 public final class BiffViewer {
-    static final String NEW_LINE_CHARS = System.getProperty("line.separator");
-    private static POILogger logger = POILogFactory.getLogger(BiffViewer.class);
+    private static final char[] NEW_LINE_CHARS = System.getProperty("line.separator").toCharArray();
+    private static final POILogger logger = POILogFactory.getLogger(BiffViewer.class);
 
     private BiffViewer() {
         // no instances of this class
@@ -64,13 +66,17 @@ public final class BiffViewer {
     /**
      *  Create an array of records from an input stream
      *
-     *@param  is the InputStream from which the records will be obtained
-     *@return an array of Records created from the InputStream
-     *@exception  RecordFormatException  on error processing the InputStream
+     * @param is the InputStream from which the records will be obtained
+     * @param ps the PrintWriter to output the record data
+     * @param recListener the record listener to notify about read records
+     * @param dumpInterpretedRecords if {@code true}, the read records will be written to the PrintWriter
+     *
+     * @return an array of Records created from the InputStream
+     * @exception  org.apache.poi.util.RecordFormatException  on error processing the InputStream
      */
     public static Record[] createRecords(InputStream is, PrintWriter ps, BiffRecordListener recListener, boolean dumpInterpretedRecords)
-            throws RecordFormatException {
-        List<Record> temp = new ArrayList<Record>();
+            throws org.apache.poi.util.RecordFormatException {
+        List<Record> temp = new ArrayList<>();
 
         RecordInputStream recStream = new RecordInputStream(is);
         while (true) {
@@ -97,12 +103,10 @@ public final class BiffViewer {
                 }
                 temp.add(record);
 
-                if (dumpInterpretedRecords) {
-                    for (String header : recListener.getRecentHeaders()) {
-                        ps.println(header);
-                    }
-                    ps.print(record.toString());
+                for (String header : recListener.getRecentHeaders()) {
+                    ps.println(header);
                 }
+                ps.print(record);
             } else {
                 recStream.readRemainder();
             }
@@ -372,15 +376,14 @@ public final class BiffViewer {
 
 	/**
 	 * Method main with 1 argument just run straight biffview against given
-	 * file<P>
+	 * file<p>
 	 *
-	 * <b>Usage</b>:<br/>
+	 * <b>Usage</b>:<p>
 	 *
-	 * BiffViewer [--biffhex] [--noint] [--noescher] [--out] &lt;fileName&gt; <br/>
-	 * BiffViewer --rawhex  [--out] &lt;fileName&gt; <br/>
-	 * <br/>
+	 * BiffViewer [--biffhex] [--noint] [--noescher] [--out] &lt;fileName&gt;<p>
+	 * BiffViewer --rawhex  [--out] &lt;fileName&gt;
 	 *
-	 * <table>
+	 * <table summary="BiffViewer options">
 	 * <tr><td>--biffhex</td><td>show hex dump of each BIFF record</td></tr>
 	 * <tr><td>--noint</td><td>do not output interpretation of BIFF records</td></tr>
 	 * <tr><td>--out</td><td>send output to &lt;fileName&gt;.out</td></tr>
@@ -388,7 +391,11 @@ public final class BiffViewer {
 	 * <tr><td>--escher</td><td>turn on deserialization of escher records (default is off)</td></tr>
 	 * <tr><td>--noheader</td><td>do not print record header (default is on)</td></tr>
 	 * </table>
+	 * 
+	 * @param args the command line arguments 
 	 *
+	 * @throws IOException if the file doesn't exist or contained errors
+	 * @throws CommandParseException if the command line contained errors
 	 */
 	public static void main(String[] args) throws IOException, CommandParseException {
 		// args = new String[] { "--out", "", };
@@ -403,25 +410,26 @@ public final class BiffViewer {
 			pw = new PrintWriter(new OutputStreamWriter(System.out, Charset.defaultCharset()));
 		}
 
-		NPOIFSFileSystem fs = new NPOIFSFileSystem(cmdArgs.getFile(), true);
-        InputStream is = getPOIFSInputStream(fs);
-		
-		if (cmdArgs.shouldOutputRawHexOnly()) {
-			int size = is.available();
-			byte[] data = new byte[size];
+		NPOIFSFileSystem fs = null;
+		InputStream is = null;
+        try {
+            fs = new NPOIFSFileSystem(cmdArgs.getFile(), true);
+            is = getPOIFSInputStream(fs);
 
-			is.read(data);
-			HexDump.dump(data, 0, System.out, 0);
-		} else {
-			boolean dumpInterpretedRecords = cmdArgs.shouldDumpRecordInterpretations();
-			boolean dumpHex = cmdArgs.shouldDumpBiffHex();
-			boolean zeroAlignHexDump = dumpInterpretedRecords;  // TODO - fix non-zeroAlign
-			runBiffViewer(pw, is, dumpInterpretedRecords, dumpHex, zeroAlignHexDump,
-					cmdArgs.suppressHeader());
-		}
-		is.close();
-        fs.close();
-		pw.close();
+            if (cmdArgs.shouldOutputRawHexOnly()) {
+                byte[] data = IOUtils.toByteArray(is);
+                HexDump.dump(data, 0, System.out, 0);
+            } else {
+                boolean dumpInterpretedRecords = cmdArgs.shouldDumpRecordInterpretations();
+                boolean dumpHex = cmdArgs.shouldDumpBiffHex();
+                runBiffViewer(pw, is, dumpInterpretedRecords, dumpHex, dumpInterpretedRecords,
+                        cmdArgs.suppressHeader());
+            }
+        } finally {
+            IOUtils.closeQuietly(is);
+            IOUtils.closeQuietly(fs);
+            IOUtils.closeQuietly(pw);
+        }
 	}
 
 	protected static InputStream getPOIFSInputStream(NPOIFSFileSystem fs)
@@ -447,13 +455,16 @@ public final class BiffViewer {
 			_hexDumpWriter = hexDumpWriter;
 			_zeroAlignEachRecord = zeroAlignEachRecord;
 			_noHeader = noHeader;
-			_headers = new ArrayList<String>();
+			_headers = new ArrayList<>();
 		}
 
-		public void processRecord(int globalOffset, int recordCounter, int sid, int dataSize,
+		@Override
+        public void processRecord(int globalOffset, int recordCounter, int sid, int dataSize,
 				byte[] data) {
 			String header = formatRecordDetails(globalOffset, sid, dataSize, recordCounter);
-			if(!_noHeader) _headers.add(header);
+			if(!_noHeader) {
+				_headers.add(header);
+			}
 			Writer w = _hexDumpWriter;
 			if (w != null) {
 				try {
@@ -468,11 +479,11 @@ public final class BiffViewer {
 		}
 		public List<String> getRecentHeaders() {
 		    List<String> result = _headers;
-		    _headers = new ArrayList<String>();
+		    _headers = new ArrayList<>();
 		    return result;
 		}
 		private static String formatRecordDetails(int globalOffset, int sid, int size, int recordCounter) {
-			StringBuffer sb = new StringBuffer(64);
+			StringBuilder sb = new StringBuilder(64);
 			sb.append("Offset=").append(HexDump.intToHex(globalOffset)).append("(").append(globalOffset).append(")");
 			sb.append(" recno=").append(recordCounter);
 			sb.append(  " sid=").append(HexDump.shortToHex(sid));
@@ -549,6 +560,7 @@ public final class BiffViewer {
 		}
 
 		@Override
+		@SuppressForbidden("just delegating the call")
 		public int available() throws IOException {
 			return _currentSize - _currentPos + _is.available();
 		}
@@ -645,39 +657,55 @@ public final class BiffViewer {
 	}
 
 	private static void hexDumpLine(Writer w, byte[] data, int lineStartAddress, int lineDataOffset, int startDelta, int endDelta) {
-		if (startDelta >= endDelta) {
+	    final char[] buf = new char[8+2*COLUMN_SEPARATOR.length+DUMP_LINE_LEN*3-1+DUMP_LINE_LEN+NEW_LINE_CHARS.length];
+
+	    if (startDelta >= endDelta) {
 			throw new IllegalArgumentException("Bad start/end delta");
 		}
+	    int idx=0;
 		try {
-			writeHex(w, lineStartAddress, 8);
-			w.write(COLUMN_SEPARATOR);
+			writeHex(buf, idx, lineStartAddress, 8);
+			idx = arraycopy(COLUMN_SEPARATOR, buf, idx+8);
 			// raw hex data
 			for (int i=0; i< DUMP_LINE_LEN; i++) {
 				if (i>0) {
-					w.write(" ");
+				    buf[idx++] = ' ';
 				}
 				if (i >= startDelta && i < endDelta) {
-					writeHex(w, data[lineDataOffset+i], 2);
+					writeHex(buf, idx, data[lineDataOffset+i], 2);
 				} else {
-					w.write("  ");
+				    buf[idx] = ' ';
+				    buf[idx+1] = ' ';
 				}
+				idx += 2;
 			}
-			w.write(COLUMN_SEPARATOR);
+			idx = arraycopy(COLUMN_SEPARATOR, buf, idx);
 
 			// interpreted ascii
 			for (int i=0; i< DUMP_LINE_LEN; i++) {
+			    char ch = ' ';
 				if (i >= startDelta && i < endDelta) {
-					w.write(getPrintableChar(data[lineDataOffset+i]));
-				} else {
-					w.write(" ");
+				    ch = getPrintableChar(data[lineDataOffset+i]);
 				}
+				buf[idx++] = ch;
 			}
-			w.write(NEW_LINE_CHARS);
+
+			idx = arraycopy(NEW_LINE_CHARS, buf, idx);
+			
+			w.write(buf, 0, idx);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 	}
 
+	private static int arraycopy(char[] in, char[] out, int pos) {
+	    int idx = pos;
+	    for (char c : in) {
+	        out[idx++] = c;
+	    }
+	    return idx;
+	}
+	
 	private static char getPrintableChar(byte b) {
 		char ib = (char) (b & 0x00FF);
 		if (ib < 32 || ib > 126) {
@@ -686,14 +714,12 @@ public final class BiffViewer {
 		return ib;
 	}
 
-	private static void writeHex(Writer w, int value, int nDigits) throws IOException {
-		char[] buf = new char[nDigits];
+	private static void writeHex(char buf[], int startInBuf, int value, int nDigits) throws IOException {
 		int acc = value;
 		for(int i=nDigits-1; i>=0; i--) {
 			int digit = acc & 0x0F;
-			buf[i] = (char) (digit < 10 ? ('0' + digit) : ('A' + digit - 10));
-			acc >>= 4;
+			buf[startInBuf+i] = (char) (digit < 10 ? ('0' + digit) : ('A' + digit - 10));
+			acc >>>= 4;
 		}
-		w.write(buf);
 	}
 }

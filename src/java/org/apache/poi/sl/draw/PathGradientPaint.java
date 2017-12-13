@@ -38,15 +38,17 @@ class PathGradientPaint implements Paint {
     }
     
     public PathGradientPaint(Color colors[], float fractions[], int capStyle, int joinStyle) {
-        this.colors = colors;
-        this.fractions = fractions;
+        this.colors = colors.clone();
+        this.fractions = fractions.clone();
         this.capStyle = capStyle;
         this.joinStyle = joinStyle;
 
         // determine transparency
         boolean opaque = true;
-        for (int i = 0; i < colors.length; i++){
-            opaque = opaque && (colors[i].getAlpha() == 0xff);
+        for (Color c : colors) {
+            if (c != null) {
+                opaque = opaque && (c.getAlpha() == 0xff);
+            }
         }
         this.transparency = opaque ? OPAQUE : TRANSLUCENT;
     }
@@ -87,7 +89,7 @@ class PathGradientPaint implements Paint {
         ) {
             shape = (Shape)hints.get(Drawable.GRADIENT_SHAPE);
             if (shape == null) {
-                throw new IllegalPathStateException("PathGradientPaint needs a shape to be set via the rendering hint PathGradientPaint.GRADIANT_SHAPE.");
+                throw new IllegalPathStateException("PathGradientPaint needs a shape to be set via the rendering hint Drawable.GRADIANT_SHAPE.");
             }
 
             this.deviceBounds = deviceBounds;
@@ -137,14 +139,14 @@ class PathGradientPaint implements Paint {
             return childRaster;
         }
 
-        protected int getGradientSteps(Shape shape) {
-            Rectangle rect = shape.getBounds();
+        protected int getGradientSteps(Shape gradientShape) {
+            Rectangle rect = gradientShape.getBounds();
             int lower = 1;
             int upper = (int)(Math.max(rect.getWidth(),rect.getHeight())/2.0);
             while (lower < upper-1) {
                 int mid = lower + (upper - lower) / 2;
                 BasicStroke bs = new BasicStroke(mid, capStyle, joinStyle);
-                Area area = new Area(bs.createStrokedShape(shape));
+                Area area = new Area(bs.createStrokedShape(gradientShape));
                 if (area.isSingular()) {
                     upper = mid;
                 } else {

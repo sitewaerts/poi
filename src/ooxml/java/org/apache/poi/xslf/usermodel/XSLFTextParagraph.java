@@ -59,7 +59,6 @@ import org.openxmlformats.schemas.presentationml.x2006.main.STPlaceholderType;
  * Represents a paragraph of text within the containing text body.
  * The paragraph is the highest level text separation mechanism.
  *
- * @author Yegor Kozlov
  * @since POI-3.8
  */
 @Beta
@@ -70,26 +69,23 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
 
     XSLFTextParagraph(CTTextParagraph p, XSLFTextShape shape){
         _p = p;
-        _runs = new ArrayList<XSLFTextRun>();
+        _runs = new ArrayList<>();
         _shape = shape;
 
-        for(XmlObject ch : _p.selectPath("*")){
-            if(ch instanceof CTRegularTextRun){
-                CTRegularTextRun r = (CTRegularTextRun)ch;
-                _runs.add(new XSLFTextRun(r, this));
-            } else if (ch instanceof CTTextLineBreak){
-                CTTextLineBreak br = (CTTextLineBreak)ch;
-                CTRegularTextRun r = CTRegularTextRun.Factory.newInstance();
-                r.setRPr(br.getRPr());
-                r.setT("\n");
-                _runs.add(new XSLFTextRun(r, this));
-            } else if (ch instanceof CTTextField){
-                CTTextField f = (CTTextField)ch;
-                CTRegularTextRun r = CTRegularTextRun.Factory.newInstance();
-                r.setRPr(f.getRPr());
-                r.setT(f.getT());
-                _runs.add(new XSLFTextRun(r, this));
+        XmlCursor c = _p.newCursor();
+        try {
+            if (c.toFirstChild()) {
+                do {
+                    XmlObject r = c.getObject();
+                    if (r instanceof CTTextLineBreak) {
+                        _runs.add(new XSLFLineBreak((CTTextLineBreak)r, this));
+                    } else if (r instanceof CTRegularTextRun || r instanceof CTTextField) {
+                        _runs.add(new XSLFTextRun(r, this));
+                    }
+                } while (c.toNextSibling());
             }
+        } finally {
+            c.dispose();
         }
     }
 
@@ -137,7 +133,7 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
         CTRegularTextRun r = _p.addNewR();
         CTTextCharacterProperties rPr = r.addNewRPr();
         rPr.setLang("en-US");
-        XSLFTextRun run = new XSLFTextRun(r, this);
+        XSLFTextRun run = newTextRun(r);
         _runs.add(run);
         return run;
     }
@@ -148,17 +144,13 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
      * @return text run representing this line break ('\n')
      */
     public XSLFTextRun addLineBreak(){
-        CTTextLineBreak br = _p.addNewBr();
-        CTTextCharacterProperties brProps = br.addNewRPr();
+        XSLFLineBreak run = new XSLFLineBreak(_p.addNewBr(), this);
+        CTTextCharacterProperties brProps = run.getRPr(true);
         if(_runs.size() > 0){
             // by default line break has the font size of the last text run
-            CTTextCharacterProperties prevRun = _runs.get(_runs.size() - 1).getRPr();
+            CTTextCharacterProperties prevRun = _runs.get(_runs.size() - 1).getRPr(true);
             brProps.set(prevRun);
         }
-        CTRegularTextRun r = CTRegularTextRun.Factory.newInstance();
-        r.setRPr(brProps);
-        r.setT("\n");
-        XSLFTextRun run = new XSLFLineBreak(r, this, brProps);
         _runs.add(run);
         return run;
     }
@@ -587,12 +579,26 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
 
     @Override
     public void setSpaceBefore(Double spaceBefore){
-        if (spaceBefore == null && !_p.isSetPPr()) return;
+        if (spaceBefore == null && !_p.isSetPPr()) {
+            return;
+        }
+
+        // unset the space before on null input
+        if (spaceBefore == null) {
+            if(_p.getPPr().isSetSpcBef()) {
+                _p.getPPr().unsetSpcBef();
+            }
+            return;
+        }
+
         CTTextParagraphProperties pr = _p.isSetPPr() ? _p.getPPr() : _p.addNewPPr();
         CTTextSpacing spc = CTTextSpacing.Factory.newInstance();
-        double sb = spaceBefore == null ? 0 : spaceBefore;
-        if(sb >= 0) spc.addNewSpcPct().setVal((int)(sb*1000));
-        else spc.addNewSpcPts().setVal((int)(-sb*100));
+
+        if(spaceBefore >= 0) {
+            spc.addNewSpcPct().setVal((int)(spaceBefore*1000));
+        } else {
+            spc.addNewSpcPts().setVal((int)(-spaceBefore*100));
+        }
         pr.setSpcBef(spc);
     }
 
@@ -617,11 +623,26 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
 
     @Override
     public void setSpaceAfter(Double spaceAfter){
+        if (spaceAfter == null && !_p.isSetPPr()) {
+            return;
+        }
+
+        // unset the space before on null input
+        if (spaceAfter == null) {
+            if(_p.getPPr().isSetSpcAft()) {
+                _p.getPPr().unsetSpcAft();
+            }
+            return;
+        }
+
         CTTextParagraphProperties pr = _p.isSetPPr() ? _p.getPPr() : _p.addNewPPr();
         CTTextSpacing spc = CTTextSpacing.Factory.newInstance();
-        double sa = spaceAfter == null ? 0 : spaceAfter;
-        if(sa >= 0) spc.addNewSpcPct().setVal((int)(sa*1000));
-        else spc.addNewSpcPts().setVal((int)(-sa*100));
+
+        if(spaceAfter >= 0) {
+            spc.addNewSpcPct().setVal((int)(spaceAfter*1000));
+        } else {
+            spc.addNewSpcPts().setVal((int)(-spaceAfter*100));
+        }
         pr.setSpcAft(spc);
     }
 
@@ -724,9 +745,13 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
     }
 
 
+    /**
+     * @return master style text paragraph properties, or <code>null</code> if
+     * there are no master slides or the master slides do not contain a text paragraph
+     */
     /* package */ CTTextParagraphProperties getDefaultMasterStyle(){
         CTPlaceholder ph = _shape.getCTPlaceholder();
-        String defaultStyleSelector;   
+        String defaultStyleSelector;
         switch(ph == null ? -1 : ph.getType().intValue()) {
             case STPlaceholderType.INT_TITLE:
             case STPlaceholderType.INT_CTR_TITLE:
@@ -745,47 +770,30 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
         int level = getIndentLevel();
 
         // wind up and find the root master sheet which must be slide master
-        final String nsDecl =
-            "declare namespace p='http://schemas.openxmlformats.org/presentationml/2006/main' " +
-            "declare namespace a='http://schemas.openxmlformats.org/drawingml/2006/main' ";
-        final String xpaths[] = {
-            nsDecl+".//p:txStyles/p:" + defaultStyleSelector +"/a:lvl" +(level+1)+ "pPr",
-            nsDecl+".//p:notesStyle/a:lvl" +(level+1)+ "pPr"
-        };
+        final String nsPML = "http://schemas.openxmlformats.org/presentationml/2006/main";
+        final String nsDML = "http://schemas.openxmlformats.org/drawingml/2006/main";
         XSLFSheet masterSheet = _shape.getSheet();
         for (XSLFSheet m = masterSheet; m != null; m = (XSLFSheet)m.getMasterSheet()) {
             masterSheet = m;
             XmlObject xo = masterSheet.getXmlObject();
-            for (String xpath : xpaths) {
-                XmlObject[] o = xo.selectPath(xpath);
-                if (o.length == 1) {
-                    return (CTTextParagraphProperties)o[0];
+            XmlCursor cur = xo.newCursor();
+            try {
+                cur.push();
+                if ((cur.toChild(nsPML, "txStyles") && cur.toChild(nsPML, defaultStyleSelector)) ||
+            		(cur.pop() && cur.toChild(nsPML, "notesStyle"))) {
+                    while (level >= 0) {
+                        cur.push();
+                    	if (cur.toChild(nsDML, "lvl" +(level+1)+ "pPr")) {
+                    		return (CTTextParagraphProperties)cur.getObject();
+                    	}
+                    	cur.pop();
+                    	level--;
+                    }
                 }
+            } finally {
+            	cur.dispose();
             }
         }
-
-        
-//        for (CTTextBody txBody : (CTTextBody[])xo.selectPath(nsDecl+".//p:txBody")) {
-//            CTTextParagraphProperties defaultPr = null, lastPr = null;
-//            boolean hasLvl = false;
-//            for (CTTextParagraph p : txBody.getPArray()) {
-//                CTTextParagraphProperties pr = p.getPPr();
-//                if (pr.isSetLvl()) {
-//                    hasLvl |= true;
-//                    lastPr = pr;
-//                    if (pr.getLvl() == level) return pr;
-//                } else {
-//                    defaultPr = pr;
-//                }
-//            }
-//            if (!hasLvl) continue;
-//            if (level == 0 && defaultPr != null) return defaultPr;
-//            if (lastPr != null) return lastPr;
-//            break;
-//        }
-//           
-//        String err = "Failed to fetch default style for " + defaultStyleSelector + " and level=" + level;
-//        throw new IllegalArgumentException(err);
         
         return null;
     }
@@ -851,7 +859,7 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
         List<XSLFTextRun> otherRs = other.getTextRuns();
         int i=0;
         for(CTRegularTextRun rtr : thisP.getRArray()) {
-            XSLFTextRun run = new XSLFTextRun(rtr, this);
+            XSLFTextRun run = newTextRun(rtr);
             run.copy(otherRs.get(i++));
             _runs.add(run);
         }
@@ -920,6 +928,13 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
     @Override
     public Double getDefaultFontSize() {
         CTTextCharacterProperties endPr = _p.getEndParaRPr();
+        if (endPr == null || !endPr.isSetSz()) {
+            // inherit the font size from the master style
+            CTTextParagraphProperties masterStyle = getDefaultMasterStyle();
+            if (masterStyle != null) {
+                endPr = masterStyle.getDefRPr();
+            }
+        }
         return (endPr == null || !endPr.isSetSz()) ? 12 : (endPr.getSz() / 100.);
     }
 
@@ -1011,11 +1026,47 @@ public class XSLFTextParagraph implements TextParagraph<XSLFShape,XSLFTextParagr
         }
         if (!_runs.isEmpty()) {
             int size = _runs.size();
-            thisP.setEndParaRPr(_runs.get(size-1).getRPr());
+            XSLFTextRun lastRun = _runs.get(size-1);
+            CTTextCharacterProperties cpOther = lastRun.getRPr(false);
+            if (cpOther != null) {
+                if (thisP.isSetEndParaRPr()) {
+                    thisP.unsetEndParaRPr();
+                }
+                CTTextCharacterProperties cp = thisP.addNewEndParaRPr();
+                cp.set(cpOther);
+            }
             for (int i=size; i>0; i--) {
                 thisP.removeR(i-1);
             }
             _runs.clear();
         }
+    }
+
+    @Override
+    public boolean isHeaderOrFooter() {
+        CTPlaceholder ph = _shape.getCTPlaceholder();
+        int phId = (ph == null ? -1 : ph.getType().intValue());
+        switch (phId) {
+            case STPlaceholderType.INT_SLD_NUM:
+            case STPlaceholderType.INT_DT:
+            case STPlaceholderType.INT_FTR:
+            case STPlaceholderType.INT_HDR:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Helper method to allow subclasses to provide their own text run
+     *
+     * @param r the xml reference
+     *
+     * @return a new text paragraph
+     *
+     * @since POI 3.15-beta2
+     */
+    protected XSLFTextRun newTextRun(CTRegularTextRun r) {
+        return new XSLFTextRun(r, this);
     }
 }

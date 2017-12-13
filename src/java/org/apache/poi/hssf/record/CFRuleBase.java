@@ -40,6 +40,7 @@ import org.apache.poi.util.POILogger;
  *  for their rules.</p>
  */
 public abstract class CFRuleBase extends StandardRecord implements Cloneable {
+    // FIXME: Merge with org.apache.poi.ss.usermodel.ComparisonOperator and rewrite as an enum
     public static final class ComparisonOperator {
         public static final byte NO_COMPARISON = 0;
         public static final byte BETWEEN       = 1;
@@ -138,7 +139,12 @@ public abstract class CFRuleBase extends StandardRecord implements Cloneable {
     private Formula formula1;
     private Formula formula2;
 
-    /** Creates new CFRuleRecord */
+    /**
+     * Creates new CFRuleRecord
+     * 
+     * @param conditionType the condition type
+     * @param comparisonOperation the comparison operation
+     */
     protected CFRuleBase(byte conditionType, byte comparisonOperation) {
         setConditionType(conditionType);
         setComparisonOperation(comparisonOperation);
@@ -421,8 +427,10 @@ public abstract class CFRuleBase extends StandardRecord implements Cloneable {
      * TODO - parse conditional format formulas properly i.e. produce tRefN and tAreaN instead of tRef and tArea
      * this call will produce the wrong results if the formula contains any cell references
      * One approach might be to apply the inverse of SharedFormulaRecord.convertSharedFormulas(Stack, int, int)
-     * Note - two extra parameters (rowIx & colIx) will be required. They probably come from one of the Region objects.
+     * Note - two extra parameters (rowIx &amp; colIx) will be required. They probably come from one of the Region objects.
      *
+     * @param formula  The formula to parse, excluding the leading equals sign.
+     * @param sheet  The sheet that the formula is on.
      * @return <code>null</code> if <tt>formula</tt> was null.
      */
     public static Ptg[] parseFormula(String formula, HSSFSheet sheet) {

@@ -19,21 +19,29 @@
 
 package org.apache.poi.sl.draw.geom;
 
-import java.awt.geom.GeneralPath;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.poi.sl.draw.binding.*;
+import org.apache.poi.sl.draw.binding.CTAdjPoint2D;
+import org.apache.poi.sl.draw.binding.CTPath2D;
+import org.apache.poi.sl.draw.binding.CTPath2DArcTo;
+import org.apache.poi.sl.draw.binding.CTPath2DClose;
+import org.apache.poi.sl.draw.binding.CTPath2DCubicBezierTo;
+import org.apache.poi.sl.draw.binding.CTPath2DLineTo;
+import org.apache.poi.sl.draw.binding.CTPath2DMoveTo;
+import org.apache.poi.sl.draw.binding.CTPath2DQuadBezierTo;
+import org.apache.poi.sl.usermodel.PaintStyle.PaintModifier;
 
 /**
  * Specifies a creation path consisting of a series of moves, lines and curves
  * that when combined forms a geometric shape
- *
- * @author Yegor Kozlov
  */
 public class Path {
+
     private final List<PathCommand> commands;
-    boolean _fill, _stroke;
+    PaintModifier _fill;
+    boolean _stroke;
     long _w, _h;
 
     public Path(){
@@ -41,21 +49,29 @@ public class Path {
     }
 
     public Path(boolean fill, boolean stroke){
-        commands = new ArrayList<PathCommand>();
+        commands = new ArrayList<>();
         _w = -1;
         _h = -1;
-        _fill = fill;
+        _fill = (fill) ? PaintModifier.NORM : PaintModifier.NONE;
         _stroke = stroke;
     }
 
     public Path(CTPath2D spPath){
-        _fill = spPath.getFill() != STPathFillMode.NONE;
+        switch (spPath.getFill()) {
+            case NONE: _fill = PaintModifier.NONE; break;
+            case DARKEN: _fill = PaintModifier.DARKEN; break;
+            case DARKEN_LESS: _fill = PaintModifier.DARKEN_LESS; break;
+            case LIGHTEN: _fill = PaintModifier.LIGHTEN; break;
+            case LIGHTEN_LESS: _fill = PaintModifier.LIGHTEN_LESS; break;
+            default:
+            case NORM: _fill = PaintModifier.NORM; break;
+        }
         _stroke = spPath.isStroke();
-        _w = spPath.isSetW() ? spPath.getW() : -1;	
-        _h = spPath.isSetH() ? spPath.getH() : -1;	
-        
-        commands = new ArrayList<PathCommand>();
-        
+        _w = spPath.isSetW() ? spPath.getW() : -1;
+        _h = spPath.isSetH() ? spPath.getH() : -1;
+
+        commands = new ArrayList<>();
+
         for(Object ch : spPath.getCloseOrMoveToOrLnTo()){
             if(ch instanceof CTPath2DMoveTo){
                 CTAdjPoint2D pt = ((CTPath2DMoveTo)ch).getPt();
@@ -90,12 +106,13 @@ public class Path {
     }
 
     /**
-     * Convert the internal represenation to java.awt.GeneralPath
+     * Convert the internal represenation to java.awt.geom.Path2D
      */
-    public GeneralPath getPath(Context ctx) {
-        GeneralPath path = new GeneralPath();
-        for(PathCommand cmd : commands)
+    public Path2D.Double getPath(Context ctx) {
+        Path2D.Double path = new Path2D.Double();
+        for(PathCommand cmd : commands) {
             cmd.execute(path, ctx);
+        }
         return path;
     }
 
@@ -104,9 +121,13 @@ public class Path {
     }
 
     public boolean isFilled(){
+        return _fill != PaintModifier.NONE;
+    }
+
+    public PaintModifier getFill() {
         return _fill;
     }
-    
+
     public long getW(){
     	return _w;
     }

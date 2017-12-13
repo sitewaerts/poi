@@ -43,4 +43,30 @@ public interface Slide<
      */
     String getTitle();
 
+    /**
+     * In XSLF, slidenumber and date shapes aren't marked as placeholders
+     * whereas in HSLF they are activated via a HeadersFooter configuration.
+     * This method is used to generalize that handling.
+     *
+     * @param placeholder
+     * @return {@code true} if the placeholder should be displayed/rendered
+     * @since POI 3.16-beta2
+     */
+    boolean getDisplayPlaceholder(Placeholder placeholder);
+
+    /**
+     * Sets the slide visibility 
+     *
+     * @param hidden slide visibility, if {@code true} the slide is hidden, {@code false} shows the slide
+     * 
+     * @since POI 4.0.0
+     */
+    void setHidden(boolean hidden);
+
+    /**
+     * @return the slide visibility, the slide is hidden when {@code true} - or shown when {@code false}
+     * 
+     * @since POI 4.0.0
+     */
+    boolean isHidden();
 }

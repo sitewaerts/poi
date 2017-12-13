@@ -69,13 +69,16 @@ public final class AnalysisToolPak implements UDFFinder {
     public FreeRefFunction findFunction(String name) {
         // functions that are available in Excel 2007+ have a prefix _xlfn.
         // if you save such a .xlsx workbook as .xls
-        if(name.startsWith("_xlfn.")) name = name.substring(6);
+        final String prefix = "_xlfn.";
+        // case-sensitive
+        if(name.startsWith(prefix)) name = name.substring(prefix.length());
 
+        // FIXME: inconsistent case-sensitivity
         return _functionsByName.get(name.toUpperCase(Locale.ROOT));
     }
 
     private Map<String, FreeRefFunction> createFunctionsMap() {
-        Map<String, FreeRefFunction> m = new HashMap<String, FreeRefFunction>(108);
+        Map<String, FreeRefFunction> m = new HashMap<>(108);
 
         r(m, "ACCRINT", null);
         r(m, "ACCRINTM", null);
@@ -93,7 +96,7 @@ public final class AnalysisToolPak implements UDFFinder {
         r(m, "BIN2OCT", null);
         r(m, "COMPLEX", Complex.instance);
         r(m, "CONVERT", null);
-        r(m, "COUNTIFS", null);
+        r(m, "COUNTIFS", Countifs.instance);
         r(m, "COUPDAYBS", null);
         r(m, "COUPDAYS", null);
         r(m, "COUPDAYSNC", null);
@@ -185,7 +188,6 @@ public final class AnalysisToolPak implements UDFFinder {
         r(m, "YIELD", null);
         r(m, "YIELDDISC", null);
         r(m, "YIELDMAT", null);
-        r(m, "COUNTIFS", Countifs.instance);
 
         return m;
     }
@@ -197,6 +199,7 @@ public final class AnalysisToolPak implements UDFFinder {
 
     public static boolean isATPFunction(String name){
         AnalysisToolPak inst = (AnalysisToolPak)instance;
+        // FIXME: inconsistent case-sensitivity
         return inst._functionsByName.containsKey(name);
     }
 
@@ -208,11 +211,11 @@ public final class AnalysisToolPak implements UDFFinder {
      */
     public static Collection<String> getSupportedFunctionNames(){
         AnalysisToolPak inst = (AnalysisToolPak)instance;
-        Collection<String> lst = new TreeSet<String>();
-        for(String name : inst._functionsByName.keySet()){
-            FreeRefFunction func = inst._functionsByName.get(name);
+        Collection<String> lst = new TreeSet<>();
+        for(Map.Entry<String, FreeRefFunction> me : inst._functionsByName.entrySet()){
+            FreeRefFunction func = me.getValue();
             if(func != null && !(func instanceof NotImplemented)){
-                lst.add(name);
+                lst.add(me.getKey());
             }
         }
         return Collections.unmodifiableCollection(lst);
@@ -226,11 +229,11 @@ public final class AnalysisToolPak implements UDFFinder {
      */
     public static Collection<String> getNotSupportedFunctionNames(){
         AnalysisToolPak inst = (AnalysisToolPak)instance;
-        Collection<String> lst = new TreeSet<String>();
-        for(String name : inst._functionsByName.keySet()){
-            FreeRefFunction func = inst._functionsByName.get(name);
-            if(func != null && (func instanceof NotImplemented)){
-                lst.add(name);
+        Collection<String> lst = new TreeSet<>();
+        for(Map.Entry<String, FreeRefFunction> me : inst._functionsByName.entrySet()){
+            FreeRefFunction func = me.getValue();
+            if (func instanceof NotImplemented) {
+                lst.add(me.getKey());
             }
         }
         return Collections.unmodifiableCollection(lst);
@@ -261,6 +264,7 @@ public final class AnalysisToolPak implements UDFFinder {
                     ". You cannot override POI's implementations of Excel functions");
         }
 
+        // FIXME: inconsistent case-sensitivity
         inst._functionsByName.put(name, func);
     }
 }

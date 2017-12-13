@@ -31,7 +31,6 @@ import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLException;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.xmlbeans.XmlException;
 import org.apache.xmlbeans.XmlOptions;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTAbstractNum;
@@ -43,8 +42,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.NumberingDocument;
  * @author Philipp Epp
  */
 public class XWPFNumbering extends POIXMLDocumentPart {
-    protected List<XWPFAbstractNum> abstractNums = new ArrayList<XWPFAbstractNum>();
-    protected List<XWPFNum> nums = new ArrayList<XWPFNum>();
+    protected List<XWPFAbstractNum> abstractNums = new ArrayList<>();
+    protected List<XWPFNum> nums = new ArrayList<>();
     boolean isNew;
     private CTNumbering ctNumbering;
 
@@ -57,21 +56,13 @@ public class XWPFNumbering extends POIXMLDocumentPart {
         super(part);
         isNew = true;
     }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XWPFNumbering(PackagePart part, PackageRelationship rel) throws IOException, OpenXML4JException {
-        this(part);
-    }
     
     /**
      * create a new XWPFNumbering object for use in a new document
      */
     public XWPFNumbering() {
-        abstractNums = new ArrayList<XWPFAbstractNum>();
-        nums = new ArrayList<XWPFNum>();
+        abstractNums = new ArrayList<>();
+        nums = new ArrayList<>();
         isNew = true;
     }
 

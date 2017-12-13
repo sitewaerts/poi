@@ -25,7 +25,6 @@ import org.apache.poi.util.HexDump;
  * of the properties marked as boolean seem to actually contain special values.  In other words
  * they're not true booleans.
  *
- * @author Glen Stampoultzis
  * @see EscherSimpleProperty
  * @see EscherProperty
  */
@@ -45,18 +44,25 @@ public class EscherBoolProperty
 
     /**
      * Whether this boolean property is true
+     * 
+     * @return the boolean property value
      */
     public boolean isTrue()
     {
-        return propertyValue != 0;
+        return getPropertyValue() != 0;
     }
 
     /**
      * Whether this boolean property is false
+     * 
+     * @return true, if this boolean property is false
+     * 
+     * @deprecated use !isTrue() instead, planed to be removed in POI 3.17
      */
+    @Deprecated
     public boolean isFalse()
     {
-        return propertyValue == 0;
+        return !isTrue();
     }
 
 //    public String toString()
@@ -67,11 +73,12 @@ public class EscherBoolProperty
 //                + ", value: " + (getValue() != 0);
 //    }
 
+    @Override
     public String toXml(String tab){
         StringBuilder builder = new StringBuilder();
         builder.append(tab).append("<").append(getClass().getSimpleName()).append(" id=\"0x").append(HexDump.toHex(getId()))
                 .append("\" name=\"").append(getName()).append("\" simpleValue=\"").append(getPropertyValue()).append("\" blipId=\"")
-                .append(isBlipId()).append("\" value=\"").append(isTrue()).append("\"").append("/>\n");
+                .append(isBlipId()).append("\" value=\"").append(isTrue()).append("\"").append("/>");
         return builder.toString();
     }
 }

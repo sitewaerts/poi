@@ -26,7 +26,7 @@ import java.util.List;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.udf.UDFFinder;
 import org.apache.poi.ss.usermodel.Row.MissingCellPolicy;
-import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.Removal;
 
 /**
  * High level representation of a Excel workbook.  This is the first object most users
@@ -36,49 +36,22 @@ import org.apache.poi.ss.util.CellRangeAddress;
 public interface Workbook extends Closeable, Iterable<Sheet> {
 
     /** Extended windows meta file */
-    public static final int PICTURE_TYPE_EMF = 2;
+    int PICTURE_TYPE_EMF = 2;
 
     /** Windows Meta File */
-    public static final int PICTURE_TYPE_WMF = 3;
+    int PICTURE_TYPE_WMF = 3;
 
     /** Mac PICT format */
-    public static final int PICTURE_TYPE_PICT = 4;
+    int PICTURE_TYPE_PICT = 4;
 
     /** JPEG format */
-    public static final int PICTURE_TYPE_JPEG = 5;
+    int PICTURE_TYPE_JPEG = 5;
 
     /** PNG format */
-    public static final int PICTURE_TYPE_PNG = 6;
+    int PICTURE_TYPE_PNG = 6;
 
     /** Device independent bitmap */
-    public static final int PICTURE_TYPE_DIB = 7;
-
-
-    /**
-     * Indicates the sheet is visible.
-     *
-     * @see #setSheetHidden(int, int)
-     */
-    public static final int SHEET_STATE_VISIBLE = 0;
-
-    /**
-     * Indicates the book window is hidden, but can be shown by the user via the user interface.
-     *
-     * @see #setSheetHidden(int, int)
-     */
-    public static final int SHEET_STATE_HIDDEN = 1;
-
-    /**
-     * Indicates the sheet is hidden and cannot be shown in the user interface (UI).
-     *
-     * <p>
-     * In Excel this state is only available programmatically in VBA:
-     * <code>ThisWorkbook.Sheets("MySheetName").Visible = xlSheetVeryHidden </code>
-     * </p>
-     *
-     * @see #setSheetHidden(int, int)
-     */
-    public static final int SHEET_STATE_VERY_HIDDEN = 2;
+    int PICTURE_TYPE_DIB = 7;
 
     /**
      * Convenience method to get the active sheet.  The active sheet is is the sheet
@@ -170,7 +143,7 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
     int getSheetIndex(Sheet sheet);
 
     /**
-     * Sreate an Sheet for this Workbook, adds it to the sheets and returns
+     * Create a Sheet for this Workbook, adds it to the sheets and returns
      * the high level representation.  Use this to create new sheets.
      *
      * @return Sheet representing the new sheet.
@@ -218,7 +191,7 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      * See {@link org.apache.poi.ss.util.WorkbookUtil#createSafeSheetName(String nameProposal)}
      *      for a safe way to create valid names
      * </p>
-     * @param sheetname  sheetname to set for the sheet.
+     * @param sheetname The name to set for the sheet.
      * @return Sheet representing the new sheet.
      * @throws IllegalArgumentException if the name is null or invalid
      *  or workbook already contains a sheet with this name
@@ -252,8 +225,10 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
     /**
      * Get the Sheet object at the given index.
      *
-     * @param index of the sheet number (0-based physical & logical)
+     * @param index of the sheet number (0-based physical &amp; logical)
      * @return Sheet at the provided index
+     * @throws IllegalArgumentException if the index is out of range (index
+     *            &lt; 0 || index &gt;= getNumberOfSheets()).
      */
     Sheet getSheetAt(int index);
 
@@ -273,49 +248,18 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
     void removeSheetAt(int index);
 
     /**
-     * Sets the repeating rows and columns for a sheet (as found in
-     * File->PageSetup->Sheet).  This is function is included in the workbook
-     * because it creates/modifies name records which are stored at the
-     * workbook level.
-     * <p>
-     * To set just repeating columns:
-     * <pre>
-     *  workbook.setRepeatingRowsAndColumns(0,0,1,-1-1);
-     * </pre>
-     * To set just repeating rows:
-     * <pre>
-     *  workbook.setRepeatingRowsAndColumns(0,-1,-1,0,4);
-     * </pre>
-     * To remove all repeating rows and columns for a sheet.
-     * <pre>
-     *  workbook.setRepeatingRowsAndColumns(0,-1,-1,-1,-1);
-     * </pre>
-     *
-     * @param sheetIndex    0 based index to sheet.
-     * @param startColumn   0 based start of repeating columns.
-     * @param endColumn     0 based end of repeating columns.
-     * @param startRow      0 based start of repeating rows.
-     * @param endRow        0 based end of repeating rows.
-     *
-     * @deprecated use {@link Sheet#setRepeatingRows(CellRangeAddress)}
-     *        or {@link Sheet#setRepeatingColumns(CellRangeAddress)}
-     */
-    @Deprecated
-    void setRepeatingRowsAndColumns(int sheetIndex, int startColumn, int endColumn, int startRow, int endRow);
-
-    /**
      * Create a new Font and add it to the workbook's font table
      *
      * @return new font object
      */
     Font createFont();
-
+    
     /**
      * Finds a font that matches the one with the supplied attributes
      *
      * @return the font with the matched attributes or <code>null</code>
      */
-    Font findFont(short boldWeight, short color, short fontHeight, String name, boolean italic, boolean strikeout, short typeOffset, byte underline);
+    Font findFont(boolean bold, short color, short fontHeight, String name, boolean italic, boolean strikeout, short typeOffset, byte underline);
 
     /**
      * Get the number of fonts in the font table
@@ -365,9 +309,11 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
 
     /**
      * Close the underlying input resource (File or Stream),
-     *  from which the Workbook was read. After closing, the
-     *  Workbook should no longer be used.
-     * <p>This will have no effect newly created Workbooks.
+     *  from which the Workbook was read.
+     *
+     * <p>Once this has been called, no further
+     *  operations, updates or reads should be performed on the
+     *  Workbook.
      */
     @Override
     void close() throws IOException;
@@ -382,11 +328,30 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      * @return the defined name with the specified name. <code>null</code> if not found.
      */
     Name getName(String name);
+
+    /**
+     * Returns all defined names with the given name.
+     *
+     * @param name the name of the defined name
+     * @return a list of the defined names with the specified name. An empty list is returned if none is found.
+     */
+    List<? extends Name> getNames(String name);
+
+    /**
+     * Returns all defined names.
+     *
+     * @return a list of the defined names. An empty list is returned if none is found.
+     */
+    List<? extends Name> getAllNames();
+
     /**
      * @param nameIndex position of the named range (0-based)
      * @return the defined name at the specified index
      * @throws IllegalArgumentException if the supplied index is invalid
+     * @deprecated 3.18. New projects should avoid accessing named ranges by index.
      */
+    @Deprecated
+    @Removal(version="3.20")
     Name getNameAt(int nameIndex);
 
     /**
@@ -397,28 +362,46 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
     Name createName();
 
     /**
-     * Gets the defined name index by name<br/>
+     * Gets the defined name index by name<br>
      * <i>Note:</i> Excel defined names are case-insensitive and
      * this method performs a case-insensitive search.
      *
      * @param name the name of the defined name
      * @return zero based index of the defined name. <tt>-1</tt> if not found.
+     * @deprecated 3.18. New projects should avoid accessing named ranges by index.
+     * Use {@link #getName(String)} instead.
      */
+    @Deprecated
+    @Removal(version="3.20")
     int getNameIndex(String name);
 
     /**
      * Remove the defined name at the specified index
      *
      * @param index named range index (0 based)
+     *
+     * @deprecated 3.18. New projects should use {@link #removeName(Name)}.
      */
+    @Deprecated
+    @Removal(version="3.20")
     void removeName(int index);
 
     /**
      * Remove a defined name by name
      *
-      * @param name the name of the defined name
+     * @param name the name of the defined name
+     * @deprecated 3.18. New projects should use {@link #removeName(Name)}.
      */
+    @Deprecated
+    @Removal(version="3.20")
     void removeName(String name);
+
+    /**
+     * Remove a defined name
+     *
+     * @param name the name of the defined name
+     */
+    void removeName(Name name);
 
     /**
      * Adds the linking required to allow formulas referencing
@@ -546,6 +529,7 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      * </p>
      * @param sheetIx Number
      * @return <code>true</code> if sheet is hidden
+     * @see #getSheetVisibility(int)
      */
     boolean isSheetHidden(int sheetIx);
 
@@ -557,6 +541,7 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      * </p>
      * @param sheetIx sheet index to check
      * @return <code>true</code> if sheet is very hidden
+     * @see #getSheetVisibility(int)
      */
     boolean isSheetVeryHidden(int sheetIx);
 
@@ -568,29 +553,30 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      *
      * @param sheetIx the sheet index (0-based)
      * @param hidden True to mark the sheet as hidden, false otherwise
+     * @see #setSheetVisibility(int, SheetVisibility)
      */
     void setSheetHidden(int sheetIx, boolean hidden);
 
     /**
+     * Get the visibility (visible, hidden, very hidden) of a sheet in this workbook
+     *
+     * @param sheetIx  the index of the sheet
+     * @return the sheet visibility
+     * @since POI 3.16 beta 2
+     */
+    SheetVisibility getSheetVisibility(int sheetIx);
+
+    /**
      * Hide or unhide a sheet.
      *
-     * <ul>
-     *  <li>0 - visible. </li>
-     *  <li>1 - hidden. </li>
-     *  <li>2 - very hidden.</li>
-     * </ul>
-     * 
      * Please note that the sheet currently set as active sheet (sheet 0 in a newly 
      * created workbook or the one set via setActiveSheet()) cannot be hidden.
      *  
-     * @param sheetIx the sheet index (0-based)
-     * @param hidden one of the following <code>Workbook</code> constants:
-     *        <code>Workbook.SHEET_STATE_VISIBLE</code>,
-     *        <code>Workbook.SHEET_STATE_HIDDEN</code>, or
-     *        <code>Workbook.SHEET_STATE_VERY_HIDDEN</code>.
-     * @throws IllegalArgumentException if the supplied sheet index or state is invalid
+     * @param sheetIx     the sheet index (0-based)
+     * @param visibility  the sheet visibility to set
+     * @since POI 3.16 beta 2
      */
-    void setSheetHidden(int sheetIx, int hidden);
+    void setSheetVisibility(int sheetIx, SheetVisibility visibility);
 
     /**
      * Register a new toolpack in this workbook.
@@ -616,7 +602,7 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      * workbook values when the workbook is opened
      * @since 3.8
      */
-    public void setForceFormulaRecalculation(boolean value);
+    void setForceFormulaRecalculation(boolean value);
 
     /**
      * Whether Excel will be asked to recalculate all formulas when the  workbook is opened.
@@ -631,6 +617,19 @@ public interface Workbook extends Closeable, Iterable<Sheet> {
      * @return SpreadsheetVersion enum
      * @since 3.14 beta 2
      */
-    public SpreadsheetVersion getSpreadsheetVersion();
+    SpreadsheetVersion getSpreadsheetVersion();
 
+    /**
+     * Adds an OLE package manager object with the given content to the sheet
+     *
+     * @param oleData the payload
+     * @param label the label of the payload
+     * @param fileName the original filename
+     * @param command the command to open the payload
+     * 
+     * @return the index of the added ole object, i.e. the storage id
+     * 
+     * @throws IOException if the object can't be embedded
+     */
+    int addOlePackage(byte[] oleData, String label, String fileName, String command) throws IOException;
 }

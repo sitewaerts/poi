@@ -29,10 +29,7 @@ import java.util.TreeMap;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.exceptions.InvalidOperationException;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JRuntimeException;
-import org.apache.poi.openxml4j.opc.OPCPackage;
-import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackagePartName;
-import org.apache.poi.openxml4j.opc.PackagingURIHelper;
+import org.apache.poi.openxml4j.opc.*;
 import org.apache.poi.util.DocumentHelper;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -59,7 +56,7 @@ public abstract class ContentTypeManager {
 	/**
 	 * Content type namespace
 	 */
-	public static final String TYPES_NAMESPACE_URI = "http://schemas.openxmlformats.org/package/2006/content-types";
+	public static final String TYPES_NAMESPACE_URI = PackageNamespaces.CONTENT_TYPES;
 
 	/* Xml elements in content type part */
 
@@ -102,7 +99,7 @@ public abstract class ContentTypeManager {
 	public ContentTypeManager(InputStream in, OPCPackage pkg)
 			throws InvalidFormatException {
 		this.container = pkg;
-		this.defaultContentType = new TreeMap<String, String>();
+		this.defaultContentType = new TreeMap<>();
 		if (in != null) {
 			try {
 				parseContentTypesFile(in);
@@ -175,7 +172,7 @@ public abstract class ContentTypeManager {
 	private void addOverrideContentType(PackagePartName partName,
 			String contentType) {
 		if (overrideContentType == null)
-			overrideContentType = new TreeMap<PackagePartName, String>();
+			overrideContentType = new TreeMap<>();
 		overrideContentType.put(partName, contentType);
 	}
 
@@ -346,7 +343,7 @@ public abstract class ContentTypeManager {
 		 */
 		if (this.container != null && this.container.getPart(partName) != null) {
 			throw new OpenXML4JRuntimeException(
-					"Rule M2.4 exception : this error should NEVER happen! Please raise a bug at https://bz.apache.org/bugzilla/enter_bug.cgi?product=POI and attach a file that triggers it, thanks!");
+					"Rule M2.4 exception : this error should NEVER happen! If you can provide the triggering file, then please raise a bug at https://bz.apache.org/bugzilla/enter_bug.cgi?product=POI and attach the file that triggers it, thanks!");
 		}
 		return null;
 	}
@@ -401,14 +398,10 @@ public abstract class ContentTypeManager {
 				String contentType = element.getAttribute(CONTENT_TYPE_ATTRIBUTE_NAME);
 				addOverrideContentType(partName, contentType);
 			}
-		} catch (URISyntaxException urie) {
-			throw new InvalidFormatException(urie.getMessage());
-        } catch (SAXException e) {
-            throw new InvalidFormatException(e.getMessage());
-        } catch (IOException e) {
-            throw new InvalidFormatException(e.getMessage());
+		} catch (URISyntaxException | IOException | SAXException e) {
+			throw new InvalidFormatException(e.getMessage());
         }
-    }
+	}
 
 	/**
 	 * Save the contents type part.

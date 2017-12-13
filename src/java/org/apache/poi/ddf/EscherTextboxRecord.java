@@ -17,7 +17,10 @@
 
 package org.apache.poi.ddf;
 
-import org.apache.poi.util.HexDump;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.RecordFormatException;
 
@@ -28,6 +31,10 @@ import org.apache.poi.util.RecordFormatException;
  *  they will be in the parent's format, not Escher format.
  */
 public final class EscherTextboxRecord extends EscherRecord implements Cloneable {
+
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 100_000;
+
     public static final short RECORD_ID = (short)0xF00D;
     public static final String RECORD_DESCRIPTION = "msofbtClientTextbox";
 
@@ -40,16 +47,18 @@ public final class EscherTextboxRecord extends EscherRecord implements Cloneable
     {
     }
 
+    @Override
     public int fillFields(byte[] data, int offset, EscherRecordFactory recordFactory) {
         int bytesRemaining = readHeader( data, offset );
 
         // Save the data, ready for the calling code to do something
         //  useful with it
-        thedata = new byte[bytesRemaining];
+        thedata = IOUtils.safelyAllocate(bytesRemaining, MAX_RECORD_LENGTH);
         System.arraycopy( data, offset + 8, thedata, 0, bytesRemaining );
         return bytesRemaining + 8;
     }
 
+    @Override
     public int serialize( int offset, byte[] data, EscherSerializationListener listener )
     {
         listener.beforeRecordSerialize( offset, getRecordId(), this );
@@ -63,8 +72,9 @@ public final class EscherTextboxRecord extends EscherRecord implements Cloneable
 
         listener.afterRecordSerialize( pos, getRecordId(), pos - offset, this );
         int size = pos - offset;
-        if (size != getRecordSize())
+        if (size != getRecordSize()) {
             throw new RecordFormatException(size + " bytes written but getRecordSize() reports " + getRecordSize());
+        }
         return size;
     }
 
@@ -73,6 +83,8 @@ public final class EscherTextboxRecord extends EscherRecord implements Cloneable
      * does not seem to put anything here, but with PowerPoint this will
      * contain the bytes that make up a TextHeaderAtom followed by a
      * TextBytesAtom/TextCharsAtom
+     * 
+     * @return the extra data
      */
     public byte[] getData()
     {
@@ -83,16 +95,29 @@ public final class EscherTextboxRecord extends EscherRecord implements Cloneable
      * Sets the extra data (in the parent application's format) to be
      * contained by the record. Used when the parent application changes
      * the contents.
+     * 
+     * @param b the buffer which contains the data
+     * @param start the start position in the buffer
+     * @param length the length of the block
      */
     public void setData(byte[] b, int start, int length)
     {
-        thedata = new byte[length];
+        thedata = IOUtils.safelyAllocate(length, MAX_RECORD_LENGTH);
         System.arraycopy(b,start,thedata,0,length);
     }
+    
+    /**
+     * Sets the extra data (in the parent application's format) to be
+     * contained by the record. Used when the parent application changes
+     * the contents.
+     * 
+     * @param b the data
+     */
     public void setData(byte[] b) {
         setData(b,0,b.length);
     }
 
+    @Override
     public int getRecordSize()
     {
         return 8 + thedata.length;
@@ -107,58 +132,26 @@ public final class EscherTextboxRecord extends EscherRecord implements Cloneable
         return etr;
     }
 
+    @Override
     public String getRecordName() {
         return "ClientTextbox";
     }
 
-    public String toString()
-    {
-        String nl = System.getProperty( "line.separator" );
-
-        String theDumpHex = "";
-        try
-        {
-            if (thedata.length != 0)
-            {
-                theDumpHex = "  Extra Data:" + nl;
-                theDumpHex += HexDump.dump(thedata, 0, 0);
-            }
-        }
-        catch ( Exception e )
-        {
-            theDumpHex = "Error!!";
-        }
-
-        return getClass().getName() + ":" + nl +
-                "  isContainer: " + isContainerRecord() + nl +
-                "  version: 0x" + HexDump.toHex( getVersion() ) + nl +
-                "  instance: 0x" + HexDump.toHex( getInstance() ) + nl +
-                "  recordId: 0x" + HexDump.toHex( getRecordId() ) + nl +
-                "  numchildren: " + getChildRecords().size() + nl +
-                theDumpHex;
-    }
-
     @Override
-    public String toXml(String tab) {
-        String theDumpHex = "";
-        try
-        {
-            if (thedata.length != 0)
-            {
-                theDumpHex += HexDump.dump(thedata, 0, 0);
-            }
+    protected Object[][] getAttributeMap() {
+        int numCh = getChildRecords().size();
+        List<Object> chLst = new ArrayList<>(numCh * 2 + 2);
+        chLst.add("children");
+        chLst.add(numCh);
+        for (EscherRecord er : getChildRecords()) {
+            chLst.add(er.getRecordName());
+            chLst.add(er);
         }
-        catch ( Exception e )
-        {
-            theDumpHex = "Error!!";
-        }
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())))
-                .append(tab).append("\t").append("<ExtraData>").append(theDumpHex).append("</ExtraData>\n");
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
+        
+        return new Object[][] {
+            { "isContainer", isContainerRecord() },
+            chLst.toArray(),
+            { "Extra Data", thedata }
+        };
     }
 }
-
-
-

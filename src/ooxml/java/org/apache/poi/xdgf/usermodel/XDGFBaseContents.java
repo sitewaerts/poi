@@ -49,23 +49,15 @@ public class XDGFBaseContents extends XDGFXMLDocumentPart {
     protected PageContentsType _pageContents;
 
     // shapes without parents
-    protected List<XDGFShape> _toplevelShapes = new ArrayList<XDGFShape>();
-    protected Map<Long, XDGFShape> _shapes = new HashMap<Long, XDGFShape>();
-    protected List<XDGFConnection> _connections = new ArrayList<XDGFConnection>();
+    protected List<XDGFShape> _toplevelShapes = new ArrayList<>();
+    protected Map<Long, XDGFShape> _shapes = new HashMap<>();
+    protected List<XDGFConnection> _connections = new ArrayList<>();
 
     /**
      * @since POI 3.14-Beta1
      */
     public XDGFBaseContents(PackagePart part, XDGFDocument document) {
         super(part, document);
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XDGFBaseContents(PackagePart part, PackageRelationship rel, XDGFDocument document) {
-        this(part, document);
     }
     
     @Internal
@@ -92,10 +84,10 @@ public class XDGFBaseContents extends XDGFXMLDocumentPart {
                 XDGFShape to = _shapes.get(connect.getToSheet());
 
                 if (from == null)
-                    throw new POIXMLException(this.toString() + "; Connect; Invalid from id: " + connect.getFromSheet());
+                    throw new POIXMLException(this + "; Connect; Invalid from id: " + connect.getFromSheet());
 
                 if (to == null)
-                    throw new POIXMLException(this.toString() + "; Connect; Invalid to id: " + connect.getToSheet());
+                    throw new POIXMLException(this + "; Connect; Invalid to id: " + connect.getToSheet());
 
                 _connections.add(new XDGFConnection(connect, from, to));
             }

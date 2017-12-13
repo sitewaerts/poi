@@ -16,7 +16,6 @@
 ==================================================================== */
 package org.apache.poi.ddf;
 
-import org.apache.poi.util.HexDump;
 import org.apache.poi.util.Internal;
 
 /**
@@ -24,8 +23,6 @@ import org.apache.poi.util.Internal;
  * determining the attributes of a shape. Properties can be of two types: simple
  * or complex. Simple types are fixed length. Complex properties are variable
  * length.
- * 
- * @author Glen Stampoultzis
  */
 public class EscherOptRecord extends AbstractEscherOptRecord
 {
@@ -35,13 +32,14 @@ public class EscherOptRecord extends AbstractEscherOptRecord
     @Override
     public short getInstance()
     {
-        setInstance( (short) properties.size() );
+        setInstance( (short) getEscherProperties().size() );
         return super.getInstance();
     }
 
     /**
      * Automatically recalculate the correct option
      */
+    @Override
     @Internal
     public short getOptions()
     {
@@ -51,6 +49,7 @@ public class EscherOptRecord extends AbstractEscherOptRecord
         return super.getOptions();
     }
 
+    @Override
     public String getRecordName()
     {
         return "Opt";
@@ -66,21 +65,11 @@ public class EscherOptRecord extends AbstractEscherOptRecord
     @Override
     public void setVersion( short value )
     {
-        if ( value != 0x3 )
+        if ( value != 0x3 ) {
             throw new IllegalArgumentException( RECORD_DESCRIPTION
                     + " can have only '0x3' version" );
+        }
 
         super.setVersion( value );
-    }
-
-    @Override
-    public String toXml(String tab) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(tab).append(formatXmlRecordHeader(getClass().getSimpleName(), HexDump.toHex(getRecordId()), HexDump.toHex(getVersion()), HexDump.toHex(getInstance())));
-        for (EscherProperty property: getEscherProperties()){
-            builder.append(property.toXml(tab+"\t"));
-        }
-        builder.append(tab).append("</").append(getClass().getSimpleName()).append(">\n");
-        return builder.toString();
     }
 }

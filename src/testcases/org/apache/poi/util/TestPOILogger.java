@@ -26,14 +26,10 @@ import org.junit.Test;
 
 /**
  * Tests the log class.
- *
- * @author Glen Stampoultzis (glens at apache.org)
- * @author Marc Johnson (mjohnson at apache dot org)
- * @author Nicola Ken Barozzi (nicolaken at apache.org)
  */
 public final class TestPOILogger extends POILogger {
     private String lastLog = "";
-    private Throwable lastEx = null;
+    private Throwable lastEx;
     
     /**
      * Test different types of log output.
@@ -46,44 +42,41 @@ public final class TestPOILogger extends POILogger {
             POILogger log = POILogFactory.getLogger( "foo" );
             assertTrue(log instanceof TestPOILogger);
             
-            TestPOILogger tlog = (TestPOILogger)log;
+            TestPOILogger tLog = (TestPOILogger)log;
     
             log.log(POILogger.WARN, "Test = ", 1);
-            assertEquals("Test = 1", tlog.lastLog);
+            assertEquals("Test = 1", tLog.lastLog);
             
-            log.logFormatted(POILogger.ERROR, "Test param 1 = %, param 2 = %d", "2", 3 );
-            assertEquals("Test param 1 = 2, param 2 = 3", tlog.lastLog);
-            
-            log.logFormatted(POILogger.ERROR, "Test param 1 = %d, param 2 = %", new int[]{4, 5} );
-            assertEquals("Test param 1 = 4, param 2 = 5", tlog.lastLog);
-            
-            log.logFormatted(POILogger.ERROR, "Test param 1 = %1.1, param 2 = %0.1", new double[]{4, 5.23} );
-            assertEquals("Test param 1 = 4, param 2 = 5.2", tlog.lastLog);
-
             log.log(POILogger.ERROR, "Test ", 1,2,new Exception("bla"));
-            assertEquals("Test 12", tlog.lastLog);
-            assertNotNull(tlog.lastEx);
+            assertEquals("Test 12", tLog.lastLog);
+            assertNotNull(tLog.lastEx);
             
             log.log(POILogger.ERROR, "log\nforging", "\nevil","\nlog");
-            assertEquals("log forging evil log", tlog.lastLog);
+            assertEquals("log forging evil log", tLog.lastLog);
         } finally {
             POILogFactory._loggerClassName = oldLCN;
         }
     }
+    
+    // ---------- POI Logger methods implemented for testing ----------
 
+    @Override
     public void initialize(String cat) {
     }
 
-    public void log(int level, Object obj1) {
+    @Override
+    protected void _log(int level, Object obj1) {
         lastLog = (obj1 == null) ? "" : obj1.toString();
         lastEx = null;
     }
 
-    public void log(int level, Object obj1, Throwable exception) {
+    @Override
+    protected void _log(int level, Object obj1, Throwable exception) {
         lastLog = (obj1 == null) ? "" : obj1.toString();
         lastEx = exception;
     }
 
+    @Override
     public boolean check(int level) {
         return true;
     }

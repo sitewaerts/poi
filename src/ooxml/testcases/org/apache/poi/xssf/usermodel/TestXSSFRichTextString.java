@@ -17,20 +17,19 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import java.io.IOException;
-import java.util.TreeMap;
-
 import junit.framework.TestCase;
-
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.apache.poi.xssf.model.StylesTable;
-import org.junit.Test;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTFont;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRPrElt;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRst;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.STXstring;
+
+import java.io.IOException;
+import java.util.TreeMap;
 
 /**
  * Tests functionality of the XSSFRichTextRun object
@@ -228,13 +227,18 @@ public final class TestXSSFRichTextString extends TestCase {
     /**
      * test that unicode representation_ xHHHH_ is properly processed
      */
-    public void testUtfDecode() {
+    public void testUtfDecode() throws IOException {
         CTRst st = CTRst.Factory.newInstance();
         st.setT("abc_x000D_2ef_x000D_");
         XSSFRichTextString rt = new XSSFRichTextString(st);
         //_x000D_ is converted into carriage return
         assertEquals("abc\r2ef\r", rt.getString());
-        
+
+        // Test Lowercase case
+        CTRst st2 = CTRst.Factory.newInstance();
+        st2.setT("abc_x000d_2ef_x000d_");
+        XSSFRichTextString rt2 = new XSSFRichTextString(st2);
+        assertEquals("abc\r2ef\r", rt2.getString());
     }
 
     public void testApplyFont_lowlevel(){
@@ -381,7 +385,7 @@ public final class TestXSSFRichTextString extends TestCase {
     public void testLineBreaks_bug48877() throws IOException{
 
         XSSFFont font = new XSSFFont();
-        font.setBoldweight(XSSFFont.BOLDWEIGHT_BOLD);
+        font.setBold(true);
         font.setFontHeightInPoints((short) 14);
         XSSFRichTextString str;
         STXstring t1, t2, t3;
@@ -422,8 +426,7 @@ public final class TestXSSFRichTextString extends TestCase {
         str.applyFont(0, 4, font);
         t1 = str.getCTRst().getRArray(0).xgetT();
         t2 = str.getCTRst().getRArray(1).xgetT();
-        // YK: don't know why, but XmlBeans converts leading tab characters to spaces
-        //assertEquals("<xml-fragment>Tab\t</xml-fragment>", t1.xmlText());
+        assertEquals("<xml-fragment xml:space=\"preserve\">Tab\t</xml-fragment>", t1.xmlText());
         assertEquals("<xml-fragment xml:space=\"preserve\">separated\n</xml-fragment>", t2.xmlText());
 
         str = new XSSFRichTextString("\n\n\nNew Line\n\n");
@@ -438,8 +441,6 @@ public final class TestXSSFRichTextString extends TestCase {
         assertEquals("<xml-fragment xml:space=\"preserve\">\n\n</xml-fragment>", t3.xmlText());
     }
 
-    
-    @Test
     public void testBug56511() {
         XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("56511.xlsx");
         for (Sheet sheet : wb) {
@@ -469,7 +470,6 @@ public final class TestXSSFRichTextString extends TestCase {
         }
     }
 
-    @Test
     public void testBug56511_values() {
         XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("56511.xlsx");
         Sheet sheet = wb.getSheetAt(0);
@@ -515,5 +515,27 @@ public final class TestXSSFRichTextString extends TestCase {
         // TODO: normally toString() should never return null, should we adjust this?
         rt = new XSSFRichTextString();
         assertNull(rt.toString());
+    }
+
+    public void test59008Font() {
+        XSSFFont font = new XSSFFont(CTFont.Factory.newInstance());
+
+        XSSFRichTextString rts = new XSSFRichTextString();
+        rts.append("This is correct ");
+        int s1 = rts.length();
+        rts.append("This is Bold Red", font);
+        int s2 = rts.length();
+        rts.append(" This uses the default font rather than the cell style font");
+        int s3 = rts.length();
+
+        assertEquals("<xml-fragment/>", rts.getFontAtIndex(s1-1).toString());
+        assertEquals(font, rts.getFontAtIndex(s2-1));
+        assertEquals("<xml-fragment/>", rts.getFontAtIndex(s3-1).toString());
+    }
+
+    public void test60289UtfDecode() throws IOException {
+        XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("60289.xlsx");
+        assertEquals("Rich Text\r\nTest", wb.getSheetAt(0).getRow(1).getCell(1).getRichStringCellValue().getString());
+        wb.close();
     }
 }

@@ -20,10 +20,14 @@ package org.apache.poi.ss.formula.eval;
 import junit.framework.AssertionFailedError;
 import junit.framework.TestCase;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.apache.poi.hssf.usermodel.HSSFCell;
 import org.apache.poi.hssf.usermodel.HSSFFormulaEvaluator;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.formula.TwoDEval;
 import org.apache.poi.ss.formula.ptg.AreaI;
 import org.apache.poi.ss.formula.ptg.AreaI.OffsetArea;
@@ -54,15 +58,17 @@ public final class TestRangeEval extends TestCase {
 			createRefEval(refA),
 			createRefEval(refB),
 		};
-		@SuppressWarnings("deprecation")
-        AreaReference ar = new AreaReference(expectedAreaRef);
-		ValueEval result = EvalInstances.Range.evaluate(args, 0, (short)0);
-		assertTrue(result instanceof AreaEval);
-		AreaEval ae = (AreaEval) result;
-		assertEquals(ar.getFirstCell().getRow(), ae.getFirstRow());
-		assertEquals(ar.getLastCell().getRow(), ae.getLastRow());
-		assertEquals(ar.getFirstCell().getCol(), ae.getFirstColumn());
-		assertEquals(ar.getLastCell().getCol(), ae.getLastColumn());
+        List<SpreadsheetVersion> versions = Arrays.asList(new SpreadsheetVersion[] {SpreadsheetVersion.EXCEL97, SpreadsheetVersion.EXCEL2007});
+        for(SpreadsheetVersion version : versions) {
+            AreaReference ar = new AreaReference(expectedAreaRef, version);
+    		ValueEval result = EvalInstances.Range.evaluate(args, 0, (short)0);
+    		assertTrue(result instanceof AreaEval);
+    		AreaEval ae = (AreaEval) result;
+    		assertEquals(ar.getFirstCell().getRow(), ae.getFirstRow());
+    		assertEquals(ar.getLastCell().getRow(), ae.getLastRow());
+    		assertEquals(ar.getFirstCell().getCol(), ae.getFirstColumn());
+    		assertEquals(ar.getLastCell().getCol(), ae.getLastColumn());
+        }
 	}
 
 	private static ValueEval createRefEval(String refStr) {
@@ -75,10 +81,12 @@ public final class TestRangeEval extends TestCase {
 		public MockRefEval(int rowIndex, int columnIndex) {
 			super(-1, -1, rowIndex, columnIndex);
 		}
-		public ValueEval getInnerValueEval(int sheetIndex) {
+		@Override
+        public ValueEval getInnerValueEval(int sheetIndex) {
 			throw new RuntimeException("not expected to be called during this test");
 		}
-		public AreaEval offset(int relFirstRowIx, int relLastRowIx, int relFirstColIx,
+		@Override
+        public AreaEval offset(int relFirstRowIx, int relLastRowIx, int relFirstColIx,
 				int relLastColIx) {
 			AreaI area = new OffsetArea(getRow(), getColumn(),
 					relFirstRowIx, relLastRowIx, relFirstColIx, relLastColIx);
@@ -94,27 +102,32 @@ public final class TestRangeEval extends TestCase {
 		private MockAreaEval(int firstRow, int firstColumn, int lastRow, int lastColumn) {
 			super(firstRow, firstColumn, lastRow, lastColumn);
 		}
-		public ValueEval getRelativeValue(int relativeRowIndex, int relativeColumnIndex) {
+		@Override
+        public ValueEval getRelativeValue(int relativeRowIndex, int relativeColumnIndex) {
 			throw new RuntimeException("not expected to be called during this test");
 		}
+        @Override
         public ValueEval getRelativeValue(int sheetIndex, int relativeRowIndex, int relativeColumnIndex) {
             throw new RuntimeException("not expected to be called during this test");
         }
-		public AreaEval offset(int relFirstRowIx, int relLastRowIx, int relFirstColIx,
+		@Override
+        public AreaEval offset(int relFirstRowIx, int relLastRowIx, int relFirstColIx,
 				int relLastColIx) {
 			AreaI area = new OffsetArea(getFirstRow(), getFirstColumn(),
 					relFirstRowIx, relLastRowIx, relFirstColIx, relLastColIx);
 
 			return new MockAreaEval(area);
 		}
-		public TwoDEval getRow(int rowIndex) {
+		@Override
+        public TwoDEval getRow(int rowIndex) {
 			if (rowIndex >= getHeight()) {
 				throw new IllegalArgumentException("Invalid rowIndex " + rowIndex
 						+ ".  Allowable range is (0.." + getHeight() + ").");
 			}
 			return new MockAreaEval(rowIndex, getFirstColumn(), rowIndex, getLastColumn());
 		}
-		public TwoDEval getColumn(int columnIndex) {
+		@Override
+        public TwoDEval getColumn(int columnIndex) {
 			if (columnIndex >= getWidth()) {
 				throw new IllegalArgumentException("Invalid columnIndex " + columnIndex
 						+ ".  Allowable range is (0.." + getWidth() + ").");

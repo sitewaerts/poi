@@ -28,14 +28,13 @@ import org.apache.poi.hssf.record.CFRule12Record;
 import org.apache.poi.hssf.record.CFRuleBase;
 import org.apache.poi.hssf.record.CFRuleRecord;
 import org.apache.poi.hssf.record.Record;
-import org.apache.poi.hssf.record.RecordFormatException;
 import org.apache.poi.ss.formula.FormulaShifter;
-import org.apache.poi.ss.formula.ptg.AreaErrPtg;
-import org.apache.poi.ss.formula.ptg.AreaPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
+import org.apache.poi.ss.usermodel.helpers.BaseRowColShifter;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
+import org.apache.poi.util.RecordFormatException;
 
 /**
  * <p>CFRecordsAggregate - aggregates Conditional Formatting records CFHeaderRecord 
@@ -72,10 +71,10 @@ public final class CFRecordsAggregate extends RecordAggregate {
             throw new RecordFormatException("Mismatch number of rules");
         }
         header = pHeader;
-        rules = new ArrayList<CFRuleBase>(pRules.length);
-        for (int i = 0; i < pRules.length; i++) {
-            checkRuleType(pRules[i]);
-            rules.add(pRules[i]);
+        rules = new ArrayList<>(pRules.length);
+        for (CFRuleBase pRule : pRules) {
+            checkRuleType(pRule);
+            rules.add(pRule);
         }
     }
 
@@ -83,10 +82,18 @@ public final class CFRecordsAggregate extends RecordAggregate {
         this(createHeader(regions, rules), rules);
     }
     private static CFHeaderBase createHeader(CellRangeAddress[] regions, CFRuleBase[] rules) {
+        final CFHeaderBase header;
         if (rules.length == 0 || rules[0] instanceof CFRuleRecord) {
-            return new CFHeaderRecord(regions, rules.length);
+            header = new CFHeaderRecord(regions, rules.length);
+        } else {
+            header = new CFHeader12Record(regions, rules.length);
         }
-        return new CFHeader12Record(regions, rules.length);
+
+        // set the "needs recalculate" by default to avoid Excel handling conditional formatting incorrectly
+        // see bug 52122 for details
+        header.setNeedRecalculation(true);
+
+        return header;
     }
 
     /**
@@ -183,7 +190,7 @@ public final class CFRecordsAggregate extends RecordAggregate {
      * String representation of CFRecordsAggregate
      */
     public String toString() {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         String type = "CF";
         if (header instanceof CFHeader12Record) {
             type = "CF12";
@@ -191,11 +198,10 @@ public final class CFRecordsAggregate extends RecordAggregate {
 
         buffer.append("[").append(type).append("]\n");
         if( header != null ) {
-            buffer.append(header.toString());
+            buffer.append(header);
         }
-        for(int i=0; i<rules.size(); i++) {
-            CFRuleBase cfRule = rules.get(i);
-            buffer.append(cfRule.toString());
+        for (CFRuleBase cfRule : rules) {
+            buffer.append(cfRule);
         }
         buffer.append("[/").append(type).append("]\n");
         return buffer.toString();
@@ -203,8 +209,7 @@ public final class CFRecordsAggregate extends RecordAggregate {
 
     public void visitContainedRecords(RecordVisitor rv) {
         rv.visitRecord(header);
-        for(int i=0; i<rules.size(); i++) {
-            CFRuleBase rule = rules.get(i);
+        for (CFRuleBase rule : rules) {
             rv.visitRecord(rule);
         }
     }
@@ -215,10 +220,9 @@ public final class CFRecordsAggregate extends RecordAggregate {
     public boolean updateFormulasAfterCellShift(FormulaShifter shifter, int currentExternSheetIx) {
         CellRangeAddress[] cellRanges = header.getCellRanges();
         boolean changed = false;
-        List<CellRangeAddress> temp = new ArrayList<CellRangeAddress>();
-        for (int i = 0; i < cellRanges.length; i++) {
-            CellRangeAddress craOld = cellRanges[i];
-            CellRangeAddress craNew = shiftRange(shifter, craOld, currentExternSheetIx);
+        List<CellRangeAddress> temp = new ArrayList<>();
+        for (CellRangeAddress craOld : cellRanges) {
+            CellRangeAddress craNew = BaseRowColShifter.shiftRange(shifter, craOld, currentExternSheetIx);
             if (craNew == null) {
                 changed = true;
                 continue;
@@ -239,8 +243,7 @@ public final class CFRecordsAggregate extends RecordAggregate {
             header.setCellRanges(newRanges);
         }
 
-        for(int i=0; i<rules.size(); i++) {
-            CFRuleBase rule = rules.get(i);
+        for (CFRuleBase rule : rules) {
             Ptg[] ptgs;
             ptgs = rule.getParsedExpression1();
             if (ptgs != null && shifter.adjustFormula(ptgs, currentExternSheetIx)) {
@@ -259,24 +262,5 @@ public final class CFRecordsAggregate extends RecordAggregate {
             }
         }
         return true;
-    }
-
-    private static CellRangeAddress shiftRange(FormulaShifter shifter, CellRangeAddress cra, int currentExternSheetIx) {
-        // FormulaShifter works well in terms of Ptgs - so convert CellRangeAddress to AreaPtg (and back) here
-        AreaPtg aptg = new AreaPtg(cra.getFirstRow(), cra.getLastRow(), cra.getFirstColumn(), cra.getLastColumn(), false, false, false, false);
-        Ptg[] ptgs = { aptg, };
-
-        if (!shifter.adjustFormula(ptgs, currentExternSheetIx)) {
-            return cra;
-        }
-        Ptg ptg0 = ptgs[0];
-        if (ptg0 instanceof AreaPtg) {
-            AreaPtg bptg = (AreaPtg) ptg0;
-            return new CellRangeAddress(bptg.getFirstRow(), bptg.getLastRow(), bptg.getFirstColumn(), bptg.getLastColumn());
-        }
-        if (ptg0 instanceof AreaErrPtg) {
-            return null;
-        }
-        throw new IllegalStateException("Unexpected shifted ptg class (" + ptg0.getClass().getName() + ")");
     }
 }

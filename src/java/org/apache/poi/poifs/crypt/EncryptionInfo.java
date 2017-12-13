@@ -20,6 +20,7 @@ import static org.apache.poi.poifs.crypt.EncryptionMode.agile;
 import static org.apache.poi.poifs.crypt.EncryptionMode.binaryRC4;
 import static org.apache.poi.poifs.crypt.EncryptionMode.cryptoAPI;
 import static org.apache.poi.poifs.crypt.EncryptionMode.standard;
+import static org.apache.poi.poifs.crypt.EncryptionMode.xor;
 
 import java.io.IOException;
 
@@ -33,16 +34,20 @@ import org.apache.poi.util.BitFieldFactory;
 import org.apache.poi.util.LittleEndianInput;
 
 /**
+ * This class may require {@code poi-ooxml} to be on the classpath to load
+ * some {@link EncryptionMode}s.
+ * @see #getBuilder(EncryptionMode)
  */
-public class EncryptionInfo {
+public class EncryptionInfo implements Cloneable {
+    private final EncryptionMode encryptionMode;
     private final int versionMajor;
     private final int versionMinor;
     private final int encryptionFlags;
     
-    private final EncryptionHeader header;
-    private final EncryptionVerifier verifier;
-    private final Decryptor decryptor;
-    private final Encryptor encryptor;
+    private EncryptionHeader header;
+    private EncryptionVerifier verifier;
+    private Decryptor decryptor;
+    private Encryptor encryptor;
 
     /**
      * A flag that specifies whether CryptoAPI RC4 or ECMA-376 encryption
@@ -75,49 +80,57 @@ public class EncryptionInfo {
     public EncryptionInfo(POIFSFileSystem fs) throws IOException {
        this(fs.getRoot());
     }
+    
     /**
      * Opens for decryption
      */
     public EncryptionInfo(OPOIFSFileSystem fs) throws IOException {
        this(fs.getRoot());
     }
+    
     /**
      * Opens for decryption
      */
     public EncryptionInfo(NPOIFSFileSystem fs) throws IOException {
        this(fs.getRoot());
     }
+    
     /**
      * Opens for decryption
      */
     public EncryptionInfo(DirectoryNode dir) throws IOException {
-        this(dir.createDocumentInputStream("EncryptionInfo"), false);
+        this(dir.createDocumentInputStream("EncryptionInfo"), null);
     }
 
-    public EncryptionInfo(LittleEndianInput dis, boolean isCryptoAPI) throws IOException {
-        final EncryptionMode encryptionMode;
-        versionMajor = dis.readShort();
-        versionMinor = dis.readShort();
+    public EncryptionInfo(LittleEndianInput dis, EncryptionMode preferredEncryptionMode) throws IOException {
+        if (preferredEncryptionMode == xor) {
+            versionMajor = xor.versionMajor;
+            versionMinor = xor.versionMinor;
+        } else {
+            versionMajor = dis.readUShort();
+            versionMinor = dis.readUShort();
+        }
 
-        if (!isCryptoAPI
-            && versionMajor == binaryRC4.versionMajor
+        if (   versionMajor == xor.versionMajor
+            && versionMinor == xor.versionMinor) {
+            encryptionMode = xor;
+            encryptionFlags = -1;
+        } else if (   versionMajor == binaryRC4.versionMajor
             && versionMinor == binaryRC4.versionMinor) {
             encryptionMode = binaryRC4;
             encryptionFlags = -1;
-        } else if (!isCryptoAPI
-            && versionMajor == agile.versionMajor
+        } else if (
+               2 <= versionMajor && versionMajor <= 4
+            && versionMinor == 2) {
+            encryptionFlags = dis.readInt();
+            encryptionMode = (
+                preferredEncryptionMode == cryptoAPI
+                || !flagAES.isSet(encryptionFlags))
+                ? cryptoAPI : standard;
+        } else if (
+               versionMajor == agile.versionMajor
             && versionMinor == agile.versionMinor){
             encryptionMode = agile;
-            encryptionFlags = dis.readInt();
-        } else if (!isCryptoAPI
-            && 2 <= versionMajor && versionMajor <= 4
-            && versionMinor == standard.versionMinor) {
-            encryptionMode = standard;
-            encryptionFlags = dis.readInt();
-        } else if (isCryptoAPI
-            && 2 <= versionMajor && versionMajor <= 4
-            && versionMinor == cryptoAPI.versionMinor) {
-            encryptionMode = cryptoAPI;
             encryptionFlags = dis.readInt();
         } else {
             encryptionFlags = dis.readInt();
@@ -138,84 +151,8 @@ public class EncryptionInfo {
         }
 
         eib.initialize(this, dis);
-        header = eib.getHeader();
-        verifier = eib.getVerifier();
-        decryptor = eib.getDecryptor();
-        encryptor = eib.getEncryptor();
     }
     
-    /**
-     * @deprecated Use {@link #EncryptionInfo(EncryptionMode)} (fs parameter no longer required)
-     */
-    @Deprecated
-    public EncryptionInfo(POIFSFileSystem fs, EncryptionMode encryptionMode) {
-        this(encryptionMode);
-    }
-     
-    /**
-     * @deprecated Use {@link #EncryptionInfo(EncryptionMode)} (fs parameter no longer required)
-     */
-    @Deprecated
-    public EncryptionInfo(NPOIFSFileSystem fs, EncryptionMode encryptionMode) {
-        this(encryptionMode);
-    }
-     
-    /**
-     * @deprecated Use {@link #EncryptionInfo(EncryptionMode)} (dir parameter no longer required)
-     */
-    @Deprecated
-    public EncryptionInfo(DirectoryNode dir, EncryptionMode encryptionMode) {
-        this(encryptionMode);
-    }
-    
-    /**
-     * @deprecated use {@link #EncryptionInfo(EncryptionMode, CipherAlgorithm, HashAlgorithm, int, int, ChainingMode)}
-     */
-    @Deprecated
-    public EncryptionInfo(
-        POIFSFileSystem fs
-      , EncryptionMode encryptionMode
-      , CipherAlgorithm cipherAlgorithm
-      , HashAlgorithm hashAlgorithm
-      , int keyBits
-      , int blockSize
-      , ChainingMode chainingMode
-    ) {
-        this(encryptionMode, cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode);
-    }
-    
-    /**
-     * @deprecated use {@link #EncryptionInfo(EncryptionMode, CipherAlgorithm, HashAlgorithm, int, int, ChainingMode)}
-     */
-    @Deprecated
-    public EncryptionInfo(
-        NPOIFSFileSystem fs
-      , EncryptionMode encryptionMode
-      , CipherAlgorithm cipherAlgorithm
-      , HashAlgorithm hashAlgorithm
-      , int keyBits
-      , int blockSize
-      , ChainingMode chainingMode
-    ) {
-        this(encryptionMode, cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode);
-    }
-        
-    /**
-     * @deprecated use {@link #EncryptionInfo(EncryptionMode, CipherAlgorithm, HashAlgorithm, int, int, ChainingMode)}
-     */
-    @Deprecated
-    public EncryptionInfo(
-          DirectoryNode dir
-        , EncryptionMode encryptionMode
-        , CipherAlgorithm cipherAlgorithm
-        , HashAlgorithm hashAlgorithm
-        , int keyBits
-        , int blockSize
-        , ChainingMode chainingMode
-    ) {
-        this(encryptionMode, cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode);
-    }        
-
     /**
      * Prepares for encryption, using the given Encryption Mode, and
      *  all other parameters as default.
@@ -247,6 +184,7 @@ public class EncryptionInfo {
           , int blockSize
           , ChainingMode chainingMode
       ) {
+        this.encryptionMode = encryptionMode; 
         versionMajor = encryptionMode.versionMajor;
         versionMinor = encryptionMode.versionMinor;
         encryptionFlags = encryptionMode.encryptionFlags;
@@ -259,13 +197,24 @@ public class EncryptionInfo {
         }
         
         eib.initialize(this, cipherAlgorithm, hashAlgorithm, keyBits, blockSize, chainingMode);
-        
-        header = eib.getHeader();
-        verifier = eib.getVerifier();
-        decryptor = eib.getDecryptor();
-        encryptor = eib.getEncryptor();
     }
 
+    /**
+     * This method loads the builder class with reflection, which may generate
+     * a {@code ClassNotFoundException} if the class is not on the classpath.
+     * For example, {@link org.apache.poi.poifs.crypt.agile.AgileEncryptionInfoBuilder}
+     * is contained in the {@code poi-ooxml} package since the class makes use of some OOXML
+     * classes rather than using the {@code poi} package and plain XML DOM calls.
+     * As such, you may need to include {@code poi-ooxml} and {@code poi-ooxml-schemas} to load
+     * some encryption mode builders. See bug #60021 for more information.
+     * https://bz.apache.org/bugzilla/show_bug.cgi?id=60021
+     *
+     * @param encryptionMode the encryption mode
+     * @return an encryption info builder
+     * @throws ClassNotFoundException
+     * @throws IllegalAccessException
+     * @throws InstantiationException
+     */
     protected static EncryptionInfoBuilder getBuilder(EncryptionMode encryptionMode)
     throws ClassNotFoundException, IllegalAccessException, InstantiationException {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
@@ -300,5 +249,45 @@ public class EncryptionInfo {
 
     public Encryptor getEncryptor() {
         return encryptor;
+    }
+
+    public void setHeader(EncryptionHeader header) {
+        this.header = header;
+    }
+
+    public void setVerifier(EncryptionVerifier verifier) {
+        this.verifier = verifier;
+    }
+
+    public void setDecryptor(Decryptor decryptor) {
+        this.decryptor = decryptor;
+    }
+
+    public void setEncryptor(Encryptor encryptor) {
+        this.encryptor = encryptor;
+    }
+
+    public EncryptionMode getEncryptionMode() {
+        return encryptionMode;
+    }
+    
+    /**
+     * @return true, if Document Summary / Summary are encrypted and stored in the {@code EncryptedStream} stream,
+     * otherwise the Summaries aren't encrypted and located in their usual streams
+     */
+    public boolean isDocPropsEncrypted() {
+        return !flagDocProps.isSet(getEncryptionFlags());
+    }
+    
+    @Override
+    public EncryptionInfo clone() throws CloneNotSupportedException {
+        EncryptionInfo other = (EncryptionInfo)super.clone();
+        other.header = header.clone();
+        other.verifier = verifier.clone();
+        other.decryptor = decryptor.clone();
+        other.decryptor.setEncryptionInfo(other);
+        other.encryptor = encryptor.clone();
+        other.encryptor.setEncryptionInfo(other);
+        return other;
     }
 }

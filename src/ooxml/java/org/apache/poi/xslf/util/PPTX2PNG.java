@@ -24,18 +24,17 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import javax.imageio.ImageIO;
 
-import org.apache.poi.sl.draw.Drawable;
+import org.apache.poi.sl.draw.DrawFactory;
 import org.apache.poi.sl.usermodel.Slide;
 import org.apache.poi.sl.usermodel.SlideShow;
 import org.apache.poi.sl.usermodel.SlideShowFactory;
-import org.apache.poi.util.JvmBugs;
 
 /**
  * An utility to convert slides of a .pptx slide show to a PNG image
@@ -65,7 +64,7 @@ public class PPTX2PNG {
             return;
         }
 
-        int slidenum = -1;
+        String slidenumStr = "-1";
         float scale = 1;
         File file = null;
         String format = "png";
@@ -77,7 +76,7 @@ public class PPTX2PNG {
                 if ("-scale".equals(args[i])) {
                     scale = Float.parseFloat(args[++i]);
                 } else if ("-slide".equals(args[i])) {
-                    slidenum = Integer.parseInt(args[++i]);
+                    slidenumStr = args[++i];
                 } else if ("-format".equals(args[i])) {
                     format = args[++i];
                 } else if ("-outdir".equals(args[i])) {
@@ -95,11 +94,16 @@ public class PPTX2PNG {
             return;
         }
 
+        if (format == null || !format.matches("^(png|gif|jpg|null)$")) {
+            usage("Invalid format given");
+            return;
+        }
+    
         if (outdir == null) {
             outdir = file.getParentFile();
         }
         
-        if (outdir == null || !outdir.exists() || !outdir.isDirectory()) {
+        if (!"null".equals(format) && (outdir == null || !outdir.exists() || !outdir.isDirectory())) {
             usage("Output directory doesn't exist");
             return;
         }
@@ -109,30 +113,25 @@ public class PPTX2PNG {
             return;
         }
         
-        if (format == null || !format.matches("^(png|gif|jpg|null)$")) {
-            usage("Invalid format given");
-            return;
-        }
-    
         if (!quiet) {
             System.out.println("Processing " + file);
         }
-        SlideShow<?,?> ss = SlideShowFactory.create(file, null, true);
-        List<? extends Slide<?,?>> slides = ss.getSlides();
+        try (SlideShow<?, ?> ss = SlideShowFactory.create(file, null, true)) {
+            List<? extends Slide<?, ?>> slides = ss.getSlides();
 
-        
-        if (slidenum < -1 || slidenum == 0 || slidenum > slides.size()) {
-            usage("slidenum must be either -1 (for all) or within range: [1.."+slides.size()+"] for "+file);
-            return;
-        }
-        
-        Dimension pgsize = ss.getPageSize();
-        int width = (int) (pgsize.width * scale);
-        int height = (int) (pgsize.height * scale);
+            Set<Integer> slidenum = slideIndexes(slides.size(), slidenumStr);
 
-        int slideNo=1;
-        for(Slide<?,?> slide : slides) {
-            if (slidenum == -1 || slideNo == slidenum) {
+            if (slidenum.isEmpty()) {
+                usage("slidenum must be either -1 (for all) or within range: [1.." + slides.size() + "] for " + file);
+                return;
+            }
+
+            Dimension pgsize = ss.getPageSize();
+            int width = (int) (pgsize.width * scale);
+            int height = (int) (pgsize.height * scale);
+
+            for (Integer slideNo : slidenum) {
+                Slide<?, ?> slide = slides.get(slideNo);
                 String title = slide.getTitle();
                 if (!quiet) {
                     System.out.println("Rendering slide " + slideNo + (title == null ? "" : ": " + title));
@@ -140,8 +139,8 @@ public class PPTX2PNG {
 
                 BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D graphics = img.createGraphics();
-                fixFonts(graphics);
-            
+                DrawFactory.getInstance(graphics).fixFonts(graphics);
+
                 // default rendering options
                 graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -160,24 +159,53 @@ public class PPTX2PNG {
                     File outfile = new File(outdir, outname);
                     ImageIO.write(img, format, outfile);
                 }
-            }                
-            slideNo++;
+
+                graphics.dispose();
+                img.flush();
+            }
         }
-        
+
         if (!quiet) {
             System.out.println("Done");
         }
-        
-        ss.close();
     }
-
-    @SuppressWarnings("unchecked")
-    private static void fixFonts(Graphics2D graphics) {
-        if (!JvmBugs.hasLineBreakMeasurerBug()) return;
-        Map<String,String> fontMap = (Map<String,String>)graphics.getRenderingHint(Drawable.FONT_MAP);
-        if (fontMap == null) fontMap = new HashMap<String,String>();
-        fontMap.put("Calibri", "Lucida Sans");
-        fontMap.put("Cambria", "Lucida Bright");
-        graphics.setRenderingHint(Drawable.FONT_MAP, fontMap);        
+    
+    private static Set<Integer> slideIndexes(final int slideCount, String range) {
+        Set<Integer> slideIdx = new TreeSet<>();
+        if ("-1".equals(range)) {
+            for (int i=0; i<slideCount; i++) {
+                slideIdx.add(i);
+            }
+        } else {
+            for (String subrange : range.split(",")) {
+                String idx[] = subrange.split("-");
+                switch (idx.length) {
+                default:
+                case 0: break;
+                case 1: {
+                    int subidx = Integer.parseInt(idx[0]);
+                    if (subrange.contains("-")) {
+                        int startIdx = subrange.startsWith("-") ? 0 : subidx;
+                        int endIdx = subrange.endsWith("-") ? slideCount : Math.min(subidx,slideCount);
+                        for (int i=Math.max(startIdx,1); i<endIdx; i++) {
+                            slideIdx.add(i-1);
+                        }
+                    } else {
+                        slideIdx.add(Math.max(subidx,1)-1);
+                    }
+                    break;
+                }
+                case 2: {
+                    int startIdx = Math.min(Integer.parseInt(idx[0]), slideCount);
+                    int endIdx = Math.min(Integer.parseInt(idx[1]), slideCount);
+                    for (int i=Math.max(startIdx,1); i<endIdx; i++) {
+                        slideIdx.add(i-1);
+                    }
+                    break;
+                }
+                }
+            }
+        }
+        return slideIdx;
     }
 }

@@ -17,15 +17,16 @@
 
 package org.apache.poi.hssf.usermodel.examples;
 
-import org.apache.poi.poifs.filesystem.POIFSFileSystem;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFCell;
-
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+
+import org.apache.poi.hssf.usermodel.HSSFCell;
+import org.apache.poi.hssf.usermodel.HSSFRow;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.apache.poi.ss.usermodel.CellType;
 
 /**
  * This example demonstrates opening a workbook, modifying it and writing
@@ -35,12 +36,7 @@ import java.io.IOException;
  */
 public class ReadWriteWorkbook {
     public static void main(String[] args) throws IOException {
-        FileInputStream fileIn = null;
-        FileOutputStream fileOut = null;
-
-        try
-        {
-            fileIn = new FileInputStream("workbook.xls");
+        try (FileInputStream fileIn = new FileInputStream("workbook.xls")) {
             POIFSFileSystem fs = new POIFSFileSystem(fileIn);
             HSSFWorkbook wb = new HSSFWorkbook(fs);
             HSSFSheet sheet = wb.getSheetAt(0);
@@ -50,17 +46,13 @@ public class ReadWriteWorkbook {
             HSSFCell cell = row.getCell(3);
             if (cell == null)
                 cell = row.createCell(3);
-            cell.setCellType(HSSFCell.CELL_TYPE_STRING);
+            cell.setCellType(CellType.STRING);
             cell.setCellValue("a test");
 
             // Write the output to a file
-            fileOut = new FileOutputStream("workbookout.xls");
-            wb.write(fileOut);
-        } finally {
-            if (fileOut != null)
-                fileOut.close();
-            if (fileIn != null)
-                fileIn.close();
+            try (FileOutputStream fileOut = new FileOutputStream("workbookout.xls")) {
+                wb.write(fileOut);
+            }
         }
     }
 }

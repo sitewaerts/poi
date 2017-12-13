@@ -27,12 +27,12 @@ public interface Row extends Iterable<Cell> {
     /**
      * Use this to create new cells within the row and return it.
      * <p>
-     * The cell that is returned is a {@link Cell#CELL_TYPE_BLANK}. The type can be changed
+     * The cell that is returned is a {@link CellType#BLANK}. The type can be changed
      * either through calling <code>setCellValue</code> or <code>setCellType</code>.
      *
      * @param column - the column number this cell represents
      * @return Cell a high level representation of the created cell.
-     * @throws IllegalArgumentException if columnIndex < 0 or greater than the maximum number of supported columns
+     * @throws IllegalArgumentException if columnIndex &lt; 0 or greater than the maximum number of supported columns
      * (255 for *.xls, 1048576 for *.xlsx)
      */
     Cell createCell(int column);
@@ -48,16 +48,10 @@ public interface Row extends Iterable<Cell> {
      * @param column - the column number this cell represents
      * @param type - the cell's data type
      * @return Cell a high level representation of the created cell.
-     * @throws IllegalArgumentException if columnIndex < 0 or greate than a maximum number of supported columns
+     * @throws IllegalArgumentException if columnIndex &lt; 0 or greater than a maximum number of supported columns
      * (255 for *.xls, 1048576 for *.xlsx)
-     * @see Cell#CELL_TYPE_BLANK
-     * @see Cell#CELL_TYPE_BOOLEAN
-     * @see Cell#CELL_TYPE_ERROR
-     * @see Cell#CELL_TYPE_FORMULA
-     * @see Cell#CELL_TYPE_NUMERIC
-     * @see Cell#CELL_TYPE_STRING
      */
-    Cell createCell(int column, int type);
+    Cell createCell(int column, CellType type);
 
     /**
      * Remove the Cell from this row.
@@ -70,7 +64,7 @@ public interface Row extends Iterable<Cell> {
      * Set the row number of this row.
      *
      * @param rowNum  the row number (0-based)
-     * @throws IllegalArgumentException if rowNum < 0
+     * @throws IllegalArgumentException if rowNum &lt; 0
      */
     void setRowNum(int rowNum);
 
@@ -95,15 +89,17 @@ public interface Row extends Iterable<Cell> {
      * Returns the cell at the given (0 based) index, with the specified {@link org.apache.poi.ss.usermodel.Row.MissingCellPolicy}
      *
      * @return the cell at the given (0 based) index
-     * @throws IllegalArgumentException if cellnum < 0 or the specified MissingCellPolicy is invalid
-     * @see Row#RETURN_NULL_AND_BLANK
-     * @see Row#RETURN_BLANK_AS_NULL
-     * @see Row#CREATE_NULL_AS_BLANK
+     * @throws IllegalArgumentException if cellnum &lt; 0 or the specified MissingCellPolicy is invalid
      */
     Cell getCell(int cellnum, MissingCellPolicy policy);
 
     /**
      * Get the number of the first cell contained in this row.
+     *
+     * Note: cells which had content before and were set to empty later might
+     * still be counted as cells by Excel and Apache POI, so the result of this
+     * method will include such rows and thus the returned value might be lower
+     * than expected!
      *
      * @return short representing the first logical cell in the row,
      *  or -1 if the row does not contain any cells.
@@ -125,6 +121,11 @@ public interface Row extends Iterable<Cell> {
      *   //... do something with cell
      * }
      * </pre>
+     *
+     * Note: cells which had content before and were set to empty later might
+     * still be counted as cells by Excel and Apache POI, so the result of this
+     * method will include such rows and thus the returned value might be higher
+     * than expected!
      *
      * @return short representing the last logical cell in the row <b>PLUS ONE</b>,
      *   or -1 if the row does not contain any cells.
@@ -221,23 +222,11 @@ public interface Row extends Iterable<Cell> {
      * Used to specify the different possible policies
      *  if for the case of null and blank cells
      */
-    public static enum MissingCellPolicy {
-        RETURN_NULL_AND_BLANK(),
-        RETURN_BLANK_AS_NULL(),
-        CREATE_NULL_AS_BLANK();
-        
-        private int NEXT_ID = 1;
-        public final int id;
-        private MissingCellPolicy() {
-            this.id = NEXT_ID++;
-        }
+    public enum MissingCellPolicy {
+        RETURN_NULL_AND_BLANK,
+        RETURN_BLANK_AS_NULL,
+        CREATE_NULL_AS_BLANK
     }
-    /** Missing cells are returned as null, Blank cells are returned as normal */
-    public static final MissingCellPolicy RETURN_NULL_AND_BLANK = MissingCellPolicy.RETURN_NULL_AND_BLANK;
-    /** Missing cells and blank cells are returned as null */
-    public static final MissingCellPolicy RETURN_BLANK_AS_NULL = MissingCellPolicy.RETURN_BLANK_AS_NULL;
-    /** A new, blank cell is created for missing cells. Blank cells are returned as normal */
-    public static final MissingCellPolicy CREATE_NULL_AS_BLANK = MissingCellPolicy.CREATE_NULL_AS_BLANK;
     
     /**
      * Returns the rows outline level. Increased as you

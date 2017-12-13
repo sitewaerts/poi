@@ -23,6 +23,7 @@ import java.util.List;
 import junit.framework.TestCase;
 
 import org.apache.poi.POIDataSamples;
+import org.apache.poi.util.StringUtil;
 
 /**
  * Tests that the QuickButCruddyTextExtractor works correctly
@@ -31,7 +32,7 @@ import org.apache.poi.POIDataSamples;
  */
 public final class TestCruddyExtractor extends TestCase {
 	// Extractor primed on the test data
-	private QuickButCruddyTextExtractor te;
+	private final QuickButCruddyTextExtractor te;
 	// All the text to be found in the file
 	String[] allTheText = new String[] {
 		"This is a test title",
@@ -80,12 +81,7 @@ public final class TestCruddyExtractor extends TestCase {
 		String foundText = te.getTextAsString();
 
 		// Turn the string array into a single string
-		StringBuffer expectTextSB = new StringBuffer();
-		for(int i=0; i<allTheText.length; i++) {
-			expectTextSB.append(allTheText[i]);
-			expectTextSB.append('\n');
-		}
-		String expectText = expectTextSB.toString();
+		String expectText = StringUtil.join(allTheText, "\n") + "\n";
 
 		// Ensure they match
 		assertEquals(expectText,foundText);

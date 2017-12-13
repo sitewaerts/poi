@@ -88,7 +88,7 @@ public class TestNetworkdaysFunction extends TestCase {
 
         public MockAreaEval(String... holidays) {
             this(0, 0, 0, holidays.length - 1);
-            this.holidays = new ArrayList<ValueEval>();
+            this.holidays = new ArrayList<>();
             for (String holiday : holidays) {
                 this.holidays.add(new StringEval(holiday));
             }
@@ -107,14 +107,17 @@ public class TestNetworkdaysFunction extends TestCase {
             return getRelativeValue(-1, relativeRowIndex, relativeColumnIndex);
         }
 
+        @Override
         public AreaEval offset(int relFirstRowIx, int relLastRowIx, int relFirstColIx, int relLastColIx) {
             return null;
         }
 
+        @Override
         public TwoDEval getColumn(int columnIndex) {
             return null;
         }
 
+        @Override
         public TwoDEval getRow(int rowIndex) {
             return null;
         }

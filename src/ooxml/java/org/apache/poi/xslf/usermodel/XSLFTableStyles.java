@@ -16,9 +16,8 @@
 ==================================================================== */
 package org.apache.poi.xslf.usermodel;
 
-import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
-
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -26,11 +25,11 @@ import java.util.List;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.util.Beta;
 import org.apache.xmlbeans.XmlException;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTTableStyle;
 import org.openxmlformats.schemas.drawingml.x2006.main.CTTableStyleList;
+import org.openxmlformats.schemas.drawingml.x2006.main.TblStyleLstDocument;
 
 @Beta
 public class XSLFTableStyles extends POIXMLDocumentPart implements Iterable<XSLFTableStyle>{
@@ -47,20 +46,15 @@ public class XSLFTableStyles extends POIXMLDocumentPart implements Iterable<XSLF
     public XSLFTableStyles(PackagePart part) throws IOException, XmlException {
         super(part);
 
-        _tblStyleLst = CTTableStyleList.Factory.parse(getPackagePart().getInputStream(), DEFAULT_XML_OPTIONS);
+        InputStream is = getPackagePart().getInputStream();
+        TblStyleLstDocument styleDoc = TblStyleLstDocument.Factory.parse(is);
+        is.close();
+        _tblStyleLst = styleDoc.getTblStyleLst();
         CTTableStyle[] tblStyleArray = _tblStyleLst.getTblStyleArray();
-        _styles = new ArrayList<XSLFTableStyle>(tblStyleArray.length);
+        _styles = new ArrayList<>(tblStyleArray.length);
         for(CTTableStyle c : tblStyleArray){
             _styles.add(new XSLFTableStyle(c));
         }
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XSLFTableStyles(PackagePart part, PackageRelationship rel) throws IOException, XmlException {
-        this(part);
     }
     
     public CTTableStyleList getXmlObject(){

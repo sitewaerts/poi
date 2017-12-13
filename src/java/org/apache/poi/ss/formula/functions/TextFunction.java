@@ -17,17 +17,10 @@
 
 package org.apache.poi.ss.formula.functions;
 
-import java.util.Locale;
-import java.util.regex.Pattern;
-
-import org.apache.poi.ss.formula.eval.BoolEval;
-import org.apache.poi.ss.formula.eval.ErrorEval;
-import org.apache.poi.ss.formula.eval.EvaluationException;
-import org.apache.poi.ss.formula.eval.NumberEval;
-import org.apache.poi.ss.formula.eval.OperandResolver;
-import org.apache.poi.ss.formula.eval.StringEval;
-import org.apache.poi.ss.formula.eval.ValueEval;
+import org.apache.poi.ss.formula.eval.*;
 import org.apache.poi.ss.usermodel.DataFormatter;
+
+import java.util.Locale;
 
 /**
  * @author Amol S. Deshmukh &lt; amolweb at ya hoo dot com &gt;
@@ -36,18 +29,17 @@ import org.apache.poi.ss.usermodel.DataFormatter;
  */
 public abstract class TextFunction implements Function {
 	protected static final DataFormatter formatter = new DataFormatter();
-    protected static final String EMPTY_STRING = "";
 
-	protected static final String evaluateStringArg(ValueEval eval, int srcRow, int srcCol) throws EvaluationException {
+	protected static String evaluateStringArg(ValueEval eval, int srcRow, int srcCol) throws EvaluationException {
 		ValueEval ve = OperandResolver.getSingleValue(eval, srcRow, srcCol);
 		return OperandResolver.coerceValueToString(ve);
 	}
-	protected static final int evaluateIntArg(ValueEval arg, int srcCellRow, int srcCellCol) throws EvaluationException {
+	protected static int evaluateIntArg(ValueEval arg, int srcCellRow, int srcCellCol) throws EvaluationException {
 		ValueEval ve = OperandResolver.getSingleValue(arg, srcCellRow, srcCellCol);
 		return OperandResolver.coerceValueToInt(ve);
 	}
 	
-	protected static final double evaluateDoubleArg(ValueEval arg, int srcCellRow, int srcCellCol) throws EvaluationException {
+	protected static double evaluateDoubleArg(ValueEval arg, int srcCellRow, int srcCellCol) throws EvaluationException {
 		ValueEval ve = OperandResolver.getSingleValue(arg, srcCellRow, srcCellCol);
 		return OperandResolver.coerceValueToDouble(ve);
 	}
@@ -120,22 +112,25 @@ public abstract class TextFunction implements Function {
 	 * Implementation of the PROPER function:
      * Normalizes all words (separated by non-word characters) by
      * making the first letter upper and the rest lower case.
+     * 
+     * This is nearly equivalent to toTitleCase if the Java language had it
 	 */
 	public static final Function PROPER = new SingleArgTextFunc() {
-	    final Pattern nonAlphabeticPattern = Pattern.compile("\\P{IsL}");
 		protected ValueEval evaluate(String text) {
 			StringBuilder sb = new StringBuilder();
 			boolean shouldMakeUppercase = true;
-			String lowercaseText = text.toLowerCase(Locale.ROOT);
-			String uppercaseText = text.toUpperCase(Locale.ROOT);
-			for(int i = 0; i < text.length(); ++i) {
+			for(final char ch : text.toCharArray()) {
+
+				// Note: we are using String.toUpperCase() here on purpose as it handles certain things
+				// better than Character.toUpperCase(), e.g. German "scharfes s" is translated
+				// to "SS" (i.e. two characters), if uppercased properly!
 				if (shouldMakeUppercase) {
-					sb.append(uppercaseText.charAt(i));
+					sb.append(String.valueOf(ch).toUpperCase(Locale.ROOT));
 				}
 				else {
-					sb.append(lowercaseText.charAt(i));
+					sb.append(String.valueOf(ch).toLowerCase(Locale.ROOT));
 				}
-				shouldMakeUppercase = nonAlphabeticPattern.matcher(text.subSequence(i, i + 1)).matches();
+				shouldMakeUppercase = !Character.isLetter(ch);
 			}
 			return new StringEval(sb.toString());
 		}
@@ -162,8 +157,7 @@ public abstract class TextFunction implements Function {
     public static final Function CLEAN = new SingleArgTextFunc() {
         protected ValueEval evaluate(String arg) {
             StringBuilder result = new StringBuilder();
-            for (int i = 0; i < arg.length(); i++) {
-                char c = arg.charAt(i);
+            for (final char c : arg.toCharArray()) {
                 if (isPrintable(c)) {
                     result.append(c);
                 }
@@ -183,18 +177,17 @@ public abstract class TextFunction implements Function {
          * @return  whether the character is printable
          */
         private boolean isPrintable(char c){
-            int charCode = c;
-            return charCode >= 32;
+			return c >= 32;
         }
     };
 
     /**
-	 * An implementation of the MID function<br/>
+	 * An implementation of the MID function<br>
 	 * MID returns a specific number of
-	 * characters from a text string, starting at the specified position.<p/>
+	 * characters from a text string, starting at the specified position.<p>
 	 *
-	 * <b>Syntax<b>:<br/> <b>MID</b>(<b>text</b>, <b>start_num</b>,
-	 * <b>num_chars</b>)<br/>
+	 * <b>Syntax<b>:<br> <b>MID</b>(<b>text</b>, <b>start_num</b>,
+	 * <b>num_chars</b>)<br>
 	 *
 	 * Author: Manda Wilson &lt; wilson at c bio dot msk cc dot org &gt;
 	 */
@@ -223,7 +216,7 @@ public abstract class TextFunction implements Function {
 				return ErrorEval.VALUE_INVALID;
 			}
 			int len = text.length();
-			if (numChars < 0 || startIx > len) {
+			if (startIx > len) {
 				return new StringEval("");
 			}
 			int endIx = Math.min(startIx + numChars, len);
@@ -273,9 +266,9 @@ public abstract class TextFunction implements Function {
 
 		public ValueEval evaluate(ValueEval[] args, int srcRowIndex, int srcColumnIndex) {
 			StringBuilder sb = new StringBuilder();
-			for (int i=0, iSize=args.length; i<iSize; i++) {
+			for (ValueEval arg : args) {
 				try {
-					sb.append(evaluateStringArg(args[i], srcRowIndex, srcColumnIndex));
+					sb.append(evaluateStringArg(arg, srcRowIndex, srcColumnIndex));
 				} catch (EvaluationException e) {
 					return e.getErrorEval();
 				}
@@ -301,14 +294,14 @@ public abstract class TextFunction implements Function {
 	};
 
 	/**
-	 * An implementation of the TEXT function<br/>
+	 * An implementation of the TEXT function<br>
 	 * TEXT returns a number value formatted with the given number formatting string. 
 	 * This function is not a complete implementation of the Excel function, but
 	 *  handles most of the common cases. All work is passed down to 
 	 *  {@link DataFormatter} to be done, as this works much the same as the
 	 *  display focused work that that does. 
 	 *
-	 * <b>Syntax<b>:<br/> <b>TEXT</b>(<b>value</b>, <b>format_text</b>)<br/>
+	 * <b>Syntax<b>:<br> <b>TEXT</b>(<b>value</b>, <b>format_text</b>)<br>
 	 */
 	public static final Function TEXT = new Fixed2ArgFunction() {
 
@@ -378,24 +371,24 @@ public abstract class TextFunction implements Function {
 		}
 	}
 	/**
-	 * Implementation of the FIND() function.<p/>
+	 * Implementation of the FIND() function.<p>
 	 *
-	 * <b>Syntax</b>:<br/>
-	 * <b>FIND</b>(<b>find_text</b>, <b>within_text</b>, start_num)<p/>
+	 * <b>Syntax</b>:<br>
+	 * <b>FIND</b>(<b>find_text</b>, <b>within_text</b>, start_num)<p>
 	 *
 	 * FIND returns the character position of the first (case sensitive) occurrence of
 	 * <tt>find_text</tt> inside <tt>within_text</tt>.  The third parameter,
 	 * <tt>start_num</tt>, is optional (default=1) and specifies where to start searching
-	 * from.  Character positions are 1-based.<p/>
+	 * from.  Character positions are 1-based.<p>
 	 *
 	 * Author: Torstein Tauno Svendsen (torstei@officenet.no)
 	 */
 	public static final Function FIND = new SearchFind(true);
 	/**
-	 * Implementation of the FIND() function.<p/>
+	 * Implementation of the FIND() function.<p>
 	 *
-	 * <b>Syntax</b>:<br/>
-	 * <b>SEARCH</b>(<b>find_text</b>, <b>within_text</b>, start_num)<p/>
+	 * <b>Syntax</b>:<br>
+	 * <b>SEARCH</b>(<b>find_text</b>, <b>within_text</b>, start_num)<p>
 	 *
 	 * SEARCH is a case-insensitive version of FIND()
 	 */

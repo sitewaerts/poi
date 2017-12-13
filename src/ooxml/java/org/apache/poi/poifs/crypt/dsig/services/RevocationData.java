@@ -45,8 +45,8 @@ public class RevocationData {
      * Default constructor.
      */
     public RevocationData() {
-        this.crls = new ArrayList<byte[]>();
-        this.ocsps = new ArrayList<byte[]>();
+        this.crls = new ArrayList<>();
+        this.ocsps = new ArrayList<>();
     }
 
     /**
@@ -109,7 +109,7 @@ public class RevocationData {
      * responses.
      */
     public boolean hasOCSPs() {
-        return false == this.ocsps.isEmpty();
+        return !this.ocsps.isEmpty();
     }
 
     /**
@@ -118,7 +118,7 @@ public class RevocationData {
      * @return <code>true</code> if this revocation data set holds CRLs.
      */
     public boolean hasCRLs() {
-        return false == this.crls.isEmpty();
+        return !this.crls.isEmpty();
     }
 
     /**

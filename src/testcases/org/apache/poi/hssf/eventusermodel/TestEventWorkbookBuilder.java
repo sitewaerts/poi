@@ -104,8 +104,8 @@ public final class TestEventWorkbookBuilder extends TestCase {
         assertEquals("Sh3",    stubHSSF.getSheetName(2));
 
         // Check we can get the formula without breaking
-        for(int i=0; i<fRecs.length; i++) {
-            HSSFFormulaParser.toFormulaString(stubHSSF, fRecs[i].getParsedExpression());
+        for (FormulaRecord fRec : fRecs) {
+            HSSFFormulaParser.toFormulaString(stubHSSF, fRec.getParsedExpression());
         }
 
         // Peer into just one formula, and check that
@@ -150,9 +150,10 @@ public final class TestEventWorkbookBuilder extends TestCase {
 
     private static final class MockHSSFListener implements HSSFListener {
         public MockHSSFListener() {}
-        private final List<Record> _records = new ArrayList<Record>();
-        private final List<Record> _frecs = new ArrayList<Record>();
+        private final List<Record> _records = new ArrayList<>();
+        private final List<Record> _frecs = new ArrayList<>();
 
+        @Override
         public void processRecord(Record record) {
             _records.add(record);
             if(record instanceof FormulaRecord) {

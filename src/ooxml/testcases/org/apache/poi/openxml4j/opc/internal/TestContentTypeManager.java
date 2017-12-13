@@ -17,7 +17,10 @@
 
 package org.apache.poi.openxml4j.opc.internal;
 
-import junit.framework.TestCase;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import org.apache.poi.openxml4j.OpenXML4JTestDataSamples;
 import org.apache.poi.openxml4j.opc.OPCPackage;
@@ -25,86 +28,100 @@ import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackagePartName;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
+import org.apache.poi.openxml4j.opc.PackageRelationshipCollection;
 import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
 import org.apache.poi.openxml4j.opc.PackagingURIHelper;
+import org.junit.Ignore;
+import org.junit.Test;
 
-public final class TestContentTypeManager extends TestCase {
+public final class TestContentTypeManager {
 
-	/**
-	 * Test the properties part content parsing.
-	 */
-	public void disabled_testContentType() throws Exception {
-		String filepath =  OpenXML4JTestDataSamples.getSampleFileName("sample.docx");
+    /**
+     * Test the properties part content parsing.
+     */
+    @Test
+    public void testContentType() throws Exception {
+        String filepath =  OpenXML4JTestDataSamples.getSampleFileName("sample.docx");
 
-		 // Retrieves core properties part
-		 OPCPackage p = OPCPackage.open(filepath, PackageAccess.READ);
-		 PackageRelationship corePropertiesRelationship = p
-		 .getRelationshipsByType(
-		 PackageRelationshipTypes.CORE_PROPERTIES)
-		 .getRelationship(0);
-		 PackagePart coreDocument = p.getPart(corePropertiesRelationship);
+        // Retrieves core properties part
+        OPCPackage p = OPCPackage.open(filepath, PackageAccess.READ);
+        try {
+            PackageRelationshipCollection rels = p.getRelationshipsByType(PackageRelationshipTypes.CORE_PROPERTIES);
+            PackageRelationship corePropertiesRelationship = rels.getRelationship(0);
+            PackagePart coreDocument = p.getPart(corePropertiesRelationship);
 
-		 ContentTypeManager ctm = new ZipContentTypeManager(coreDocument.getInputStream(), p);
+            assertEquals("application/vnd.openxmlformats-package.core-properties+xml", coreDocument.getContentType());
 
-		 // TODO - finish writing this test
-		fail();
-	}
+            // TODO - finish writing this test
+            assumeTrue("finish writing this test", false);
 
-	/**
-	 * Test the addition of several default and override content types.
-	 */
-	public void testContentTypeAddition() throws Exception {
-		ContentTypeManager ctm = new ZipContentTypeManager(null, null);
+            ContentTypeManager ctm = new ZipContentTypeManager(coreDocument.getInputStream(), p);
+            assertNotNull(ctm);
+        } finally {
+            p.close();
+        }
+    }
 
-		PackagePartName name1 = PackagingURIHelper.createPartName("/foo/foo.XML");
-		PackagePartName name2 = PackagingURIHelper.createPartName("/foo/foo2.xml");
-		PackagePartName name3 = PackagingURIHelper.createPartName("/foo/doc.rels");
-		PackagePartName name4 = PackagingURIHelper.createPartName("/foo/doc.RELS");
+    /**
+     * Test the addition of several default and override content types.
+     */
+    @Test
+    public void testContentTypeAddition() throws Exception {
+        ContentTypeManager ctm = new ZipContentTypeManager(null, null);
 
-		// Add content types
-		ctm.addContentType(name1, "foo-type1");
-		ctm.addContentType(name2, "foo-type2");
-		ctm.addContentType(name3, "text/xml+rel");
-		ctm.addContentType(name4, "text/xml+rel");
+        PackagePartName name1 = PackagingURIHelper.createPartName("/foo/foo.XML");
+        PackagePartName name2 = PackagingURIHelper.createPartName("/foo/foo2.xml");
+        PackagePartName name3 = PackagingURIHelper.createPartName("/foo/doc.rels");
+        PackagePartName name4 = PackagingURIHelper.createPartName("/foo/doc.RELS");
 
-		assertEquals(ctm.getContentType(name1), "foo-type1");
-		assertEquals(ctm.getContentType(name2), "foo-type2");
-		assertEquals(ctm.getContentType(name3), "text/xml+rel");
-		assertEquals(ctm.getContentType(name3), "text/xml+rel");
-	}
+        // Add content types
+        ctm.addContentType(name1, "foo-type1");
+        ctm.addContentType(name2, "foo-type2");
+        ctm.addContentType(name3, "text/xml+rel");
+        ctm.addContentType(name4, "text/xml+rel");
 
-	/**
-	 * Test the addition then removal of content types.
-	 */
-	public void testContentTypeRemoval() throws Exception {
-		ContentTypeManager ctm = new ZipContentTypeManager(null, null);
+        assertEquals(ctm.getContentType(name1), "foo-type1");
+        assertEquals(ctm.getContentType(name2), "foo-type2");
+        assertEquals(ctm.getContentType(name3), "text/xml+rel");
+        assertEquals(ctm.getContentType(name3), "text/xml+rel");
+    }
 
-		PackagePartName name1 = PackagingURIHelper.createPartName("/foo/foo.xml");
-		PackagePartName name2 = PackagingURIHelper.createPartName("/foo/foo2.xml");
-		PackagePartName name3 = PackagingURIHelper.createPartName("/foo/doc.rels");
-		PackagePartName name4 = PackagingURIHelper.createPartName("/foo/doc.RELS");
+    /**
+     * Test the addition then removal of content types.
+     */
+    @Test
+    public void testContentTypeRemoval() throws Exception {
+        ContentTypeManager ctm = new ZipContentTypeManager(null, null);
 
-		// Add content types
-		ctm.addContentType(name1, "foo-type1");
-		ctm.addContentType(name2, "foo-type2");
-		ctm.addContentType(name3, "text/xml+rel");
-		ctm.addContentType(name4, "text/xml+rel");
-		ctm.removeContentType(name2);
-		ctm.removeContentType(name3);
+        PackagePartName name1 = PackagingURIHelper.createPartName("/foo/foo.xml");
+        PackagePartName name2 = PackagingURIHelper.createPartName("/foo/foo2.xml");
+        PackagePartName name3 = PackagingURIHelper.createPartName("/foo/doc.rels");
+        PackagePartName name4 = PackagingURIHelper.createPartName("/foo/doc.RELS");
 
-		assertEquals(ctm.getContentType(name1), "foo-type1");
-		assertEquals(ctm.getContentType(name2), "foo-type1");
-		assertEquals(ctm.getContentType(name3), null);
+        // Add content types
+        ctm.addContentType(name1, "foo-type1");
+        ctm.addContentType(name2, "foo-type2");
+        ctm.addContentType(name3, "text/xml+rel");
+        ctm.addContentType(name4, "text/xml+rel");
+        ctm.removeContentType(name2);
+        ctm.removeContentType(name3);
 
-		ctm.removeContentType(name1);
-		assertEquals(ctm.getContentType(name1), null);
-		assertEquals(ctm.getContentType(name2), null);
-	}
+        assertEquals(ctm.getContentType(name1), "foo-type1");
+        assertEquals(ctm.getContentType(name2), "foo-type1");
+        assertEquals(ctm.getContentType(name3), null);
 
-	/**
-	 * Test the addition then removal of content types in a package.
-	 */
-	public void testContentTypeRemovalPackage() {
-		// TODO
-	}
+        ctm.removeContentType(name1);
+        assertEquals(ctm.getContentType(name1), null);
+        assertEquals(ctm.getContentType(name2), null);
+    }
+
+    /**
+     * Test the addition then removal of content types in a package.
+     */
+    @Ignore
+    @Test
+    public void testContentTypeRemovalPackage() {
+        // TODO
+        fail("test not written");
+    }
 }

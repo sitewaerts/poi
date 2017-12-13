@@ -36,13 +36,14 @@ public final class RecordInspector {
 
 	public static final class RecordCollector implements RecordVisitor {
 
-		private List<Record> _list;
+		private final List<Record> _list;
 
 		public RecordCollector() {
-			_list = new ArrayList<Record>(128);
+			_list = new ArrayList<>(128);
 		}
 
-		public void visitRecord(Record r) {
+		@Override
+        public void visitRecord(Record r) {
 			_list.add(r);
 		}
 

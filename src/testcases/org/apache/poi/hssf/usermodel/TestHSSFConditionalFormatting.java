@@ -19,16 +19,12 @@ package org.apache.poi.hssf.usermodel;
 
 
 import static org.junit.Assert.*;
-import java.io.FileNotFoundException;
+
 import java.io.IOException;
 
 import org.apache.poi.hssf.HSSFITestDataProvider;
 import org.apache.poi.hssf.util.HSSFColor;
-import org.apache.poi.ss.usermodel.BaseTestConditionalFormatting;
-import org.apache.poi.ss.usermodel.Color;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.SheetConditionalFormatting;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
 import org.junit.Test;
 
 /**
@@ -38,6 +34,7 @@ public final class TestHSSFConditionalFormatting extends BaseTestConditionalForm
     public TestHSSFConditionalFormatting(){
         super(HSSFITestDataProvider.instance);
     }
+    @Override
     protected void assertColour(String hexExpected, Color actual) {
         assertNotNull("Colour must be given", actual);
         if (actual instanceof HSSFColor) {
@@ -116,7 +113,7 @@ public final class TestHSSFConditionalFormatting extends BaseTestConditionalForm
         }
     }
 
-    private void writeTemp53691(Workbook wb, String suffix) throws FileNotFoundException, IOException {
+    private void writeTemp53691(Workbook wb, @SuppressWarnings("UnusedParameters") String suffix) throws IOException {
         // assert that we can write/read it in memory
         Workbook wbBack = HSSFITestDataProvider.instance.writeOutAndReadBack(wb);
         assertNotNull(wbBack);

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import org.apache.poi.poifs.property.DocumentProperty;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 
 /**
@@ -40,13 +41,13 @@ public final class NDocumentInputStream extends DocumentInputStream {
     private int _marked_offset_count;
 
     /** the Document's size */
-    private int _document_size;
+    private final int _document_size;
 
     /** have we been closed? */
     private boolean _closed;
 
     /** the actual Document */
-    private NPOIFSDocument _document;
+    private final NPOIFSDocument _document;
 
     private Iterator<ByteBuffer> _data;
     private ByteBuffer _buffer;
@@ -70,6 +71,9 @@ public final class NDocumentInputStream extends DocumentInputStream {
         _document_size = document.getSize();
         _closed = false;
 
+        if (_document_size < 0) {
+            //throw new RecordFormatException("Document size can't be < 0");
+        }
         DocumentNode doc = (DocumentNode)document;
         DocumentProperty property = (DocumentProperty)doc.getProperty();
         _document = new NPOIFSDocument(
@@ -97,6 +101,15 @@ public final class NDocumentInputStream extends DocumentInputStream {
 
     @Override
     public int available() {
+        return remainingBytes();
+    }
+
+    /**
+     * Helper methods for forbidden api calls
+     *
+     * @return the bytes remaining until the end of the stream
+     */
+    private int remainingBytes() {
         if (_closed) {
             throw new IllegalStateException("cannot perform requested operation on a closed stream");
         }
@@ -146,7 +159,7 @@ public final class NDocumentInputStream extends DocumentInputStream {
         if (atEOD()) {
             return EOF;
         }
-        int limit = Math.min(available(), len);
+        int limit = Math.min(remainingBytes(), len);
         readFully(b, off, limit);
         return limit;
     }
@@ -200,7 +213,7 @@ public final class NDocumentInputStream extends DocumentInputStream {
 		if (n < 0) {
 			return 0;
 		}
-		int new_offset = _current_offset + (int) n;
+		long new_offset = _current_offset + n;
 
 		if (new_offset < _current_offset) {
 			// wrap around in converting a VERY large long to an int
@@ -212,7 +225,7 @@ public final class NDocumentInputStream extends DocumentInputStream {
 		long rval = new_offset - _current_offset;
 		
 		// TODO Do this better
-		byte[] skip = new byte[(int)rval];
+		byte[] skip = IOUtils.safelyAllocate(rval, Integer.MAX_VALUE);
 		readFully(skip);
 		return rval;
 	}
@@ -239,6 +252,10 @@ public final class NDocumentInputStream extends DocumentInputStream {
 
    @Override
 	public void readFully(byte[] buf, int off, int len) {
+        if (len < 0) {
+           throw new RuntimeException("Can't read negative number of bytes");
+        }
+
 		checkAvaliable(len);
 
 		int read = 0;
@@ -297,13 +314,13 @@ public final class NDocumentInputStream extends DocumentInputStream {
       return LittleEndian.getUShort(data);
 	}
 
-   @Override
-	public int readUByte() {
-		checkAvaliable(1);
-      byte[] data = new byte[1];
-      readFully(data, 0, 1);
-      if(data[0] >= 0)
-         return data[0];
-      return data[0] + 256;
-	}
+    @Override
+    public int readUByte() {
+        checkAvaliable(1);
+        byte[] data = new byte[1];
+        readFully(data, 0, 1);
+        if (data[0] >= 0)
+            return data[0];
+        return data[0] + 256;
+    }
 }

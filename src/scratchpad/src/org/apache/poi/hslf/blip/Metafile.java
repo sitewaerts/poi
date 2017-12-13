@@ -37,7 +37,7 @@ import org.apache.poi.util.Units;
 public abstract class Metafile extends HSLFPictureData {
 
     /**
-     *  A structure which represents a 34-byte header preceeding the compressed metafile data
+     *  A structure which represents a 34-byte header preceding the compressed metafile data
      *
      * @author Yegor Kozlov
      */
@@ -46,32 +46,32 @@ public abstract class Metafile extends HSLFPictureData {
         /**
          * size of the original file
          */
-        public int wmfsize;
+        private int wmfsize;
 
         /**
          * Boundary of the metafile drawing commands
          */
-        public Rectangle bounds;
+        private final Rectangle bounds = new Rectangle();
 
         /**
          *  Size of the metafile in EMUs
          */
-        public Dimension size;
+        private final Dimension size = new Dimension();
 
         /**
          * size of the compressed metafile data
          */
-        public int zipsize;
+        private int zipsize;
 
         /**
          * Reserved. Always 0.
          */
-        public int compression;
+        private int compression;
 
         /**
          * Reserved. Always 254.
          */
-        public int filter = 254;
+        private int filter = 254;
 
         public void read(byte[] data, int offset){
             int pos = offset;
@@ -82,11 +82,11 @@ public abstract class Metafile extends HSLFPictureData {
             int right = LittleEndian.getInt(data, pos); pos += LittleEndian.INT_SIZE;
             int bottom = LittleEndian.getInt(data, pos); pos += LittleEndian.INT_SIZE;
 
-            bounds = new Rectangle(left, top, right-left, bottom-top);
+            bounds.setBounds(left, top, right-left, bottom-top);
             int width = LittleEndian.getInt(data, pos); pos += LittleEndian.INT_SIZE;
             int height = LittleEndian.getInt(data, pos); pos += LittleEndian.INT_SIZE;
 
-            size = new Dimension(width, height);
+            size.setSize(width, height);
 
             zipsize = LittleEndian.getInt(data, pos); pos += LittleEndian.INT_SIZE;
 
@@ -116,6 +116,30 @@ public abstract class Metafile extends HSLFPictureData {
         public int getSize(){
             return 34;
         }
+        
+        public int getWmfSize() {
+            return wmfsize;
+        }
+        
+        protected void setWmfSize(int wmfSize) {
+            this.wmfsize = wmfSize;
+        }
+        
+        protected void setZipSize(int zipSize) {
+            this.zipsize = zipSize;
+        }
+
+        public Rectangle getBounds() {
+            return (Rectangle)bounds.clone();
+        }
+        
+        protected void setBounds(Rectangle bounds) {
+            this.bounds.setBounds(bounds);
+        }
+        
+        protected void setDimension(Dimension size) {
+            this.size.setSize(size);
+        }
     }
 
     protected static byte[] compress(byte[] bytes, int offset, int length) throws IOException {
@@ -128,7 +152,7 @@ public abstract class Metafile extends HSLFPictureData {
 
     @Override
     public Dimension getImageDimension() {
-        int prefixLen = 16*uidInstanceCount;
+        int prefixLen = 16*getUIDInstanceCount();
         Header header = new Header();
         header.read(getRawData(), prefixLen);
         return new Dimension(

@@ -189,7 +189,7 @@ public class ImageUtils {
         if (isHSSF) {
             h *= 1 - anchor.getDy1()/256d;
         } else {
-            h -= anchor.getDy1()/EMU_PER_PIXEL;
+            h -= anchor.getDy1()/(double)EMU_PER_PIXEL;
         }
 
         while(h < scaledHeight){
@@ -210,12 +210,10 @@ public class ImageUtils {
         anchor.setRow2(row2);
         anchor.setDy2(dy2);
 
-        Dimension dim = new Dimension(
+        return new Dimension(
             (int)Math.round(scaledWidth*EMU_PER_PIXEL),
             (int)Math.round(scaledHeight*EMU_PER_PIXEL)
         );
-        
-        return dim;
     }
 
     /**
@@ -277,7 +275,7 @@ public class ImageUtils {
     }
     
     
-    private static double getRowHeightInPixels(Sheet sheet, int rowNum) {
+    public static double getRowHeightInPixels(Sheet sheet, int rowNum) {
         Row r = sheet.getRow(rowNum);
         double points = (r == null) ? sheet.getDefaultRowHeightInPoints() : r.getHeightInPoints();
         return Units.toEMU(points)/(double)EMU_PER_PIXEL;

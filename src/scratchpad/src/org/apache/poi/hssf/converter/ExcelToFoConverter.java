@@ -38,7 +38,9 @@ import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.hwpf.converter.FoDocumentFacade;
 import org.apache.poi.hwpf.converter.FontReplacer.Triplet;
 import org.apache.poi.ss.formula.eval.ErrorEval;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.util.Beta;
 import org.apache.poi.util.POILogFactory;
@@ -109,13 +111,15 @@ public class ExcelToFoConverter extends AbstractExcelConverter
     public static Document process( File xlsFile ) throws Exception
     {
         final HSSFWorkbook workbook = ExcelToFoUtils.loadXls( xlsFile );
-        ExcelToFoConverter excelToHtmlConverter = new ExcelToFoConverter(
-                XMLHelper.getDocumentBuilderFactory().newDocumentBuilder()
-                        .newDocument() );
-        excelToHtmlConverter.processWorkbook( workbook );
-        Document doc = excelToHtmlConverter.getDocument();
-        workbook.close();
-        return doc;
+        try {
+            ExcelToFoConverter excelToHtmlConverter = new ExcelToFoConverter(
+                    XMLHelper.getDocumentBuilderFactory().newDocumentBuilder()
+                            .newDocument() );
+            excelToHtmlConverter.processWorkbook( workbook );
+            return excelToHtmlConverter.getDocument();
+        } finally {
+            workbook.close();
+        }
     }
 
     private final FoDocumentFacade foDocumentFacade;
@@ -191,11 +195,11 @@ public class ExcelToFoConverter extends AbstractExcelConverter
      */
     protected boolean isEmptyStyle( CellStyle cellStyle ) {
         return cellStyle == null || (
-               cellStyle.getFillPattern() == 0
-            && cellStyle.getBorderTop() == HSSFCellStyle.BORDER_NONE
-            && cellStyle.getBorderRight() == HSSFCellStyle.BORDER_NONE
-            && cellStyle.getBorderBottom() == HSSFCellStyle.BORDER_NONE
-            && cellStyle.getBorderLeft() == HSSFCellStyle.BORDER_NONE
+               cellStyle.getFillPattern() == FillPatternType.NO_FILL
+            && cellStyle.getBorderTop() == BorderStyle.NONE
+            && cellStyle.getBorderRight() == BorderStyle.NONE
+            && cellStyle.getBorderBottom() == BorderStyle.NONE
+            && cellStyle.getBorderLeft() == BorderStyle.NONE
         );
     }
 
@@ -208,14 +212,14 @@ public class ExcelToFoConverter extends AbstractExcelConverter
         String value;
         switch ( cell.getCellType() )
         {
-        case HSSFCell.CELL_TYPE_STRING:
+        case STRING:
             // XXX: enrich
             value = cell.getRichStringCellValue().getString();
             break;
-        case HSSFCell.CELL_TYPE_FORMULA:
+        case FORMULA:
             switch ( cell.getCachedFormulaResultType() )
             {
-            case HSSFCell.CELL_TYPE_STRING:
+            case STRING:
                 HSSFRichTextString str = cell.getRichStringCellValue();
                 if ( str != null && str.length() > 0 )
                 {
@@ -226,16 +230,16 @@ public class ExcelToFoConverter extends AbstractExcelConverter
                     value = ExcelToHtmlUtils.EMPTY;
                 }
                 break;
-            case HSSFCell.CELL_TYPE_NUMERIC:
+            case NUMERIC:
                 double nValue = cell.getNumericCellValue();
                 short df = cellStyle.getDataFormat();
                 String dfs = cellStyle.getDataFormatString();
                 value = _formatter.formatRawCellContents(nValue, df, dfs );
                 break;
-            case HSSFCell.CELL_TYPE_BOOLEAN:
+            case BOOLEAN:
                 value = Boolean.toString( cell.getBooleanCellValue() );
                 break;
-            case HSSFCell.CELL_TYPE_ERROR:
+            case ERROR:
                 value = ErrorEval.getText( cell.getErrorCellValue() );
                 break;
             default:
@@ -247,16 +251,16 @@ public class ExcelToFoConverter extends AbstractExcelConverter
                 break;
             }
             break;
-        case HSSFCell.CELL_TYPE_BLANK:
+        case BLANK:
             value = ExcelToHtmlUtils.EMPTY;
             break;
-        case HSSFCell.CELL_TYPE_NUMERIC:
+        case NUMERIC:
             value = _formatter.formatCellValue( cell );
             break;
-        case HSSFCell.CELL_TYPE_BOOLEAN:
+        case BOOLEAN:
             value = Boolean.toString( cell.getBooleanCellValue() );
             break;
-        case HSSFCell.CELL_TYPE_ERROR:
+        case ERROR:
             value = ErrorEval.getText( cell.getErrorCellValue() );
             break;
         default:
@@ -332,17 +336,16 @@ public class ExcelToFoConverter extends AbstractExcelConverter
     {
         blockTarget.setAttribute( "white-space-collapse", "false" );
         {
-            String textAlign = ExcelToFoUtils.getAlign( cellStyle
-                    .getAlignment() );
+            String textAlign = ExcelToFoUtils.getAlign( cellStyle.getAlignment() );
             if ( ExcelToFoUtils.isNotEmpty( textAlign ) )
                 blockTarget.setAttribute( "text-align", textAlign );
         }
 
-        if ( cellStyle.getFillPattern() == 0 )
+        if ( cellStyle.getFillPattern() == FillPatternType.NO_FILL )
         {
             // no fill
         }
-        else if ( cellStyle.getFillPattern() == 1 )
+        else if ( cellStyle.getFillPattern() == FillPatternType.SOLID_FOREGROUND )
         {
             final HSSFColor foregroundColor = cellStyle
                     .getFillForegroundColorColor();
@@ -374,9 +377,9 @@ public class ExcelToFoConverter extends AbstractExcelConverter
     }
 
     protected void processCellStyleBorder( HSSFWorkbook workbook,
-            Element cellTarget, String type, short xlsBorder, short borderColor )
+            Element cellTarget, String type, BorderStyle xlsBorder, short borderColor )
     {
-        if ( xlsBorder == HSSFCellStyle.BORDER_NONE )
+        if ( xlsBorder == BorderStyle.NONE )
             return;
 
         StringBuilder borderStyle = new StringBuilder();
@@ -401,21 +404,8 @@ public class ExcelToFoConverter extends AbstractExcelConverter
     {
         Triplet triplet = new Triplet();
         triplet.fontName = font.getFontName();
-
-        switch ( font.getBoldweight() )
-        {
-        case HSSFFont.BOLDWEIGHT_BOLD:
-            triplet.bold = true;
-            break;
-        case HSSFFont.BOLDWEIGHT_NORMAL:
-            triplet.bold = false;
-            break;
-        }
-
-        if ( font.getItalic() )
-        {
-            triplet.italic = true;
-        }
+        triplet.bold = font.getBold();
+        triplet.italic = font.getItalic();
 
         getFontReplacer().update( triplet );
         setBlockProperties( blockTarget, triplet );
@@ -538,7 +528,7 @@ public class ExcelToFoConverter extends AbstractExcelConverter
             return 0;
         }
 
-        final List<Element> emptyCells = new ArrayList<Element>( maxColIx );
+        final List<Element> emptyCells = new ArrayList<>(maxColIx);
 
         if ( isOutputRowNumbers() )
         {
@@ -669,8 +659,8 @@ public class ExcelToFoConverter extends AbstractExcelConverter
         final CellRangeAddress[][] mergedRanges = ExcelToHtmlUtils
                 .buildMergedRangesMap( sheet );
 
-        final List<Element> emptyRowElements = new ArrayList<Element>(
-                physicalNumberOfRows );
+        final List<Element> emptyRowElements = new ArrayList<>(
+                physicalNumberOfRows);
         int maxSheetColumns = 1;
         for ( int r = sheet.getFirstRowNum(); r <= sheet.getLastRowNum(); r++ )
         {

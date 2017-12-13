@@ -28,7 +28,6 @@ import java.math.BigInteger;
 import java.util.List;
 
 import org.apache.poi.xwpf.XWPFTestDataSamples;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.openxmlformats.schemas.drawingml.x2006.picture.CTPicture;
 import org.openxmlformats.schemas.drawingml.x2006.picture.PicDocument;
@@ -61,7 +60,6 @@ public final class TestXWPFParagraph {
      * @throws IOException
      */
     @Test
-    @Ignore
     public void testHeaderParagraph() throws IOException {
         XWPFDocument xml = XWPFTestDataSamples.openSampleDocument("ThreeColHead.docx");
 
@@ -84,7 +82,6 @@ public final class TestXWPFParagraph {
      * @throws IOException
      */
     @Test
-    @Ignore
     public void testDocumentParagraph() throws IOException {
         XWPFDocument xml = XWPFTestDataSamples.openSampleDocument("ThreeColHead.docx");
         List<XWPFParagraph> ps = xml.getParagraphs();
@@ -163,14 +160,34 @@ public final class TestXWPFParagraph {
         CTP ctp = p.getCTP();
         CTPPr ppr = ctp.getPPr() == null ? ctp.addNewPPr() : ctp.getPPr();
 
+        assertEquals(-1, p.getSpacingBefore());
         assertEquals(-1, p.getSpacingAfter());
+        assertEquals(-1, p.getSpacingBetween(), 0.1);
+        assertEquals(LineSpacingRule.AUTO, p.getSpacingLineRule());
 
         CTSpacing spacing = ppr.addNewSpacing();
         spacing.setAfter(new BigInteger("10"));
         assertEquals(10, p.getSpacingAfter());
+        spacing.setBefore(new BigInteger("10"));
+        assertEquals(10, p.getSpacingBefore());
 
         p.setSpacingAfter(100);
         assertEquals(100, spacing.getAfter().intValue());
+        p.setSpacingBefore(100);
+        assertEquals(100, spacing.getBefore().intValue());
+        
+        p.setSpacingBetween(.25, LineSpacingRule.EXACT);
+        assertEquals(.25, p.getSpacingBetween(), 0.01);
+        assertEquals(LineSpacingRule.EXACT, p.getSpacingLineRule());
+        p.setSpacingBetween(1.25, LineSpacingRule.AUTO);
+        assertEquals(1.25, p.getSpacingBetween(), 0.01);
+        assertEquals(LineSpacingRule.AUTO, p.getSpacingLineRule());
+        p.setSpacingBetween(.5, LineSpacingRule.AT_LEAST);
+        assertEquals(.5, p.getSpacingBetween(), 0.01);
+        assertEquals(LineSpacingRule.AT_LEAST, p.getSpacingLineRule());
+        p.setSpacingBetween(1.15);
+        assertEquals(1.15, p.getSpacingBetween(), 0.01);
+        assertEquals(LineSpacingRule.AUTO, p.getSpacingLineRule());
         
         doc.close();
     }
@@ -594,5 +611,95 @@ public final class TestXWPFParagraph {
             str.append(par.getText()).append("\n");
         }
         assertEquals("This is a test.\n\n\n\n3\n4\n5\n\n\n\nThis is a whole paragraph where one word is deleted.\n", str.toString());
+    }
+    
+    /**
+     * Tests for numbered lists
+     * 
+     * See also https://github.com/jimklo/apache-poi-sample/blob/master/src/main/java/com/sri/jklo/StyledDocument.java
+     * for someone else trying a similar thing
+     */
+    @Test
+    public void testNumberedLists() throws Exception {
+        XWPFDocument doc = XWPFTestDataSamples.openSampleDocument("ComplexNumberedLists.docx");
+        XWPFParagraph p;
+        
+        p = doc.getParagraphArray(0);
+        assertEquals("This is a document with numbered lists", p.getText());
+        assertEquals(null, p.getNumID());
+        assertEquals(null, p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(1);
+        assertEquals("Entry #1", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(2);
+        assertEquals("Entry #2, with children", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(3);
+        assertEquals("2-a", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(1), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(4);
+        assertEquals("2-b", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(1), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(5);
+        assertEquals("2-c", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(1), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(6);
+        assertEquals("Entry #3", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(7);
+        assertEquals("Entry #4", p.getText());
+        assertEquals(BigInteger.valueOf(1), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        // New list
+        p = doc.getParagraphArray(8);
+        assertEquals("Restarted to 1 from 5", p.getText());
+        assertEquals(BigInteger.valueOf(2), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(9);
+        assertEquals("Restarted @ 2", p.getText());
+        assertEquals(BigInteger.valueOf(2), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        p = doc.getParagraphArray(10);
+        assertEquals("Restarted @ 3", p.getText());
+        assertEquals(BigInteger.valueOf(2), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        assertEquals(null, p.getNumStartOverride());
+        
+        // New list starting at 10
+        p = doc.getParagraphArray(11);
+        assertEquals("Jump to new list at 10", p.getText());
+        assertEquals(BigInteger.valueOf(6), p.getNumID());
+        assertEquals(BigInteger.valueOf(0), p.getNumIlvl());
+        // TODO Why isn't this seen as 10?
+        assertEquals(null, p.getNumStartOverride());
+        
+        // TODO Shouldn't we use XWPFNumbering or similar here?
+        // TODO Make it easier to change
     }
 }

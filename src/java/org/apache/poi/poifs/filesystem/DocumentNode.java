@@ -131,10 +131,12 @@ public class DocumentNode
 
     public Iterator<Object> getViewableIterator()
     {
-        List<Object> components = new ArrayList<Object>();
+        List<Object> components = new ArrayList<>();
 
         components.add(getProperty());
-        components.add(_document);
+        if (_document != null) {
+            components.add(_document);
+        }
         return components.iterator();
     }
 

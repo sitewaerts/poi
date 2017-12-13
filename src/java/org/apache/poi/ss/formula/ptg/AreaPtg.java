@@ -30,15 +30,15 @@ public final class AreaPtg extends Area2DPtgBase {
 	public AreaPtg(int firstRow, int lastRow, int firstColumn, int lastColumn, boolean firstRowRelative, boolean lastRowRelative, boolean firstColRelative, boolean lastColRelative) {
 		super(firstRow, lastRow, firstColumn, lastColumn, firstRowRelative, lastRowRelative, firstColRelative, lastColRelative);
 	}
+	
 	public AreaPtg(LittleEndianInput in)  {
 		super(in);
 	}
-	public AreaPtg(String arearef) {
-		super(new AreaReference(arearef));
-	}
-	public AreaPtg(AreaReference areaRef) {
-		super(areaRef);
-	}
+	
+    public AreaPtg(AreaReference arearef) {
+        super(arearef);
+    }
+    
 	@Override
 	protected byte getSid() {
 		return sid;

@@ -42,7 +42,7 @@ public class BoundedInputStream extends InputStream {
     private final long max;
 
     /** the number of bytes already returned */
-    private long pos = 0;
+    private long pos;
 
     /** the marked position */
     private long mark = -1;
@@ -146,6 +146,7 @@ public class BoundedInputStream extends InputStream {
      * {@inheritDoc}
      */
     @Override
+    @SuppressForbidden("just delegating")
     public int available() throws IOException {
         if (max>=0 && pos>=max) {
             return 0;

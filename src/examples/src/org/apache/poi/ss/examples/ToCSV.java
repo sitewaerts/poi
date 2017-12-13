@@ -29,6 +29,7 @@ import java.util.ArrayList;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.usermodel.Row;
@@ -131,13 +132,13 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
  */
 public class ToCSV {
 
-    private Workbook workbook = null;
-    private ArrayList<ArrayList<String>> csvData = null;
-    private int maxRowWidth = 0;
-    private int formattingConvention = 0;
-    private DataFormatter formatter = null;
-    private FormulaEvaluator evaluator = null;
-    private String separator = null;
+    private Workbook workbook;
+    private ArrayList<ArrayList<String>> csvData;
+    private int maxRowWidth;
+    private int formattingConvention;
+    private DataFormatter formatter;
+    private FormulaEvaluator evaluator;
+    private String separator;
 
     private static final String CSV_FILE_EXTENSION = ".csv";
     private static final String DEFAULT_SEPARATOR = ",";
@@ -284,8 +285,8 @@ public class ToCSV {
                               IllegalArgumentException, InvalidFormatException {
         File source = new File(strSource);
         File destination = new File(strDestination);
-        File[] filesList = null;
-        String destinationFilename = null;
+        File[] filesList;
+        String destinationFilename;
 
         // Check that the source file/folder exists.
         if(!source.exists()) {
@@ -343,23 +344,25 @@ public class ToCSV {
         // (.xls) and the other a SpreadsheetML file (.xlsx), then the names
         // for both CSV files will be identical and one CSV file will,
         // therefore, over-write the other.
-        for(File excelFile : filesList) {
-            // Open the workbook
-            this.openWorkbook(excelFile);
-
-            // Convert it's contents into a CSV file
-            this.convertToCSV();
-
-            // Build the name of the csv folder from that of the Excel workbook.
-            // Simply replace the .xls or .xlsx file extension with .csv
-            destinationFilename = excelFile.getName();
-            destinationFilename = destinationFilename.substring(
-                    0, destinationFilename.lastIndexOf(".")) +
-                    ToCSV.CSV_FILE_EXTENSION;
-
-            // Save the CSV file away using the newly constricted file name
-            // and to the specified directory.
-            this.saveCSVFile(new File(destination, destinationFilename));
+        if (filesList != null) {
+            for(File excelFile : filesList) {
+                // Open the workbook
+                this.openWorkbook(excelFile);
+    
+                // Convert it's contents into a CSV file
+                this.convertToCSV();
+    
+                // Build the name of the csv folder from that of the Excel workbook.
+                // Simply replace the .xls or .xlsx file extension with .csv
+                destinationFilename = excelFile.getName();
+                destinationFilename = destinationFilename.substring(
+                        0, destinationFilename.lastIndexOf(".")) +
+                        ToCSV.CSV_FILE_EXTENSION;
+    
+                // Save the CSV file away using the newly constricted file name
+                // and to the specified directory.
+                this.saveCSVFile(new File(destination, destinationFilename));
+            }
         }
     }
 
@@ -403,10 +406,10 @@ public class ToCSV {
      * a CSV file.
      */
     private void convertToCSV() {
-        Sheet sheet = null;
-        Row row = null;
-        int lastRowNum = 0;
-        this.csvData = new ArrayList<ArrayList<String>>();
+        Sheet sheet;
+        Row row;
+        int lastRowNum;
+        this.csvData = new ArrayList<>();
 
         System.out.println("Converting files contents to CSV format.");
 
@@ -448,11 +451,11 @@ public class ToCSV {
      */
     private void saveCSVFile(File file)
                                      throws FileNotFoundException, IOException {
-        FileWriter fw = null;
+        FileWriter fw;
         BufferedWriter bw = null;
-        ArrayList<String> line = null;
-        StringBuffer buffer = null;
-        String csvLineElement = null;
+        ArrayList<String> line;
+        StringBuffer buffer;
+        String csvLineElement;
         try {
 
             System.out.println("Saving the CSV file [" + file.getName() + "]");
@@ -521,9 +524,9 @@ public class ToCSV {
      *            an Excel workbook.
      */
     private void rowToCSV(Row row) {
-        Cell cell = null;
-        int lastCellNum = 0;
-        ArrayList<String> csvLine = new ArrayList<String>();
+        Cell cell;
+        int lastCellNum;
+        ArrayList<String> csvLine = new ArrayList<>();
 
         // Check to ensure that a row was recovered from the sheet as it is
         // possible that one or more rows between other populated rows could be
@@ -541,7 +544,7 @@ public class ToCSV {
                     csvLine.add("");
                 }
                 else {
-                    if(cell.getCellType() != Cell.CELL_TYPE_FORMULA) {
+                    if(cell.getCellType() != CellType.FORMULA) {
                         csvLine.add(this.formatter.formatCellValue(cell));
                     }
                     else {
@@ -600,7 +603,7 @@ public class ToCSV {
      *         speech mark characters correctly escaped.
      */
     private String escapeEmbeddedCharacters(String field) {
-        StringBuffer buffer = null;
+        StringBuffer buffer;
 
         // If the fields contents should be formatted to confrom with Excel's
         // convention....
@@ -668,7 +671,7 @@ public class ToCSV {
         // with matching names but different extensions - Test.xls and Test.xlsx
         // for example - then the CSV file generated from one will overwrite
         // that generated from the other.
-        ToCSV converter = null;
+        ToCSV converter;
         boolean converted = true;
         long startTime = System.currentTimeMillis();
         try {
@@ -763,6 +766,7 @@ public class ToCSV {
          *         file ends with either '.xls' or '.xlsx' and false will be
          *         returned in all other instances.
          */
+        @Override
         public boolean accept(File file, String name) {
             return(name.endsWith(".xls") || name.endsWith(".xlsx"));
         }

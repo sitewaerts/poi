@@ -17,10 +17,11 @@
 
 package org.apache.poi.hslf.usermodel;
 
-import static org.apache.poi.hslf.usermodel.HSLFTextParagraph.getPropVal;
-
 import java.awt.Color;
+import java.util.List;
 
+import org.apache.poi.common.usermodel.fonts.FontGroup;
+import org.apache.poi.common.usermodel.fonts.FontInfo;
 import org.apache.poi.hslf.exceptions.HSLFException;
 import org.apache.poi.hslf.model.textproperties.BitMaskTextProp;
 import org.apache.poi.hslf.model.textproperties.CharFlagsTextProp;
@@ -28,9 +29,13 @@ import org.apache.poi.hslf.model.textproperties.TextProp;
 import org.apache.poi.hslf.model.textproperties.TextPropCollection;
 import org.apache.poi.hslf.model.textproperties.TextPropCollection.TextPropType;
 import org.apache.poi.sl.draw.DrawPaint;
+import org.apache.poi.sl.usermodel.MasterSheet;
 import org.apache.poi.sl.usermodel.PaintStyle;
 import org.apache.poi.sl.usermodel.PaintStyle.SolidPaint;
+import org.apache.poi.sl.usermodel.Placeholder;
+import org.apache.poi.sl.usermodel.TextParagraph;
 import org.apache.poi.sl.usermodel.TextRun;
+import org.apache.poi.sl.usermodel.TextShape;
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
@@ -46,14 +51,17 @@ public final class HSLFTextRun implements TextRun {
 	/** The TextRun we belong to */
 	private HSLFTextParagraph parentParagraph;
 	private String _runText = "";
-	private String _fontFamily;
+	/** Caches the font info objects until the text runs are attached to the container */
+	private HSLFFontInfo[] cachedFontInfo;
 	private HSLFHyperlink link;
-	
+
 	/**
 	 * Our paragraph and character style.
 	 * Note - we may share these styles with other RichTextRuns
 	 */
 	private TextPropCollection characterStyle = new TextPropCollection(1, TextPropType.character);
+
+	private TextPropCollection masterStyle;
 
 	/**
 	 * Create a new wrapper around a rich text string
@@ -62,7 +70,7 @@ public final class HSLFTextRun implements TextRun {
 	public HSLFTextRun(HSLFTextParagraph parentParagraph) {
 		this.parentParagraph = parentParagraph;
 	}
-	
+
 	public TextPropCollection getCharacterStyle() {
 	    return characterStyle;
 	}
@@ -71,27 +79,29 @@ public final class HSLFTextRun implements TextRun {
 	    this.characterStyle.copy(characterStyle);
 	    this.characterStyle.updateTextSize(_runText.length());
 	}
-	
+
     /**
      * Setting a master style reference
      *
      * @param characterStyle the master style reference
-     * 
+     *
      * @since POI 3.14-Beta1
      */
 	@Internal
-    /* package */ void setMasterStyleReference(TextPropCollection characterStyle) {
-        this.characterStyle = characterStyle;
+    /* package */ void setMasterStyleReference(TextPropCollection masterStyle) {
+        this.masterStyle = masterStyle;
     }
- 
-	
+
+
 	/**
 	 * Supply the SlideShow we belong to
 	 */
 	public void updateSheet() {
-		if (_fontFamily != null) {
-			setFontFamily(_fontFamily);
-			_fontFamily = null;
+		if (cachedFontInfo != null) {
+		    for (FontGroup tt : FontGroup.values()) {
+		        setFontInfo(cachedFontInfo[tt.ordinal()], tt);
+		    }
+		    cachedFontInfo = null;
 		}
 	}
 
@@ -105,14 +115,16 @@ public final class HSLFTextRun implements TextRun {
 	/**
 	 * Fetch the text, in raw storage form
 	 */
-	public String getRawText() {
+	@Override
+    public String getRawText() {
 		return _runText;
 	}
 
 	/**
 	 * Change the text
 	 */
-	public void setText(String text) {
+	@Override
+    public void setText(String text) {
 	    if (text == null) {
 	        throw new HSLFException("text must not be null");
 	    }
@@ -137,7 +149,9 @@ public final class HSLFTextRun implements TextRun {
 	}
 
 	protected boolean getFlag(int index) {
-	    if (characterStyle == null) return false;
+	    if (characterStyle == null) {
+            return false;
+        }
 
 		BitMaskTextProp prop = (BitMaskTextProp)characterStyle.findByName(CharFlagsTextProp.NAME);
 
@@ -175,8 +189,8 @@ public final class HSLFTextRun implements TextRun {
 	 * @param val The value to set for the TextProp
 	 */
 	public void setCharTextPropVal(String propName, Integer val) {
-	    HSLFTextParagraph.setPropVal(characterStyle, propName, val);
-	    parentParagraph.setDirty();
+	    getTextParagraph().setPropVal(characterStyle, masterStyle, propName, val);
+	    getTextParagraph().setDirty();
 	}
 
 
@@ -256,7 +270,7 @@ public final class HSLFTextRun implements TextRun {
 	 * @return the percentage of the font size. If the value is positive, it is superscript, otherwise it is subscript
 	 */
 	public int getSuperscript() {
-		TextProp tp = getPropVal(characterStyle, "superscript", parentParagraph);
+		TextProp tp = getTextParagraph().getPropVal(characterStyle, masterStyle, "superscript");
 		return tp == null ? 0 : tp.getValue();
 	}
 
@@ -271,7 +285,7 @@ public final class HSLFTextRun implements TextRun {
 
     @Override
 	public Double getFontSize() {
-        TextProp tp = getPropVal(characterStyle, "font.size", parentParagraph);
+        TextProp tp = getTextParagraph().getPropVal(characterStyle, masterStyle, "font.size");
         return tp == null ? null : (double)tp.getValue();
 	}
 
@@ -286,7 +300,7 @@ public final class HSLFTextRun implements TextRun {
 	 * Gets the font index
 	 */
 	public int getFontIndex() {
-        TextProp tp = getPropVal(characterStyle, "font.index", parentParagraph);
+        TextProp tp = getTextParagraph().getPropVal(characterStyle, masterStyle, "font.index");
         return tp == null ? -1 : tp.getValue();
 	}
 
@@ -298,31 +312,97 @@ public final class HSLFTextRun implements TextRun {
 	}
 
 	@Override
-	public void setFontFamily(String fontFamily) {
-	    HSLFSheet sheet = parentParagraph.getSheet();
-	    @SuppressWarnings("resource")
-        HSLFSlideShow slideShow = (sheet == null) ? null : sheet.getSlideShow();
-		if (sheet == null || slideShow == null) {
-			//we can't set font since slideshow is not assigned yet
-			_fontFamily = fontFamily;
-			return;
-		}
-		// Get the index for this font (adding if needed)
-		Integer fontIdx = (fontFamily == null) ? null : slideShow.getFontCollection().addFont(fontFamily);
-		setCharTextPropVal("font.index", fontIdx);
+	public void setFontFamily(String typeface) {
+	    setFontInfo(new HSLFFontInfo(typeface), FontGroup.LATIN);
 	}
 
-	@Override
-	public String getFontFamily() {
+    @Override
+    public void setFontFamily(String typeface, FontGroup fontGroup) {
+        setFontInfo(new HSLFFontInfo(typeface), fontGroup);
+    }
+
+    @Override
+	public void setFontInfo(FontInfo fontInfo, FontGroup fontGroup) {
+        FontGroup fg = safeFontGroup(fontGroup);
+        
         HSLFSheet sheet = parentParagraph.getSheet();
         @SuppressWarnings("resource")
         HSLFSlideShow slideShow = (sheet == null) ? null : sheet.getSlideShow();
+        if (sheet == null || slideShow == null) {
+            // we can't set font since slideshow is not assigned yet
+            if (cachedFontInfo == null) {
+                cachedFontInfo = new HSLFFontInfo[FontGroup.values().length];
+            }
+            cachedFontInfo[fg.ordinal()] = (fontInfo != null) ? new HSLFFontInfo(fontInfo) : null;
+            return;
+        }
+
+        String propName;
+        switch (fg) {
+        default:
+        case LATIN:
+            propName = "font.index";
+            break;
+        case COMPLEX_SCRIPT:
+            // TODO: implement TextCFException10 structure
+        case EAST_ASIAN:
+            propName = "asian.font.index";
+            break;
+        case SYMBOL:
+            propName = "symbol.font.index";
+            break;
+        }
+
+
+        // Get the index for this font, if it is not to be removed (typeface == null)
+        Integer fontIdx = null;
+        if (fontInfo != null) {
+            fontIdx = slideShow.addFont(fontInfo).getIndex();
+        }
+
+
+        setCharTextPropVal(propName, fontIdx);
+    }
+
+    @Override
+	public String getFontFamily() {
+        return getFontFamily(null);
+	}
+
+    @Override
+    public String getFontFamily(FontGroup fontGroup) {
+        HSLFFontInfo fi = getFontInfo(fontGroup);
+        return (fi != null) ? fi.getTypeface() : null;
+    }
+
+	@Override
+	public HSLFFontInfo getFontInfo(final FontGroup fontGroup) {
+        FontGroup fg = safeFontGroup(fontGroup);
+
+	    HSLFSheet sheet = parentParagraph.getSheet();
+        @SuppressWarnings("resource")
+        HSLFSlideShow slideShow = (sheet == null) ? null : sheet.getSlideShow();
 		if (sheet == null || slideShow == null) {
-			return _fontFamily;
+			return (cachedFontInfo != null) ? cachedFontInfo[fg.ordinal()] : null;
 		}
-        TextProp tp = getPropVal(characterStyle, "font.index,asian.font.index,ansi.font.index,symbol.font.index", parentParagraph);
-        if (tp == null) { return null; }
-		return slideShow.getFontCollection().getFontWithId(tp.getValue());
+
+		String propName;
+	    switch (fg) {
+	    default:
+	    case LATIN:
+	        propName = "font.index,ansi.font.index";
+	        break;
+        case COMPLEX_SCRIPT:
+	    case EAST_ASIAN:
+	        propName = "asian.font.index";
+	        break;
+        case SYMBOL:
+	        propName = "symbol.font.index";
+	        break;
+		}
+
+        TextProp tp = getTextParagraph().getPropVal(characterStyle, masterStyle, propName);
+		return (tp != null) ? slideShow.getFont(tp.getValue()) : null;
 	}
 
 	/**
@@ -330,11 +410,12 @@ public final class HSLFTextRun implements TextRun {
 	 */
 	@Override
 	public SolidPaint getFontColor() {
-		TextProp tp = getPropVal(characterStyle, "font.color", parentParagraph);
-		if (tp == null) return null;
+		TextProp tp = getTextParagraph().getPropVal(characterStyle, masterStyle, "font.color");
+		if (tp == null) {
+            return null;
+        }
 		Color color = HSLFTextParagraph.getColorFromColorIndexStruct(tp.getValue(), parentParagraph.getSheet());
-		SolidPaint ps = DrawPaint.createSolidPaint(color);
-		return ps;
+        return DrawPaint.createSolidPaint(color);
 	}
 
 	/**
@@ -352,7 +433,7 @@ public final class HSLFTextRun implements TextRun {
     public void setFontColor(Color color) {
         setFontColor(DrawPaint.createSolidPaint(color));
     }
-	
+
 	@Override
 	public void setFontColor(PaintStyle color) {
 	    if (!(color instanceof SolidPaint)) {
@@ -373,7 +454,8 @@ public final class HSLFTextRun implements TextRun {
     public HSLFTextParagraph getTextParagraph() {
         return parentParagraph;
     }
-    
+
+    @Override
     public TextCap getTextCap() {
         return TextCap.NONE;
     }
@@ -388,6 +470,7 @@ public final class HSLFTextRun implements TextRun {
         return getSuperscript() > 0;
     }
 
+    @Override
     public byte getPitchAndFamily() {
         return 0;
     }
@@ -400,12 +483,12 @@ public final class HSLFTextRun implements TextRun {
     protected void setHyperlink(HSLFHyperlink link) {
         this.link = link;
     }
-    
+
     @Override
     public HSLFHyperlink getHyperlink() {
         return link;
     }
-    
+
     @Override
     public HSLFHyperlink createHyperlink() {
         if (link == null) {
@@ -413,5 +496,40 @@ public final class HSLFTextRun implements TextRun {
             parentParagraph.setDirty();
         }
         return link;
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        HSLFTextShape ts = getTextParagraph().getParentShape();
+        Placeholder ph = ts.getPlaceholder();
+
+        if (ph != null) {
+            switch (ph) {
+            case SLIDE_NUMBER:
+                return FieldType.SLIDE_NUMBER;
+            case DATETIME:
+                return FieldType.DATE_TIME;
+            default:
+                break;
+            }
+        }
+
+        if (ts.getSheet() instanceof MasterSheet) {
+            TextShape<?,? extends TextParagraph<?,?,? extends TextRun>> ms = ts.getMetroShape();
+            if (ms == null || ms.getTextParagraphs().isEmpty()) {
+                return null;
+            }
+            List<? extends TextRun> trList = ms.getTextParagraphs().get(0).getTextRuns();
+            if (trList.isEmpty()) {
+                return null;
+            }
+            return trList.get(0).getFieldType();
+        }
+
+        return null;
+    }
+    
+    private FontGroup safeFontGroup(FontGroup fontGroup) {
+        return (fontGroup != null) ? fontGroup : FontGroup.getFontGroupFirst(getRawText());
     }
 }

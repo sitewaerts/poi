@@ -87,7 +87,7 @@ public final class TestSheet {
 	@Test
 	public void testCreateSheet() {
 		// Check we're adding row and cell aggregates
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		records.add(BOFRecord.createSheetBOF());
 		records.add( new DimensionsRecord() );
 		records.add(createWindow2Record());
@@ -120,7 +120,8 @@ public final class TestSheet {
 		public MergedCellListener() {
 			_count = 0;
 		}
-		public void visitRecord(Record r) {
+		@Override
+        public void visitRecord(Record r) {
 			if (r instanceof MergeCellsRecord) {
 				_count++;
 			}
@@ -204,7 +205,7 @@ public final class TestSheet {
 	 */
     @Test
 	public void testMovingMergedRegion() {
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 
 		CellRangeAddress[] cras = {
 			new CellRangeAddress(0, 1, 0, 2),
@@ -243,7 +244,7 @@ public final class TestSheet {
 	 */
     @Test
 	public void testRowAggregation() {
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 
 		records.add(InternalSheet.createBOF());
 		records.add(new DimensionsRecord());
@@ -296,8 +297,7 @@ public final class TestSheet {
 		boolean is11 = false;
 
 		int[] rowBreaks = sheet.getRowBreaks();
-		for (int i = 0; i < rowBreaks.length; i++) {
-			int main = rowBreaks[i];
+		for (int main : rowBreaks) {
 			if (main != 0 && main != 10 && main != 11) fail("Invalid page break");
 			if (main == 0)	 is0 = true;
 			if (main == 10) is10= true;
@@ -354,8 +354,7 @@ public final class TestSheet {
 		boolean is15 = false;
 
 		int[] colBreaks = sheet.getColumnBreaks();
-		for (int i = 0; i < colBreaks.length; i++) {
-			int main = colBreaks[i];
+		for (int main : colBreaks) {
 			if (main != 0 && main != 1 && main != 10 && main != 15) fail("Invalid page break");
 			if (main == 0)  is0 = true;
 			if (main == 1)  is1 = true;
@@ -457,7 +456,8 @@ public final class TestSheet {
 		public SizeCheckingRecordVisitor() {
 			_totalSize = 0;
 		}
-		public void visitRecord(Record r) {
+		@Override
+        public void visitRecord(Record r) {
 
 			int estimatedSize=r.getRecordSize();
 			byte[] buf = new byte[estimatedSize];
@@ -474,12 +474,12 @@ public final class TestSheet {
 	}
 	/**
 	 * Prior to bug 45066, POI would get the estimated sheet size wrong
-	 * when an <tt>UncalcedRecord</tt> was present.<p/>
+	 * when an <tt>UncalcedRecord</tt> was present.<p>
 	 */
     @Test
 	public void testUncalcSize_bug45066() {
 
-		List<Record> records = new ArrayList<Record>();
+		List<Record> records = new ArrayList<>();
 		records.add(BOFRecord.createSheetBOF());
 		records.add(new UncalcedRecord());
 		records.add(new DimensionsRecord());
@@ -498,7 +498,7 @@ public final class TestSheet {
 	/**
 	 * Prior to bug 45145 <tt>RowRecordsAggregate</tt> and <tt>ValueRecordsAggregate</tt> could
 	 * sometimes occur in reverse order.  This test reproduces one of those situations and makes
-	 * sure that RRA comes before VRA.<br/>
+	 * sure that RRA comes before VRA.<br>
 	 *
 	 * The code here represents a normal POI use case where a spreadsheet is created from scratch.
 	 */
@@ -541,8 +541,7 @@ public final class TestSheet {
 		MyIndexRecordListener myIndexListener = new MyIndexRecordListener();
 		sheet.visitContainedRecords(myIndexListener, 0);
 		IndexRecord indexRecord = myIndexListener.getIndexRecord();
-		int dbCellRecordPos = indexRecord.getDbcellAt(0);
-		return dbCellRecordPos;
+        return indexRecord.getDbcellAt(0);
 	}
 
 	private static final class MyIndexRecordListener implements RecordVisitor {
@@ -554,7 +553,8 @@ public final class TestSheet {
 		public IndexRecord getIndexRecord() {
 			return _indexRecord;
 		}
-		public void visitRecord(Record r) {
+		@Override
+        public void visitRecord(Record r) {
 			if (r instanceof IndexRecord) {
 				if (_indexRecord != null) {
 					throw new RuntimeException("too many index records");
@@ -639,7 +639,7 @@ public final class TestSheet {
 		nr.setColumn((short) colIx);
 		nr.setValue(3.0);
 
-		List<Record> inRecs = new ArrayList<Record>();
+		List<Record> inRecs = new ArrayList<>();
 		inRecs.add(BOFRecord.createSheetBOF());
 		inRecs.add(new RowRecord(rowIx));
 		inRecs.add(nr);
@@ -776,7 +776,7 @@ public final class TestSheet {
         r2.setStr(new HSSFRichTextString("Aggregated"));
         NoteRecord n2 = new NoteRecord();
 
-        List<Record> recordStream = new ArrayList<Record>();
+        List<Record> recordStream = new ArrayList<>();
         recordStream.add(InternalSheet.createBOF());
         recordStream.add( d1 );
         recordStream.add( r1 );
@@ -786,7 +786,7 @@ public final class TestSheet {
         confirmAggregatedRecords(recordStream);
 
 
-        recordStream = new ArrayList<Record>();
+        recordStream = new ArrayList<>();
         recordStream.add(InternalSheet.createBOF());
         recordStream.add( d1 );
         recordStream.add( r1 );
@@ -797,7 +797,7 @@ public final class TestSheet {
 
         confirmAggregatedRecords(recordStream);
 
-        recordStream = new ArrayList<Record>();
+        recordStream = new ArrayList<>();
         recordStream.add(InternalSheet.createBOF());
         recordStream.add( d1 );
         recordStream.add( r1 );

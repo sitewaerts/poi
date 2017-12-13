@@ -31,14 +31,21 @@ public interface FileHandler {
 	 * 
 	 * Closing is handled by the framework outside this call.
 	 *
-	 * @param stream
-	 * @throws Exception
+	 * @param stream The input stream to read the file from.
+	 * @param path the relative path to the file
+	 * @throws Exception If an error happens in the file-specific handler
 	 */
-	void handleFile(InputStream stream) throws Exception;
+	void handleFile(InputStream stream, String path) throws Exception;
 	
 	/**
 	 * Ensures that extracting text from the given file
 	 * is returning some text. 
 	 */
 	void handleExtracting(File file) throws Exception;
+
+	/**
+	 * Allows to perform some additional work, e.g. run
+	 * some of the example applications
+	 */
+	void handleAdditional(File file) throws Exception;
 }

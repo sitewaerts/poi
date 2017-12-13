@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Hashtable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.StringTokenizer;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LocaleUtil;
 import org.apache.poi.util.POILogFactory;
 import org.apache.poi.util.POILogger;
@@ -37,22 +39,27 @@ import org.apache.poi.util.POILogger;
  *  to process the chunk value area
  */
 public final class ChunkFactory {
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 1_000_000;
+
+
 	/** The version of the currently open document */
 	private int version;
 	/**
 	 * Key is a Chunk's type, value is an array of its CommandDefinitions
 	 */
-	private Hashtable<Integer, CommandDefinition[]> chunkCommandDefinitions = 
-	      new Hashtable<Integer, CommandDefinition[]>();
+	private final Map<Integer, CommandDefinition[]> chunkCommandDefinitions =
+            new HashMap<>();
 	/**
 	 * What the name is of the chunk table definitions file?
 	 * This file comes from the scratchpad resources directory.
 	 */
-	private static String chunkTableName =
+	private static final String chunkTableName =
 		"/org/apache/poi/hdgf/chunks_parse_cmds.tbl";
 
 	/** For logging problems we spot with the file */
-	private static POILogger logger = POILogFactory.getLogger(ChunkFactory.class);
+	private static final POILogger logger = POILogFactory.getLogger(ChunkFactory.class);
 
 	public ChunkFactory(int version) throws IOException {
 		this.version = version;
@@ -77,20 +84,22 @@ public final class ChunkFactory {
 	        inp = new BufferedReader(new InputStreamReader(cpd, LocaleUtil.CHARSET_1252));
 		    
 		    while( (line = inp.readLine()) != null ) {
-    			if(line.startsWith("#")) continue;
-    			if(line.startsWith(" ")) continue;
-    			if(line.startsWith("\t")) continue;
-    			if(line.length() == 0) continue;
+    			if (line.isEmpty() || "# \t".contains(line.substring(0,1))) {
+    			    continue;
+    			}
     
     			// Start xxx
-    			if(!line.startsWith("start")) {
+    			if(!line.matches("^start [0-9]+$")) {
     				throw new IllegalStateException("Expecting start xxx, found " + line);
     			}
     			int chunkType = Integer.parseInt(line.substring(6));
-    			ArrayList<CommandDefinition> defsL = new ArrayList<CommandDefinition>();
+    			ArrayList<CommandDefinition> defsL = new ArrayList<>();
     
     			// Data entries
-    			while( ! (line = inp.readLine()).startsWith("end") ) {
+    			while( (line = inp.readLine()) != null ) {
+    			    if (line.startsWith("end")) {
+    			        break;
+    			    }
     				StringTokenizer st = new StringTokenizer(line, " ");
     				int defType = Integer.parseInt(st.nextToken());
     				int offset = Integer.parseInt(st.nextToken());
@@ -102,12 +111,16 @@ public final class ChunkFactory {
     
     			CommandDefinition[] defs = defsL.toArray(new CommandDefinition[defsL.size()]);
     
-    			// Add to the hashtable
+    			// Add to the map
     			chunkCommandDefinitions.put(Integer.valueOf(chunkType), defs);
     		}
 		} finally {
-    		if (inp != null) inp.close();
-    		if (cpd != null) cpd.close();
+    		if (inp != null) {
+    		    inp.close();
+    		}
+    		if (cpd != null) {
+    		    cpd.close();
+    		}
 		}
 	}
 
@@ -123,7 +136,7 @@ public final class ChunkFactory {
 		ChunkHeader header =
 			ChunkHeader.createChunkHeader(version, data, offset);
 		// Sanity check
-		if(header.length < 0) {
+		if(header.getLength() < 0) {
 			throw new IllegalArgumentException("Found a chunk with a negative length, which isn't allowed");
 		}
 
@@ -137,14 +150,14 @@ public final class ChunkFactory {
 				"Header called for " + header.getLength() +" bytes, but that would take us past the end of the data!");
 
 			endOfDataPos = data.length;
-			header.length = data.length - offset - header.getSizeInBytes();
+			header.setLength(data.length - offset - header.getSizeInBytes());
 
 			if(header.hasTrailer()) {
-				header.length -= 8;
+				header.setLength(header.getLength() - 8);
 				endOfDataPos  -= 8;
 			}
 			if(header.hasSeparator()) {
-				header.length -= 4;
+                header.setLength(header.getLength() - 4);
 				endOfDataPos  -= 4;
 			}
 		}
@@ -172,13 +185,15 @@ public final class ChunkFactory {
 		}
 
 		// Now, create the chunk
-		byte[] contents = new byte[header.getLength()];
+		byte[] contents = IOUtils.safelyAllocate(header.getLength(), MAX_RECORD_LENGTH);
 		System.arraycopy(data, offset+header.getSizeInBytes(), contents, 0, contents.length);
 		Chunk chunk = new Chunk(header, trailer, separator, contents);
 
 		// Feed in the stuff from  chunks_parse_cmds.tbl
 		CommandDefinition[] defs = chunkCommandDefinitions.get(Integer.valueOf(header.getType()));
-		if(defs == null) defs = new CommandDefinition[0];
+		if (defs == null) {
+		    defs = new CommandDefinition[0];
+		}
 		chunk.commandDefinitions = defs;
 
 		// Now get the chunk to process its commands

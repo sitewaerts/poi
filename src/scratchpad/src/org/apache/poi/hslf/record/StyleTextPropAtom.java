@@ -17,13 +17,19 @@
 
 package org.apache.poi.hslf.record;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.poi.hslf.model.textproperties.*;
+import org.apache.poi.hslf.exceptions.HSLFException;
+import org.apache.poi.hslf.model.textproperties.TextPropCollection;
 import org.apache.poi.hslf.model.textproperties.TextPropCollection.TextPropType;
-import org.apache.poi.util.*;
+import org.apache.poi.util.HexDump;
+import org.apache.poi.util.IOUtils;
+import org.apache.poi.util.LittleEndian;
+import org.apache.poi.util.POILogger;
 
 /**
  * A StyleTextPropAtom (type 4001). Holds basic character properties
@@ -37,15 +43,14 @@ import org.apache.poi.util.*;
  *  the style applies to, and what style elements make up the style (another
  *  list, this time of TextProps). Each TextProp has a value, which somehow
  *  encapsulates a property of the style
- *
- * @author Nick Burch
- * @author Yegor Kozlov
  */
 
-public final class StyleTextPropAtom extends RecordAtom
-{
+public final class StyleTextPropAtom extends RecordAtom {
+    public static final long _type = RecordTypes.StyleTextPropAtom.typeID;
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 1_000_000;
+
     private byte[] _header;
-    private static final long _type = RecordTypes.StyleTextPropAtom.typeID;
     private byte[] reserved;
 
     private byte[] rawContents; // Holds the contents between write-outs
@@ -54,7 +59,7 @@ public final class StyleTextPropAtom extends RecordAtom
      * Only set to true once setParentTextSize(int) is called.
      * Until then, no stylings will have been decoded
      */
-    private boolean initialised = false;
+    private boolean initialised;
 
     /**
      * The list of all the different paragraph stylings we code for.
@@ -121,7 +126,7 @@ public final class StyleTextPropAtom extends RecordAtom
         if(len < 18) {
             len = 18;
             if(source.length - start < 18) {
-                throw new RuntimeException("Not enough data to form a StyleTextPropAtom (min size 18 bytes long) - found " + (source.length - start));
+                throw new HSLFException("Not enough data to form a StyleTextPropAtom (min size 18 bytes long) - found " + (source.length - start));
             }
         }
 
@@ -131,13 +136,13 @@ public final class StyleTextPropAtom extends RecordAtom
 
         // Save the contents of the atom, until we're asked to go and
         //  decode them (via a call to setParentTextSize(int)
-        rawContents = new byte[len-8];
+        rawContents = IOUtils.safelyAllocate(len-8, MAX_RECORD_LENGTH);
         System.arraycopy(source,start+8,rawContents,0,rawContents.length);
         reserved = new byte[0];
 
         // Set empty lists, ready for when they call setParentTextSize
-        paragraphStyles = new ArrayList<TextPropCollection>();
-        charStyles = new ArrayList<TextPropCollection>();
+        paragraphStyles = new ArrayList<>();
+        charStyles = new ArrayList<>();
     }
 
 
@@ -155,8 +160,8 @@ public final class StyleTextPropAtom extends RecordAtom
         LittleEndian.putInt(_header,4,10);
 
         // Set empty paragraph and character styles
-        paragraphStyles = new ArrayList<TextPropCollection>();
-        charStyles = new ArrayList<TextPropCollection>();
+        paragraphStyles = new ArrayList<>();
+        charStyles = new ArrayList<>();
 
         addParagraphTextPropCollection(parentTextSize);
         addCharacterTextPropCollection(parentTextSize);
@@ -167,7 +172,7 @@ public final class StyleTextPropAtom extends RecordAtom
         try {
             updateRawContents();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new HSLFException(e);
         }
     }
 
@@ -175,6 +180,7 @@ public final class StyleTextPropAtom extends RecordAtom
     /**
      * We are of type 4001
      */
+    @Override
     public long getRecordType() { return _type; }
 
 
@@ -182,6 +188,7 @@ public final class StyleTextPropAtom extends RecordAtom
      * Write the contents of the record back, so it can be written
      *  to disk
      */
+    @Override
     public void writeOut(OutputStream out) throws IOException {
         // First thing to do is update the raw bytes of the contents, based
         //  on the properties
@@ -203,7 +210,9 @@ public final class StyleTextPropAtom extends RecordAtom
      *  contains, so we can go ahead and initialise ourselves.
      */
     public void setParentTextSize(int size) {
-        if (initialised) return;
+        if (initialised) {
+            return;
+        }
         
         int pos = 0;
         int textHandled = 0;
@@ -281,7 +290,7 @@ public final class StyleTextPropAtom extends RecordAtom
 
         // Handle anything left over
         if(pos < rawContents.length) {
-            reserved = new byte[rawContents.length-pos];
+            reserved = IOUtils.safelyAllocate(rawContents.length-pos, rawContents.length);
             System.arraycopy(rawContents,pos,reserved,0,reserved.length);
         }
 
@@ -365,6 +374,7 @@ public final class StyleTextPropAtom extends RecordAtom
      *
      * @return the string representation of the record data
      */
+    @Override
     public String toString(){
         StringBuffer out = new StringBuffer();
 
@@ -389,7 +399,7 @@ public final class StyleTextPropAtom extends RecordAtom
 
         out.append("  original byte stream \n");
         
-        byte buf[] = new byte[rawContents.length+reserved.length];
+        byte buf[] = IOUtils.safelyAllocate(rawContents.length+reserved.length, MAX_RECORD_LENGTH);
         System.arraycopy(rawContents, 0, buf, 0, rawContents.length);
         System.arraycopy(reserved, 0, buf, rawContents.length, reserved.length);
         out.append( HexDump.dump(buf, 0, 0) );

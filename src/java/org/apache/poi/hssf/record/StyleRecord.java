@@ -21,14 +21,13 @@ import org.apache.poi.util.BitField;
 import org.apache.poi.util.BitFieldFactory;
 import org.apache.poi.util.HexDump;
 import org.apache.poi.util.LittleEndianOutput;
+import org.apache.poi.util.RecordFormatException;
 import org.apache.poi.util.StringUtil;
 
 /**
- * Title:        Style Record (0x0293)<p/>
- * Description:  Describes a builtin to the gui or user defined style<P>
- * REFERENCE:  PG 390 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)<P>
- * @author Andrew C. Oliver (acoliver at apache dot org)
- * @author aviks : string fixes for UserDefined Style
+ * Title:        Style Record (0x0293)<p>
+ * Description:  Describes a builtin to the gui or user defined style<p>
+ * REFERENCE:  PG 390 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)
  */
 public final class StyleRecord extends StandardRecord {
 	public final static short sid = 0x0293;
@@ -51,7 +50,7 @@ public final class StyleRecord extends StandardRecord {
 	 * creates a new style record, initially set to 'built-in'
 	 */
 	public StyleRecord() {
-		field_1_xf_index = isBuiltinFlag.set(field_1_xf_index);
+		field_1_xf_index = isBuiltinFlag.set(0);
 	}
 
 	public StyleRecord(RecordInputStream in) {
@@ -140,7 +139,7 @@ public final class StyleRecord extends StandardRecord {
 
 	@Override
 	public String toString() {
-		StringBuffer sb = new StringBuffer();
+		StringBuilder sb = new StringBuilder();
 
 		sb.append("[STYLE]\n");
 		sb.append("    .xf_index_raw =").append(HexDump.shortToHex(field_1_xf_index)).append("\n");

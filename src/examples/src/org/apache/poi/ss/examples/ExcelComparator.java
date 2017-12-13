@@ -23,9 +23,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Color;
 import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -86,7 +90,7 @@ public class ExcelComparator {
         Cell cell;
     }
     
-    List<String> listOfDifferences = new ArrayList<String>();
+    List<String> listOfDifferences = new ArrayList<>();
 
     public static void main(String args[]) throws Exception {
         if (args.length != 2 || !(new File(args[0]).exists()) || !(new File(args[1]).exists())) {
@@ -107,10 +111,9 @@ public class ExcelComparator {
     /**
      * Utility to compare Excel File Contents cell by cell for all sheets.
      *
-     * @param workbook1 the workbook1
-     * @param workbook2 the workbook2
+     * @param wb1 the workbook1
+     * @param wb2 the workbook2
      * @return the Excel file difference containing a flag and a list of differences
-     * @throws ExcelCompareException the excel compare exception
      */
     public static List<String> compare(Workbook wb1, Workbook wb2) {
         Locator loc1 = new Locator();
@@ -128,11 +131,6 @@ public class ExcelComparator {
 
     /**
      * Compare data in all sheets.
-     *
-     * @param workbook1 the workbook1
-     * @param workbook2 the workbook2
-     * @param listOfDifferences the list of differences
-     * @throws ExcelCompareException the excel compare exception
      */
     private void compareDataInAllSheets(Locator loc1, Locator loc2) {
         for (int i = 0; i < loc1.workbook.getNumberOfSheets(); i++) {
@@ -177,25 +175,28 @@ public class ExcelComparator {
 
     private void compareDataInCell(Locator loc1, Locator loc2) {
         if (isCellTypeMatches(loc1, loc2)) {
-            switch(loc1.cell.getCellType()) {
-            case Cell.CELL_TYPE_BLANK:
-            case Cell.CELL_TYPE_STRING:
-            case Cell.CELL_TYPE_ERROR:
-                isCellContentMatches(loc1,loc2);
-                break;
-            case Cell.CELL_TYPE_BOOLEAN:
-                isCellContentMatchesForBoolean(loc1,loc2);
-                break;
-            case Cell.CELL_TYPE_FORMULA:
-                isCellContentMatchesForFormula(loc1,loc2);
-                break;
-            case Cell.CELL_TYPE_NUMERIC:
-                if (DateUtil.isCellDateFormatted(loc1.cell)) {
-                    isCellContentMatchesForDate(loc1,loc2);
-                } else {
-                    isCellContentMatchesForNumeric(loc1,loc2);
-                }
-                break;
+            final CellType loc1cellType = loc1.cell.getCellType();
+            switch(loc1cellType) {
+                case BLANK:
+                case STRING:
+                case ERROR:
+                    isCellContentMatches(loc1,loc2);
+                    break;
+                case BOOLEAN:
+                    isCellContentMatchesForBoolean(loc1,loc2);
+                    break;
+                case FORMULA:
+                    isCellContentMatchesForFormula(loc1,loc2);
+                    break;
+                case NUMERIC:
+                    if (DateUtil.isCellDateFormatted(loc1.cell)) {
+                        isCellContentMatchesForDate(loc1,loc2);
+                    } else {
+                        isCellContentMatchesForNumeric(loc1,loc2);
+                    }
+                    break;
+                default:
+                    throw new IllegalStateException("Unexpected cell type: " + loc1cellType);
             }
         }
 
@@ -286,15 +287,6 @@ public class ExcelComparator {
 
     /**
      * Compare sheet data.
-     *
-     * @param workbook1
-     *            the workbook1
-     * @param workbook2
-     *            the workbook2
-     * @param listOfDifferences
-     *
-     * @throws ExcelCompareException
-     *             the excel compare exception
      */
     private void compareSheetData(Locator loc1, Locator loc2) {
         compareNumberOfRowsInSheets(loc1, loc2);
@@ -313,9 +305,7 @@ public class ExcelComparator {
             
             if (!name1.equals(name2)) {
                 String str = String.format(Locale.ROOT, "%s\nworkbook1 -> %s [%d] != workbook2 -> %s [%d]",
-                    "Name of the sheets do not match ::",
-                    loc1.sheet.getSheetName(), name1, i+1,
-                    loc2.sheet.getSheetName(), name2, i+1
+                    "Name of the sheets do not match ::", name1, i+1, name2, i+1
                 );
                 listOfDifferences.add(str);
             }
@@ -340,13 +330,13 @@ public class ExcelComparator {
      */
     private void isCellAlignmentMatches(Locator loc1, Locator loc2) {
         // TODO: check for NPE
-        short align1 = loc1.cell.getCellStyle().getAlignment();
-        short align2 = loc2.cell.getCellStyle().getAlignment();
+        HorizontalAlignment align1 = loc1.cell.getCellStyle().getAlignment();
+        HorizontalAlignment align2 = loc2.cell.getCellStyle().getAlignment();
         if (align1 != align2) {
             addMessage(loc1, loc2,
                 "Cell Alignment does not Match ::",
-                Short.toString(align1),
-                Short.toString(align2)
+                align1.name(),
+                align2.name()
             );
         }
     }
@@ -362,23 +352,23 @@ public class ExcelComparator {
         String borderName;
         switch (borderSide) {
             case 't': default:
-                b1 = style1.getBorderTop() == 1;
-                b2 = style2.getBorderTop() == 1;
+                b1 = style1.getBorderTop() == BorderStyle.THIN;
+                b2 = style2.getBorderTop() == BorderStyle.THIN;
                 borderName = "TOP";
                 break;
             case 'b':
-                b1 = style1.getBorderBottom() == 1;
-                b2 = style2.getBorderBottom() == 1;
+                b1 = style1.getBorderBottom() == BorderStyle.THIN;
+                b2 = style2.getBorderBottom() == BorderStyle.THIN;
                 borderName = "BOTTOM";
                 break;
             case 'l':
-                b1 = style1.getBorderLeft() == 1;
-                b2 = style2.getBorderLeft() == 1;
+                b1 = style1.getBorderLeft() == BorderStyle.THIN;
+                b2 = style2.getBorderLeft() == BorderStyle.THIN;
                 borderName = "LEFT";
                 break;
             case 'r':
-                b1 = style1.getBorderRight() == 1;
-                b2 = style2.getBorderRight() == 1;
+                b1 = style1.getBorderRight() == BorderStyle.THIN;
+                b2 = style2.getBorderRight() == BorderStyle.THIN;
                 borderName = "RIGHT";
                 break;
         }
@@ -421,7 +411,7 @@ public class ExcelComparator {
         Date date1 = loc1.cell.getDateCellValue();
         Date date2 = loc2.cell.getDateCellValue();
         if (!date1.equals(date2)) {
-            addMessage(loc1, loc2, CELL_DATA_DOES_NOT_MATCH, date1.toGMTString(), date2.toGMTString());
+            addMessage(loc1, loc2, CELL_DATA_DOES_NOT_MATCH, date1.toString(), date2.toString());
         }
     }
 
@@ -470,13 +460,13 @@ public class ExcelComparator {
      */
     private void isCellFillPatternMatches(Locator loc1, Locator loc2) {
         // TOOO: Check for NPE
-        short fill1 = loc1.cell.getCellStyle().getFillPattern();
-        short fill2 = loc2.cell.getCellStyle().getFillPattern();
+        FillPatternType fill1 = loc1.cell.getCellStyle().getFillPattern();
+        FillPatternType fill2 = loc2.cell.getCellStyle().getFillPattern();
         if (fill1 != fill2) {
             addMessage(loc1, loc2,
                 "Cell Fill pattern does not Match ::",
-                Short.toString(fill1),
-                Short.toString(fill2)
+                fill1.name(),
+                fill2.name()
             );
         }
     }
@@ -576,25 +566,18 @@ public class ExcelComparator {
      * Checks if cell type matches.
      */
     private boolean isCellTypeMatches(Locator loc1, Locator loc2) {
-        int type1 = loc1.cell.getCellType();
-        int type2 = loc2.cell.getCellType();
+        CellType type1 = loc1.cell.getCellType();
+        CellType type2 = loc2.cell.getCellType();
         if (type1 == type2) return true;
         addMessage(loc1, loc2,
             "Cell Data-Type does not Match in :: ",
-            Integer.toString(type1),
-            Integer.toString(type2)
+            type1.name(), type2.name()
         );
         return false;
     }
 
     /**
      * Checks if cell under line matches.
-     *
-     * @param cellWorkBook1
-     *            the cell work book1
-     * @param cellWorkBook2
-     *            the cell work book2
-     * @return true, if cell under line matches
      */
     private void isCellUnderLineMatches(Locator loc1, Locator loc2) {
         // TOOO: distinguish underline type

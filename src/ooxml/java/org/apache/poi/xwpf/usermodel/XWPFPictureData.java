@@ -26,15 +26,12 @@ import org.apache.poi.POIXMLException;
 import org.apache.poi.POIXMLRelation;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.util.IOUtils;
 
 /**
  * Raw picture data, normally attached to a WordprocessingML Drawing.
  * As a rule, pictures are stored in the /word/media/ part of a WordprocessingML package.
- */
-
-/**
+ *
  * @author Philipp Epp
  */
 public class XWPFPictureData extends POIXMLDocumentPart {
@@ -59,7 +56,7 @@ public class XWPFPictureData extends POIXMLDocumentPart {
         RELATIONS[Document.PICTURE_TYPE_WPG] = XWPFRelation.IMAGE_WPG;
     }
 
-    private Long checksum = null;
+    private Long checksum;
 
     /**
      * Create a new XWPFGraphicData node
@@ -78,14 +75,6 @@ public class XWPFPictureData extends POIXMLDocumentPart {
     public XWPFPictureData(PackagePart part) {
         super(part);
     }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    public XWPFPictureData(PackagePart part, PackageRelationship rel) {
-        this(part);
-    }
     
     @Override
     protected void onDocumentRead() throws IOException {
@@ -97,7 +86,7 @@ public class XWPFPictureData extends POIXMLDocumentPart {
      * <p>
      * Note, that this call might be expensive since all the picture data is copied into a temporary byte array.
      * You can grab the picture data directly from the underlying package part as follows:
-     * <br/>
+     * <br>
      * <code>
      * InputStream is = getPackagePart().getInputStream();
      * </code>
@@ -167,11 +156,7 @@ public class XWPFPictureData extends POIXMLDocumentPart {
             } catch (IOException e) {
                 throw new POIXMLException(e);
             } finally {
-                try {
-                    if (is != null) is.close();
-                } catch (IOException e) {
-                    throw new POIXMLException(e);
-                }
+                IOUtils.closeQuietly(is);
             }
             this.checksum = IOUtils.calculateChecksum(data);
         }
@@ -180,7 +165,7 @@ public class XWPFPictureData extends POIXMLDocumentPart {
 
     @Override
     public boolean equals(Object obj) {
-        /**
+        /*
          * In case two objects ARE equal, but its not the same instance, this
          * implementation will always run through the whole
          * byte-array-comparison before returning true. If this will turn into a

@@ -18,6 +18,7 @@ package org.apache.poi.hssf.converter;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +43,7 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.hwpf.converter.HtmlDocumentFacade;
 import org.apache.poi.ss.formula.eval.ErrorEval;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.util.Beta;
 import org.apache.poi.util.POILogFactory;
@@ -105,7 +107,7 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
      * Converts Excel file (97-2007) into HTML file.
      * 
      * @param xlsFile
-     *            file to process
+     *            workbook file to process
      * @return DOM representation of result HTML
      * @throws IOException 
      * @throws ParserConfigurationException 
@@ -113,18 +115,51 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
     public static Document process( File xlsFile ) throws IOException, ParserConfigurationException
     {
         final HSSFWorkbook workbook = ExcelToHtmlUtils.loadXls( xlsFile );
+        try {
+            return ExcelToHtmlConverter.process( workbook );
+        } finally {
+            workbook.close();
+        }
+    }
+
+    /**
+     * Converts Excel file (97-2007) into HTML file.
+     * 
+     * @param xlsStream workbook stream to process
+     * @return DOM representation of result HTML
+     * @throws IOException 
+     * @throws ParserConfigurationException 
+     */
+    public static Document process( InputStream xlsStream ) throws IOException, ParserConfigurationException
+    {
+        final HSSFWorkbook workbook = new HSSFWorkbook( xlsStream );
+        try {
+            return ExcelToHtmlConverter.process( workbook );
+        } finally {
+            workbook.close();
+        }
+    }
+
+    /**
+     * Converts Excel file (97-2007) into HTML file.
+     * 
+     * @param workbook workbook instance to process
+     * @return DOM representation of result HTML
+     * @throws IOException 
+     * @throws ParserConfigurationException 
+     */
+    public static Document process( HSSFWorkbook workbook ) throws IOException, ParserConfigurationException
+    {
         ExcelToHtmlConverter excelToHtmlConverter = new ExcelToHtmlConverter(
                 XMLHelper.getDocumentBuilderFactory().newDocumentBuilder()
                         .newDocument() );
         excelToHtmlConverter.processWorkbook( workbook );
-        Document doc = excelToHtmlConverter.getDocument();
-        workbook.close();
-        return doc;
+        return excelToHtmlConverter.getDocument();
     }
 
-    private String cssClassContainerCell = null;
+    private String cssClassContainerCell;
 
-    private String cssClassContainerDiv = null;
+    private String cssClassContainerDiv;
 
     private String cssClassPrefixCell = "c";
 
@@ -134,11 +169,11 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
 
     private String cssClassPrefixTable = "t";
 
-    private Map<Short, String> excelStyleToClass = new LinkedHashMap<Short, String>();
+    private Map<Short, String> excelStyleToClass = new LinkedHashMap<>();
 
     private final HtmlDocumentFacade htmlDocumentFacade;
 
-    private boolean useDivsToSpan = false;
+    private boolean useDivsToSpan;
 
     public ExcelToHtmlConverter( Document doc )
     {
@@ -159,8 +194,8 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
 
         switch (cellStyle.getFillPattern()) {
             // no fill
-            case 0: break;
-            case 1:
+            case NO_FILL: break;
+            case SOLID_FOREGROUND:
                 final HSSFColor foregroundColor = cellStyle.getFillForegroundColorColor();
                 if ( foregroundColor == null ) break;
                 String fgCol = ExcelToHtmlUtils.getColor( foregroundColor );
@@ -190,9 +225,9 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
     }
 
     private void buildStyle_border( HSSFWorkbook workbook, StringBuilder style,
-            String type, short xlsBorder, short borderColor )
+            String type, BorderStyle xlsBorder, short borderColor )
     {
-        if ( xlsBorder == HSSFCellStyle.BORDER_NONE ) {
+        if ( xlsBorder == BorderStyle.NONE ) {
             return;
         }
 
@@ -215,15 +250,9 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
     void buildStyle_font( HSSFWorkbook workbook, StringBuilder style,
             HSSFFont font )
     {
-        switch ( font.getBoldweight() )
+        if ( font.getBold() )
         {
-        case HSSFFont.BOLDWEIGHT_BOLD:
             style.append( "font-weight:bold;" );
-            break;
-        case HSSFFont.BOLDWEIGHT_NORMAL:
-            // by default, not not increase HTML size
-            // style.append( "font-weight: normal; " );
-            break;
         }
 
         final HSSFColor fontColor = workbook.getCustomPalette().getColor(
@@ -295,14 +324,14 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
         String value;
         switch ( cell.getCellType() )
         {
-        case HSSFCell.CELL_TYPE_STRING:
+        case STRING:
             // XXX: enrich
             value = cell.getRichStringCellValue().getString();
             break;
-        case HSSFCell.CELL_TYPE_FORMULA:
+        case FORMULA:
             switch ( cell.getCachedFormulaResultType() )
             {
-            case HSSFCell.CELL_TYPE_STRING:
+            case STRING:
                 HSSFRichTextString str = cell.getRichStringCellValue();
                 if ( str != null && str.length() > 0 )
                 {
@@ -313,16 +342,16 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
                     value = ExcelToHtmlUtils.EMPTY;
                 }
                 break;
-            case HSSFCell.CELL_TYPE_NUMERIC:
+            case NUMERIC:
                 double nValue = cell.getNumericCellValue();
                 short df = cellStyle.getDataFormat();
                 String dfs = cellStyle.getDataFormatString();
                 value = _formatter.formatRawCellContents(nValue, df, dfs);
                 break;
-            case HSSFCell.CELL_TYPE_BOOLEAN:
+            case BOOLEAN:
                 value = String.valueOf( cell.getBooleanCellValue() );
                 break;
-            case HSSFCell.CELL_TYPE_ERROR:
+            case ERROR:
                 value = ErrorEval.getText( cell.getErrorCellValue() );
                 break;
             default:
@@ -334,16 +363,16 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
                 break;
             }
             break;
-        case HSSFCell.CELL_TYPE_BLANK:
+        case BLANK:
             value = ExcelToHtmlUtils.EMPTY;
             break;
-        case HSSFCell.CELL_TYPE_NUMERIC:
+        case NUMERIC:
             value = _formatter.formatCellValue( cell );
             break;
-        case HSSFCell.CELL_TYPE_BOOLEAN:
+        case BOOLEAN:
             value = String.valueOf( cell.getBooleanCellValue() );
             break;
-        case HSSFCell.CELL_TYPE_ERROR:
+        case ERROR:
             value = ErrorEval.getText( cell.getErrorCellValue() );
             break;
         default:
@@ -512,7 +541,7 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
         if ( maxColIx <= 0 )
             return 0;
 
-        final List<Element> emptyCells = new ArrayList<Element>( maxColIx );
+        final List<Element> emptyCells = new ArrayList<>(maxColIx);
 
         if ( isOutputRowNumbers() )
         {
@@ -637,8 +666,8 @@ public class ExcelToHtmlConverter extends AbstractExcelConverter
         final CellRangeAddress[][] mergedRanges = ExcelToHtmlUtils
                 .buildMergedRangesMap( sheet );
 
-        final List<Element> emptyRowElements = new ArrayList<Element>(
-                physicalNumberOfRows );
+        final List<Element> emptyRowElements = new ArrayList<>(
+                physicalNumberOfRows);
         int maxSheetColumns = 1;
         for ( int r = sheet.getFirstRowNum(); r <= sheet.getLastRowNum(); r++ )
         {

@@ -32,28 +32,30 @@ import org.apache.poi.hssf.usermodel.*;
  *
  * @author Jason Height
  */
-public class SVRowHeader extends JList {
+public class SVRowHeader extends JList<Object> {
   /** This model simply returns an integer number up to the number of rows
    *  that are present in the sheet.
    *
    */
-  private class SVRowHeaderModel extends AbstractListModel {
+  private class SVRowHeaderModel extends AbstractListModel<Object> {
     private HSSFSheet sheet;
 
     public SVRowHeaderModel(HSSFSheet sheet) {
       this.sheet = sheet;
     }
 
+    @Override
     public int getSize() {
     	return sheet.getLastRowNum() + 1;
     }
+    @Override
     public Object getElementAt(int index) {
       return Integer.toString(index+1);
     }
   }
 
   /** Renderes the row number*/
-  private class RowHeaderRenderer extends JLabel implements ListCellRenderer {
+  private class RowHeaderRenderer extends JLabel implements ListCellRenderer<Object> {
     private HSSFSheet sheet;
     private int extraHeight;
 
@@ -69,6 +71,7 @@ public class SVRowHeader extends JList {
       setFont(header.getFont());
     }
 
+    @Override
     public Component getListCellRendererComponent( JList list,
            Object value, int index, boolean isSelected, boolean cellHasFocus) {
       Dimension d = getPreferredSize();
@@ -87,7 +90,7 @@ public class SVRowHeader extends JList {
   }
 
   public SVRowHeader(HSSFSheet sheet, JTable table, int extraHeight) {
-    ListModel lm = new SVRowHeaderModel(sheet);
+    ListModel<Object> lm = new SVRowHeaderModel(sheet);
     this.setModel(lm);
 
     setFixedCellWidth(50);

@@ -32,6 +32,7 @@ import java.util.Map;
 
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.xslf.XSLFTestDataSamples;
 import org.junit.Test;
 import org.openxmlformats.schemas.presentationml.x2006.main.CTPicture;
@@ -113,7 +114,7 @@ public class TestXSLFPictureShape {
         XMLSlideShow ppt2 = XSLFTestDataSamples.writeOutAndReadBack(ppt1);
         ppt1.close();
         // pictures keyed by file name
-        Map<String, XSLFPictureData> pics = new HashMap<String, XSLFPictureData>();
+        Map<String, XSLFPictureData> pics = new HashMap<>();
         for(XSLFPictureData p : ppt2.getPictureData()){
             pics.put(p.getFileName(), p);
         }
@@ -160,21 +161,60 @@ public class TestXSLFPictureShape {
         XSLFPictureShape shape1 = slide1.createPicture(pdata1);
         CTPicture ctPic1 = (CTPicture)shape1.getXmlObject();
         ctPic1.getNvPicPr().getNvPr().addNewCustDataLst().addNewTags().setId("rId99");
-        
-        XMLSlideShow ppt2 = new XMLSlideShow();
 
-        XSLFSlide slide2 = ppt2.createSlide().importContent(slide1);
-        XSLFPictureShape shape2 = (XSLFPictureShape)slide2.getShapes().get(0);
-
-        assertArrayEquals(data1, shape2.getPictureData().getData());
-
+        XSLFPictureShape shape2 = slide1.createPicture(pdata1);
         CTPicture ctPic2 = (CTPicture)shape2.getXmlObject();
-        assertFalse(ctPic2.getNvPicPr().getNvPr().isSetCustDataLst());
+        ctPic2.getNvPicPr().getNvPr().addNewCustDataLst().addNewTags().setId("rId99");
+
+        differentShapeName(shape1, shape2);
+
+        XSLFGroupShape group = slide1.createGroup();
+        XSLFTextBox tb1 = group.createTextBox();
+        XSLFTextBox tb2 = group.createTextBox();
+
+        assertFalse("We should have different names now, but had: " + tb1.getShapeName() + " for both",
+                tb1.getShapeName().equals(tb2.getShapeName()));
+
+        XMLSlideShow pptCopy = new XMLSlideShow();
+
+        XSLFSlide slideCopy = pptCopy.createSlide().importContent(slide1);
+        XSLFPictureShape shapeCopy1 = (XSLFPictureShape)slideCopy.getShapes().get(0);
+
+        assertArrayEquals(data1, shapeCopy1.getPictureData().getData());
+        assertEquals(shape1.getShapeName(), shapeCopy1.getShapeName());
+
+        CTPicture ctPicCopy1 = (CTPicture)shapeCopy1.getXmlObject();
+        assertFalse(ctPicCopy1.getNvPicPr().getNvPr().isSetCustDataLst());
+
+        XSLFPictureShape shapeCopy2 = (XSLFPictureShape)slideCopy.getShapes().get(1);
+
+        assertArrayEquals(data1, shapeCopy2.getPictureData().getData());
+        assertEquals(shape2.getShapeName(), shapeCopy2.getShapeName());
+
+        CTPicture ctPicCopy2 = (CTPicture)shapeCopy2.getXmlObject();
+        assertFalse(ctPicCopy2.getNvPicPr().getNvPr().isSetCustDataLst());
+
+        differentShapeName(shapeCopy1, shapeCopy2);
+
+        XSLFGroupShape groupCopy = (XSLFGroupShape) slideCopy.getShapes().get(2);
+        XSLFTextBox tbCopy1 = (XSLFTextBox) groupCopy.getShapes().get(0);
+        XSLFTextBox tbCopy2 = (XSLFTextBox) groupCopy.getShapes().get(1);
+
+        assertEquals(group.getShapeName(), groupCopy.getShapeName());
+        assertEquals(tb1.getShapeName(), tbCopy1.getShapeName());
+        assertEquals(tb2.getShapeName(), tbCopy2.getShapeName());
+
+        differentShapeName(tb1, tb2);
 
         ppt1.close();
-        ppt2.close();
+        pptCopy.close();
     }
-    
+
+    private void differentShapeName(XSLFShape shape1, XSLFShape shape2) {
+        assertFalse("We should have different names now, but had: " + shape1.getShapeName() + " for both",
+                shape1.getShapeName().equals(shape2.getShapeName()));
+    }
+
     @Test
     public void bug58663() throws IOException {
         InputStream is = _slTests.openResourceAsStream("shapes.pptx");
@@ -192,5 +232,19 @@ public class TestXSLFPictureShape {
         XMLSlideShow ppt2 = new XMLSlideShow(new ByteArrayInputStream(bos.toByteArray()));
         assertTrue(ppt2.getPictureData().isEmpty());
         ppt2.close();
+    }
+    
+    @Test
+    public void testTiffImageBug59742() throws Exception {
+        XMLSlideShow slideShow = new XMLSlideShow();
+        final InputStream tiffStream = _slTests.openResourceAsStream("testtiff.tif");
+        final byte[] pictureData = IOUtils.toByteArray(tiffStream);
+        IOUtils.closeQuietly(tiffStream);
+        
+        XSLFPictureData pic = slideShow.addPicture(pictureData, PictureType.TIFF);
+        assertEquals("image/tiff", pic.getContentType());
+        assertEquals("image1.tiff", pic.getFileName());
+        
+        slideShow.close();
     }
 }

@@ -19,17 +19,6 @@ package org.apache.poi.ss.usermodel;
 
 
 public interface Font {
-    /**
-     * Normal boldness (not bold)
-     */
-
-    public final static short BOLDWEIGHT_NORMAL = 0x190;
-
-    /**
-     * Bold boldness (bold)
-     */
-
-    public final static short BOLDWEIGHT_BOLD = 0x2bc;
 
     /**
      * normal type of black color.
@@ -281,9 +270,7 @@ public interface Font {
      */
     public short getIndex();
 
-    public void setBoldweight(short boldweight);
     public void setBold(boolean bold);
 
-    public short getBoldweight();
     public boolean getBold();
 }

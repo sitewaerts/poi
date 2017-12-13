@@ -25,17 +25,18 @@ import org.apache.poi.ddf.EscherContainerRecord;
 import org.apache.poi.ddf.EscherDgRecord;
 import org.apache.poi.ddf.EscherDggRecord;
 import org.apache.poi.ddf.EscherSpRecord;
+import org.apache.poi.hslf.exceptions.HSLFException;
 import org.apache.poi.hslf.model.Comment;
 import org.apache.poi.hslf.model.HeadersFooters;
 import org.apache.poi.hslf.record.ColorSchemeAtom;
 import org.apache.poi.hslf.record.Comment2000;
 import org.apache.poi.hslf.record.EscherTextboxWrapper;
 import org.apache.poi.hslf.record.HeadersFootersContainer;
-import org.apache.poi.hslf.record.Record;
 import org.apache.poi.hslf.record.RecordContainer;
 import org.apache.poi.hslf.record.RecordTypes;
 import org.apache.poi.hslf.record.SSSlideInfoAtom;
 import org.apache.poi.hslf.record.SlideAtom;
+import org.apache.poi.hslf.record.SlideAtomLayout.SlideLayoutType;
 import org.apache.poi.hslf.record.SlideListWithText.SlideAtomsSet;
 import org.apache.poi.hslf.record.StyleTextProp9Atom;
 import org.apache.poi.hslf.record.TextHeaderAtom;
@@ -58,7 +59,7 @@ import org.apache.poi.sl.usermodel.Slide;
 public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTextParagraph> {
 	private int _slideNo;
 	private SlideAtomsSet _atomSet;
-	private final List<List<HSLFTextParagraph>> _paragraphs = new ArrayList<List<HSLFTextParagraph>>();
+	private final List<List<HSLFTextParagraph>> _paragraphs = new ArrayList<>();
 	private HSLFNotes _notes; // usermodel needs to set this
 
 	/**
@@ -84,7 +85,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
 		    // Grab text from SlideListWithTexts entries
 		    _paragraphs.addAll(HSLFTextParagraph.findTextParagraphs(_atomSet.getSlideRecords()));
 	        if (_paragraphs.isEmpty()) {
-	            throw new RuntimeException("No text records found for slide");
+	            throw new HSLFException("No text records found for slide");
 	        }
 		} else {
 			// No text on the slide, must just be pictures
@@ -92,7 +93,9 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
 
 		// Grab text from slide's PPDrawing
 		for (List<HSLFTextParagraph> l : HSLFTextParagraph.findTextParagraphs(getPPDrawing(), this)) {
-		    if (!_paragraphs.contains(l)) _paragraphs.add(l);
+		    if (!_paragraphs.contains(l)) {
+                _paragraphs.add(l);
+            }
 		}
 	}
 
@@ -154,15 +157,15 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      *  <li> set shapeId for the container descriptor and background
      * </p>
      */
+    @Override
     public void onCreate(){
         //initialize drawing group id
         EscherDggRecord dgg = getSlideShow().getDocumentRecord().getPPDrawingGroup().getEscherDggRecord();
         EscherContainerRecord dgContainer = getSheetContainer().getPPDrawing().getDgContainer();
-        EscherDgRecord dg = (EscherDgRecord) HSLFShape.getEscherChild(dgContainer, EscherDgRecord.RECORD_ID);
+        EscherDgRecord dg = HSLFShape.getEscherChild(dgContainer, EscherDgRecord.RECORD_ID);
         int dgId = dgg.getMaxDrawingGroupId() + 1;
         dg.setOptions((short)(dgId << 4));
         dgg.setDrawingsSaved(dgg.getDrawingsSaved() + 1);
-        dgg.setMaxDrawingGroupId(dgId);
 
         for (EscherContainerRecord c : dgContainer.getChildContainers()) {
             EscherSpRecord spr = null;
@@ -177,7 +180,9 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
                 default:
                     break;
             }
-            if(spr != null) spr.setShapeId(allocateShapeId());
+            if(spr != null) {
+                spr.setShapeId(allocateShapeId());
+            }
         }
 
         //PPT doen't increment the number of saved shapes for group descriptor and background
@@ -214,7 +219,9 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
 	@Override
 	public String getTitle(){
 		for (List<HSLFTextParagraph> tp : getTextParagraphs()) {
-		    if (tp.isEmpty()) continue;
+		    if (tp.isEmpty()) {
+                continue;
+            }
 			int type = tp.get(0).getRunType();
 			switch (type) {
     			case TextHeaderAtom.CENTER_TITLE_TYPE:
@@ -231,7 +238,8 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
 	/**
 	 * Returns an array of all the TextRuns found
 	 */
-	public List<List<HSLFTextParagraph>> getTextParagraphs() { return _paragraphs; }
+	@Override
+    public List<List<HSLFTextParagraph>> getTextParagraphs() { return _paragraphs; }
 
 	/**
 	 * Returns the (public facing) page number of this slide
@@ -258,13 +266,18 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      *
      * @return the master sheet associated with this slide.
      */
-     public HSLFMasterSheet getMasterSheet(){
+     @Override
+    public HSLFMasterSheet getMasterSheet(){
         int masterId = getSlideRecord().getSlideAtom().getMasterID();
         for (HSLFSlideMaster sm : getSlideShow().getSlideMasters()) {
-            if (masterId == sm._getSheetNumber()) return sm;
+            if (masterId == sm._getSheetNumber()) {
+                return sm;
+            }
         }
         for (HSLFTitleMaster tm : getSlideShow().getTitleMasters()) {
-            if (masterId == tm._getSheetNumber()) return tm;
+            if (masterId == tm._getSheetNumber()) {
+                return tm;
+            }
         }
         return null;
     }
@@ -284,6 +297,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      * @param flag  <code>true</code> if the slide follows master,
      * <code>false</code> otherwise
      */
+    @Override
     public void setFollowMasterBackground(boolean flag){
         SlideAtom sa = getSlideRecord().getSlideAtom();
         sa.setFollowMasterBackground(flag);
@@ -295,6 +309,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      * @return <code>true</code> if the slide follows master background,
      * <code>false</code> otherwise
      */
+    @Override
     public boolean getFollowMasterBackground(){
         SlideAtom sa = getSlideRecord().getSlideAtom();
         return sa.getFollowMasterBackground();
@@ -306,6 +321,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      * @param flag  <code>true</code> if the slide draws master sheet objects,
      * <code>false</code> otherwise
      */
+    @Override
     public void setFollowMasterObjects(boolean flag){
         SlideAtom sa = getSlideRecord().getSlideAtom();
         sa.setFollowMasterObjects(flag);
@@ -339,6 +355,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      * @return <code>true</code> if the slide draws master sheet objects,
      * <code>false</code> otherwise
      */
+    @Override
     public boolean getFollowMasterObjects(){
         SlideAtom sa = getSlideRecord().getSlideAtom();
         return sa.getFollowMasterObjects();
@@ -347,7 +364,8 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
     /**
      * Background for this slide.
      */
-     public HSLFBackground getBackground() {
+     @Override
+    public HSLFBackground getBackground() {
         if(getFollowMasterBackground()) {
             return getMasterSheet().getBackground();
         }
@@ -357,6 +375,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
     /**
      * Color scheme for this slide.
      */
+    @Override
     public ColorSchemeAtom getColorScheme() {
         if(getFollowMasterScheme()){
             return getMasterSheet().getColorScheme();
@@ -422,28 +441,11 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
      *
      * @return Header / Footer settings for this slide
      */
-     public HeadersFooters getHeadersFooters(){
-        HeadersFootersContainer hdd = null;
-        Record[] ch = getSheetContainer().getChildRecords();
-        boolean ppt2007 = false;
-        for (int i = 0; i < ch.length; i++) {
-            if(ch[i] instanceof HeadersFootersContainer){
-                hdd = (HeadersFootersContainer)ch[i];
-            } else if (ch[i].getRecordType() == RecordTypes.RoundTripContentMasterId.typeID){
-                ppt2007 = true;
-            }
-        }
-        boolean newRecord = false;
-        if(hdd == null && !ppt2007) {
-            return getSlideShow().getSlideHeadersFooters();
-        }
-        if(hdd == null) {
-            hdd = new HeadersFootersContainer(HeadersFootersContainer.SlideHeadersFootersContainer);
-            newRecord = true;
-        }
-        return new HeadersFooters(hdd, this, newRecord, ppt2007);
+    public HeadersFooters getHeadersFooters(){
+        return new HeadersFooters(this, HeadersFootersContainer.SlideHeadersFootersContainer);
     }
 
+    @Override
     protected void onAddTextShape(HSLFTextShape shape) {
         List<HSLFTextParagraph> newParas = shape.getTextParagraphs();
         _paragraphs.add(newParas);
@@ -458,6 +460,7 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
 		return this.getPPDrawing().getTextboxWrappers();
 	}
 
+	@Override
 	public void setHidden(boolean hidden) {
 		org.apache.poi.hslf.record.Slide cont =	getSlideRecord();
 
@@ -471,7 +474,8 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
 		slideInfo.setEffectTransitionFlagByBit(SSSlideInfoAtom.HIDDEN_BIT, hidden);
 	}
 
-	public boolean getHidden() {
+    @Override
+	public boolean isHidden() {
 		SSSlideInfoAtom slideInfo =
 			(SSSlideInfoAtom)getSlideRecord().findFirstOfType(RecordTypes.SSSlideInfoAtom.typeID);
 		return (slideInfo == null)
@@ -486,18 +490,40 @@ public final class HSLFSlide extends HSLFSheet implements Slide<HSLFShape,HSLFTe
         draw.draw(graphics);
     }
     
+    @Override
     public boolean getFollowMasterColourScheme() {
-        // TODO Auto-generated method stub
         return false;
     }
 
+    @Override
     public void setFollowMasterColourScheme(boolean follow) {
-        // TODO Auto-generated method stub
-
     }
     
     @Override
     public boolean getFollowMasterGraphics() {
         return getFollowMasterObjects();
+    }
+
+    @Override
+    public boolean getDisplayPlaceholder(Placeholder placeholder) {
+        HeadersFooters hf = getHeadersFooters();
+        SlideLayoutType slt =  getSlideRecord().getSlideAtom().getSSlideLayoutAtom().getGeometryType();
+        boolean isTitle =
+            (slt == SlideLayoutType.TITLE_SLIDE || slt == SlideLayoutType.TITLE_ONLY || slt == SlideLayoutType.MASTER_TITLE);
+        if (hf != null) {
+            switch (placeholder) {
+            case DATETIME:
+                return hf.isDateTimeVisible() && !isTitle;
+            case SLIDE_NUMBER:
+                return hf.isSlideNumberVisible() && !isTitle;
+            case HEADER:
+                return hf.isHeaderVisible() && !isTitle;
+            case FOOTER:
+                return hf.isFooterVisible() && !isTitle;
+            default:
+                break;    
+            }
+        }
+        return false;
     }
 }

@@ -19,7 +19,9 @@ package org.apache.poi.sl.usermodel;
 
 import java.awt.Dimension;
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
@@ -64,16 +66,46 @@ public interface SlideShow<
      */
     List<? extends PictureData> getPictureData();
 
-        
     /**
-     * Adds a picture to the workbook.
+     * Adds a picture to the presentation.
      *
      * @param pictureData       The bytes of the picture
      * @param format            The format of the picture.
      *
-     * @return the new picture reference
+     * @return the picture data reference.
      */
     PictureData addPicture(byte[] pictureData, PictureType format) throws IOException;
+
+    /**
+     * Adds a picture to the presentation.
+     *
+     * @param is	        The stream to read the image from
+     * @param format        The format of the picture.
+     *
+     * @return the picture data reference.
+     * @since 3.15 beta 1
+     */
+    PictureData addPicture(InputStream is, PictureType format) throws IOException;
+
+    /**
+     * Adds a picture to the presentation.
+     *
+     * @param pict              The file containing the image to add
+     * @param format            The format of the picture.
+     *
+     * @return the picture data reference
+     * @since 3.15 beta 1
+     */
+    PictureData addPicture(File pict, PictureType format) throws IOException;
+    
+    /**
+     * check if a picture with this picture data already exists in this presentation
+     * 
+     * @param pictureData The picture data to find in the SlideShow
+     * @return {@code null} if picture data is not found in this slideshow
+     * @since 3.15 beta 3
+     */
+    PictureData findPictureData(byte[] pictureData);
 
     /**
      * Writes out the slideshow file the is represented by an instance of this

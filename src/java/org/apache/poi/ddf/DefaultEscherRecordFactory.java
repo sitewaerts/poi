@@ -26,9 +26,6 @@ import org.apache.poi.util.LittleEndian;
 /**
  * Generates escher records when provided the byte array containing those records.
  *
- * @author Glen Stampoultzis
- * @author Nick Burch   (nick at torchbox . com)
- *
  * @see EscherRecordFactory
  */
 public class DefaultEscherRecordFactory implements EscherRecordFactory {
@@ -48,14 +45,7 @@ public class DefaultEscherRecordFactory implements EscherRecordFactory {
         // no instance initialisation
     }
 
-    /**
-     * Generates an escher record including the any children contained under that record.
-     * An exception is thrown if the record could not be generated.
-     *
-     * @param data   The byte array containing the records
-     * @param offset The starting offset into the byte array
-     * @return The generated escher record
-     */
+    @Override
     public EscherRecord createRecord(byte[] data, int offset) {
         short options = LittleEndian.getShort( data, offset );
         short recordId = LittleEndian.getShort( data, offset + 2 );
@@ -95,12 +85,12 @@ public class DefaultEscherRecordFactory implements EscherRecordFactory {
         }
 
         Constructor<? extends EscherRecord> recordConstructor = recordsMap.get(Short.valueOf(recordId));
-        EscherRecord escherRecord = null;
+        final EscherRecord escherRecord;
         if (recordConstructor == null) {
             return new UnknownEscherRecord();
         }
         try {
-            escherRecord = recordConstructor.newInstance(new Object[] {});
+            escherRecord = recordConstructor.newInstance();
         } catch (Exception e) {
             return new UnknownEscherRecord();
         }
@@ -118,12 +108,12 @@ public class DefaultEscherRecordFactory implements EscherRecordFactory {
      * @return The map containing the id/constructor pairs.
      */
     protected static Map<Short, Constructor<? extends EscherRecord>> recordsToMap(Class<?>[] recClasses) {
-        Map<Short, Constructor<? extends EscherRecord>> result = new HashMap<Short, Constructor<? extends EscherRecord>>();
+        Map<Short, Constructor<? extends EscherRecord>> result = new HashMap<>();
         final Class<?>[] EMPTY_CLASS_ARRAY = new Class[0];
 
-        for (int i = 0; i < recClasses.length; i++) {
+        for (Class<?> recClass : recClasses) {
             @SuppressWarnings("unchecked")
-            Class<? extends EscherRecord> recCls = (Class<? extends EscherRecord>) recClasses[i];
+            Class<? extends EscherRecord> recCls = (Class<? extends EscherRecord>) recClass;
             short sid;
             try {
                 sid = recCls.getField("RECORD_ID").getShort(null);
@@ -136,7 +126,7 @@ public class DefaultEscherRecordFactory implements EscherRecordFactory {
             }
             Constructor<? extends EscherRecord> constructor;
             try {
-                constructor = recCls.getConstructor( EMPTY_CLASS_ARRAY );
+                constructor = recCls.getConstructor(EMPTY_CLASS_ARRAY);
             } catch (NoSuchMethodException e) {
                 throw new RuntimeException(e);
             }

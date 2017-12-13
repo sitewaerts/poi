@@ -20,6 +20,7 @@ package org.apache.poi.hslf.record;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.StringUtil;
 
@@ -32,6 +33,10 @@ import org.apache.poi.util.StringUtil;
  */
 
 public final class CString extends RecordAtom {
+
+	//arbitrarily selected; may need to increase
+	private static final int MAX_RECORD_LENGTH = 1_000_000;
+
 	private byte[] _header;
 	private static long _type = 4026l;
 
@@ -66,7 +71,7 @@ public final class CString extends RecordAtom {
 	 * The meaning of the count is specific to the type of the parent record
 	 */
 	public void setOptions(int count) {
-		LittleEndian.putShort(_header, (short)count);
+		LittleEndian.putShort(_header, 0, (short)count);
 	}
 
 	/* *************** record code follows ********************** */
@@ -83,7 +88,7 @@ public final class CString extends RecordAtom {
 		System.arraycopy(source,start,_header,0,8);
 
 		// Grab the text
-		_text = new byte[len-8];
+		_text = IOUtils.safelyAllocate(len-8, MAX_RECORD_LENGTH);
 		System.arraycopy(source,start+8,_text,0,len-8);
 	}
 	/**

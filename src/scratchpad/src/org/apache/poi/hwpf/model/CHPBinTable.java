@@ -17,6 +17,7 @@
 
 package org.apache.poi.hwpf.model;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.poi.hwpf.model.io.HWPFFileSystem;
-import org.apache.poi.hwpf.model.io.HWPFOutputStream;
 import org.apache.poi.hwpf.sprm.SprmBuffer;
 import org.apache.poi.hwpf.sprm.SprmIterator;
 import org.apache.poi.hwpf.sprm.SprmOperation;
@@ -53,7 +53,7 @@ public class CHPBinTable
             .getLogger( CHPBinTable.class );
 
   /** List of character properties.*/
-  protected List<CHPX> _textRuns = new ArrayList<CHPX>();
+  protected List<CHPX> _textRuns = new ArrayList<>();
 
   public CHPBinTable()
   {
@@ -171,15 +171,14 @@ public class CHPBinTable
             start = System.currentTimeMillis();
         }
 
-        List<CHPX> oldChpxSortedByStartPos = new ArrayList<CHPX>( _textRuns );
-        Collections.sort( oldChpxSortedByStartPos,
-                PropertyNode.StartComparator.instance );
+        List<CHPX> oldChpxSortedByStartPos = new ArrayList<>(_textRuns);
+        oldChpxSortedByStartPos.sort(PropertyNode.StartComparator.instance);
 
         logger.log( POILogger.DEBUG, "CHPX sorted by start position in ",
                 Long.valueOf( System.currentTimeMillis() - start ), " ms" );
         start = System.currentTimeMillis();
 
-        final Map<CHPX, Integer> chpxToFileOrder = new IdentityHashMap<CHPX, Integer>();
+        final Map<CHPX, Integer> chpxToFileOrder = new IdentityHashMap<>();
         {
             int counter = 0;
             for ( CHPX chpx : _textRuns )
@@ -203,15 +202,15 @@ public class CHPBinTable
 
         List<Integer> textRunsBoundariesList;
         {
-            Set<Integer> textRunsBoundariesSet = new HashSet<Integer>();
+            Set<Integer> textRunsBoundariesSet = new HashSet<>();
             for ( CHPX chpx : _textRuns )
             {
                 textRunsBoundariesSet.add( Integer.valueOf( chpx.getStart() ) );
                 textRunsBoundariesSet.add( Integer.valueOf( chpx.getEnd() ) );
             }
             textRunsBoundariesSet.remove( Integer.valueOf( 0 ) );
-            textRunsBoundariesList = new ArrayList<Integer>(
-                    textRunsBoundariesSet );
+            textRunsBoundariesList = new ArrayList<>(
+                    textRunsBoundariesSet);
             Collections.sort( textRunsBoundariesList );
         }
 
@@ -219,15 +218,14 @@ public class CHPBinTable
                 Long.valueOf( System.currentTimeMillis() - start ), " ms" );
         start = System.currentTimeMillis();
 
-        List<CHPX> newChpxs = new LinkedList<CHPX>();
+        List<CHPX> newChpxs = new LinkedList<>();
         int lastTextRunStart = 0;
         for ( Integer objBoundary : textRunsBoundariesList )
         {
             final int boundary = objBoundary.intValue();
 
             final int startInclusive = lastTextRunStart;
-            final int endExclusive = boundary;
-            lastTextRunStart = endExclusive;
+            lastTextRunStart = boundary;
 
             int startPosition = binarySearch( oldChpxSortedByStartPos, boundary );
             startPosition = Math.abs( startPosition );
@@ -237,7 +235,7 @@ public class CHPBinTable
                     && oldChpxSortedByStartPos.get( startPosition ).getStart() >= boundary )
                 startPosition--;
 
-            List<CHPX> chpxs = new LinkedList<CHPX>();
+            List<CHPX> chpxs = new LinkedList<>();
             for ( int c = startPosition; c < oldChpxSortedByStartPos.size(); c++ )
             {
                 CHPX chpx = oldChpxSortedByStartPos.get( c );
@@ -246,7 +244,7 @@ public class CHPBinTable
                     break;
 
                 int left = Math.max( startInclusive, chpx.getStart() );
-                int right = Math.min( endExclusive, chpx.getEnd() );
+                int right = Math.min(boundary, chpx.getEnd() );
 
                 if ( left < right )
                 {
@@ -258,10 +256,10 @@ public class CHPBinTable
             {
                 logger.log( POILogger.WARN, "Text piece [",
                         Integer.valueOf( startInclusive ), "; ",
-                        Integer.valueOf( endExclusive ),
+                        Integer.valueOf(boundary),
                         ") has no CHPX. Creating new one." );
                 // create it manually
-                CHPX chpx = new CHPX( startInclusive, endExclusive,
+                CHPX chpx = new CHPX( startInclusive, boundary,
                         new SprmBuffer( 0 ) );
                 newChpxs.add( chpx );
                 continue;
@@ -272,26 +270,26 @@ public class CHPBinTable
                 // can we reuse existing?
                 CHPX existing = chpxs.get( 0 );
                 if ( existing.getStart() == startInclusive
-                        && existing.getEnd() == endExclusive )
+                        && existing.getEnd() == boundary)
                 {
                     newChpxs.add( existing );
                     continue;
                 }
             }
 
-            Collections.sort( chpxs, chpxFileOrderComparator );
+            chpxs.sort(chpxFileOrderComparator);
 
             SprmBuffer sprmBuffer = new SprmBuffer( 0 );
             for ( CHPX chpx : chpxs )
             {
                 sprmBuffer.append( chpx.getGrpprl(), 0 );
             }
-            CHPX newChpx = new CHPX( startInclusive, endExclusive, sprmBuffer );
+            CHPX newChpx = new CHPX( startInclusive, boundary, sprmBuffer );
             newChpxs.add( newChpx );
 
             continue;
         }
-        this._textRuns = new ArrayList<CHPX>( newChpxs );
+        this._textRuns = new ArrayList<>(newChpxs);
 
         logger.log( POILogger.DEBUG, "CHPX rebuilded in ",
                 Long.valueOf( System.currentTimeMillis() - start ), " ms (",
@@ -448,14 +446,14 @@ public class CHPBinTable
     public void writeTo( HWPFFileSystem sys, int fcMin,
             CharIndexTranslator translator ) throws IOException
     {
-        HWPFOutputStream docStream = sys.getStream( "WordDocument" );
-        HWPFOutputStream tableStream = sys.getStream( "1Table" );
+        ByteArrayOutputStream docStream = sys.getStream( "WordDocument" );
+        ByteArrayOutputStream tableStream = sys.getStream( "1Table" );
 
         writeTo( docStream, tableStream, fcMin, translator );
     }
 
-    public void writeTo( HWPFOutputStream wordDocumentStream,
-            HWPFOutputStream tableStream, int fcMin,
+    public void writeTo( ByteArrayOutputStream wordDocumentStream,
+            ByteArrayOutputStream tableStream, int fcMin,
             CharIndexTranslator translator ) throws IOException
     {
 
@@ -470,7 +468,7 @@ public class CHPBinTable
         PlexOfCps bte = new PlexOfCps( 4 );
 
     // each FKP must start on a 512 byte page.
-    int docOffset = wordDocumentStream.getOffset();
+    int docOffset = wordDocumentStream.size();
     int mod = docOffset % POIFSConstants.SMALLER_BIG_BLOCK_SIZE;
     if (mod != 0)
     {
@@ -479,7 +477,7 @@ public class CHPBinTable
     }
 
     // get the page number for the first fkp
-    docOffset = wordDocumentStream.getOffset();
+    docOffset = wordDocumentStream.size();
     int pageNum = docOffset/POIFSConstants.SMALLER_BIG_BLOCK_SIZE;
 
         // get the ending fc
@@ -511,7 +509,7 @@ public class CHPBinTable
       }
 
       byte[] intHolder = new byte[4];
-      LittleEndian.putInt(intHolder, pageNum++);
+      LittleEndian.putInt(intHolder, 0, pageNum++);
       bte.addProperty(new GenericPropertyNode(start, end, intHolder));
 
     }

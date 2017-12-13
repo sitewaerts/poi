@@ -40,11 +40,11 @@ import org.apache.poi.poifs.eventfilesystem.POIFSReaderListener;
 public class ReaderWriter
     implements POIFSReaderListener, POIFSWriterListener
 {
-    private POIFSFileSystem filesystem;
-    private DirectoryEntry  root;
+    private final POIFSFileSystem filesystem;
+    private final DirectoryEntry  root;
 
     // keys are DocumentDescriptors, values are byte[]s
-    private Map<DocumentDescriptor, byte[]>             dataMap;
+    private final Map<DocumentDescriptor, byte[]> dataMap;
 
     /**
      * Constructor ReaderWriter
@@ -58,7 +58,7 @@ public class ReaderWriter
     {
         this.filesystem = filesystem;
         root            = this.filesystem.getRoot();
-        dataMap         = new HashMap<DocumentDescriptor, byte[]>();
+        dataMap         = new HashMap<>();
     }
 
     /**
@@ -93,6 +93,8 @@ public class ReaderWriter
 
             filesystem.writeFilesystem(ostream);
             ostream.close();
+
+            filesystem.close();
         }
     }
 
@@ -105,6 +107,7 @@ public class ReaderWriter
      * @param event the POIFSReaderEvent
      */
 
+    @Override
     public void processPOIFSReaderEvent(final POIFSReaderEvent event)
     {
         DocumentInputStream istream = event.getStream();
@@ -167,6 +170,7 @@ public class ReaderWriter
      * @param event the POIFSWriterEvent
      */
 
+    @Override
     public void processPOIFSWriterEvent(final POIFSWriterEvent event)
     {
         try

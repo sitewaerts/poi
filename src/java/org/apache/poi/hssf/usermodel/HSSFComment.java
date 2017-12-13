@@ -30,6 +30,7 @@ import org.apache.poi.hssf.record.ObjRecord;
 import org.apache.poi.hssf.record.TextObjectRecord;
 import org.apache.poi.ss.usermodel.ClientAnchor;
 import org.apache.poi.ss.usermodel.Comment;
+import org.apache.poi.ss.util.CellAddress;
 
 /**
  * Represents a cell comment - a sticky note associated with a cell.
@@ -132,9 +133,9 @@ public class HSSFComment extends HSSFTextbox implements Comment {
 
     @Override
     void setShapeId(int shapeId) {
-    	if(shapeId > 65535) {
-    		throw new IllegalArgumentException("Cannot add more than " + 65535 + " shapes");
-    	}
+        if(shapeId > 65535) {
+            throw new IllegalArgumentException("Cannot add more than " + 65535 + " shapes");
+        }
         super.setShapeId(shapeId);
         CommonObjectDataSubRecord cod = (CommonObjectDataSubRecord) getObjRecord().getSubRecords().get(0);
         cod.setObjectId(shapeId);
@@ -142,22 +143,41 @@ public class HSSFComment extends HSSFTextbox implements Comment {
     }
 
     /**
-     * Returns whether this comment is visible.
+     * Sets whether this comment is visible.
      *
      * @param visible <code>true</code> if the comment is visible, <code>false</code> otherwise
      */
+    @Override
     public void setVisible(boolean visible) {
         _note.setFlags(visible ? NoteRecord.NOTE_VISIBLE : NoteRecord.NOTE_HIDDEN);
         setHidden(!visible);
     }
 
     /**
-     * Sets whether this comment is visible.
+     * Returns whether this comment is visible.
      *
      * @return <code>true</code> if the comment is visible, <code>false</code> otherwise
      */
+    @Override
     public boolean isVisible() {
         return _note.getFlags() == NoteRecord.NOTE_VISIBLE;
+    }
+    
+    @Override
+    public CellAddress getAddress() {
+        return new CellAddress(getRow(), getColumn());
+    }
+    
+    @Override
+    public void setAddress(CellAddress address) {
+        setRow(address.getRow());
+        setColumn(address.getColumn());
+    }
+    
+    @Override
+    public void setAddress(int row, int col) {
+        setRow(row);
+        setColumn(col);
     }
 
     /**
@@ -165,6 +185,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
      *
      * @return the 0-based row of the cell that contains the comment
      */
+    @Override
     public int getRow() {
         return _note.getRow();
     }
@@ -174,6 +195,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
      *
      * @param row the 0-based row of the cell that contains the comment
      */
+    @Override
     public void setRow(int row) {
         _note.setRow(row);
     }
@@ -183,6 +205,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
      *
      * @return the 0-based column of the cell that contains the comment
      */
+    @Override
     public int getColumn() {
         return _note.getColumn();
     }
@@ -192,6 +215,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
      *
      * @param col the 0-based column of the cell that contains the comment
      */
+    @Override
     public void setColumn(int col) {
         _note.setColumn(col);
     }
@@ -201,6 +225,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
      *
      * @return the name of the original author of the comment
      */
+    @Override
     public String getAuthor() {
         return _note.getAuthor();
     }
@@ -210,6 +235,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
      *
      * @param author the name of the original author of the comment
      */
+    @Override
     public void setAuthor(String author) {
         if (_note != null) _note.setAuthor(author);
     }
@@ -246,6 +272,7 @@ public class HSSFComment extends HSSFTextbox implements Comment {
         throw new IllegalStateException("Shape type can not be changed in "+this.getClass().getSimpleName());
     }
 
+    @Override
     public void afterRemove(HSSFPatriarch patriarch){
         super.afterRemove(patriarch);
         patriarch.getBoundAggregate().removeTailRecord(getNoteRecord());
@@ -292,5 +319,19 @@ public class HSSFComment extends HSSFTextbox implements Comment {
         } else {
             setPropertyValue(new EscherSimpleProperty(EscherProperties.GROUPSHAPE__PRINT, false, false, property.getPropertyValue() & GROUP_SHAPE_NOT_HIDDEN_MASK));
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof HSSFComment)) {
+            return false;
+        }
+        HSSFComment other = (HSSFComment) obj;
+        return getNoteRecord().equals(other.getNoteRecord());
+    }
+
+    @Override
+    public int hashCode() {
+        return ((getRow()*17) + getColumn())*31;
     }
 }

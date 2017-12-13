@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -59,8 +58,8 @@ import org.apache.poi.hssf.record.pivottable.ViewFieldsRecord;
 import org.apache.poi.hssf.record.pivottable.ViewSourceRecord;
 
 /**
- * Title:  Record Factory<P>
- * Description:  Takes a stream and outputs an array of Record objects.<P>
+ * Title:  Record Factory<p>
+ * Description:  Takes a stream and outputs an array of Record objects.
  *
  * @see org.apache.poi.hssf.eventmodel.EventRecordFactory
  */
@@ -78,6 +77,7 @@ public final class RecordFactory {
         public ReflectionConstructorRecordCreator(Constructor<? extends Record> c) {
             _c = c;
         }
+        @Override
         public Record create(RecordInputStream in) {
             Object[] args = { in, };
             try {
@@ -90,15 +90,16 @@ public final class RecordFactory {
                 throw new RuntimeException(e);
             } catch (InvocationTargetException e) {
                 Throwable t = e.getTargetException();
-                if (t instanceof RecordFormatException) {
-                    throw (RecordFormatException)t;
+                if (t instanceof org.apache.poi.util.RecordFormatException) {
+                    throw (org.apache.poi.util.RecordFormatException)t;
                 } else if (t instanceof EncryptedDocumentException) {
                     throw (EncryptedDocumentException)t;
                 } else {
-                    throw new RecordFormatException("Unable to construct record instance" , t);
+                    throw new org.apache.poi.util.RecordFormatException("Unable to construct record instance" , t);
                 }
             }
         }
+        @Override
         public Class<? extends Record> getRecordClass() {
             return _c.getDeclaringClass();
         }
@@ -112,6 +113,7 @@ public final class RecordFactory {
         public ReflectionMethodRecordCreator(Method m) {
             _m = m;
         }
+        @Override
         public Record create(RecordInputStream in) {
             Object[] args = { in, };
             try {
@@ -121,9 +123,10 @@ public final class RecordFactory {
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             } catch (InvocationTargetException e) {
-                throw new RecordFormatException("Unable to construct record instance" , e.getTargetException());
+                throw new org.apache.poi.util.RecordFormatException("Unable to construct record instance" , e.getTargetException());
             }
         }
+        @Override
         @SuppressWarnings("unchecked")
         public Class<? extends Record> getRecordClass() {
             return (Class<? extends Record>) _m.getDeclaringClass();
@@ -133,7 +136,7 @@ public final class RecordFactory {
     private static final Class<?>[] CONSTRUCTOR_ARGS = { RecordInputStream.class, };
 
     /**
-     * contains the classes for all the records we want to parse.<br/>
+     * contains the classes for all the records we want to parse.<br>
      * Note - this most but not *every* subclass of Record.
      */
     @SuppressWarnings("unchecked")
@@ -291,12 +294,16 @@ public final class RecordFactory {
     private static short[] _allKnownRecordSIDs;
 
     /**
-     * Debug / diagnosis method<br/>
-     * Gets the POI implementation class for a given <tt>sid</tt>.  Only a subset of the any BIFF
+     * Debug / diagnosis method<p>
+     *
+     * Gets the POI implementation class for a given {@code sid}.  Only a subset of the BIFF
      * records are actually interpreted by POI.  A few others are known but not interpreted
      * (see {@link UnknownRecord#getBiffName(int)}).
-     * @return the POI implementation class for the specified record <tt>sid</tt>.
-     * <code>null</code> if the specified record is not interpreted by POI.
+     *
+     * @param sid the record sid
+     *
+     * @return the POI implementation class for the specified record {@code sid}.
+     * {@code null} if the specified record is not interpreted by POI.
      */
     public static Class<? extends Record> getRecordClass(int sid) {
         I_RecordCreator rc = _recordCreatorsById.get(Integer.valueOf(sid));
@@ -305,9 +312,13 @@ public final class RecordFactory {
         }
         return rc.getRecordClass();
     }
+
     /**
      * create a record, if there are MUL records than multiple records
      * are returned digested into the non-mul form.
+     *
+     * @param in the RecordInputStream to read from
+     * @return the extracted records
      */
     public static Record [] createRecord(RecordInputStream in) {
         Record record = createSingleRecord(in);
@@ -337,6 +348,9 @@ public final class RecordFactory {
     /**
      * RK record is a slightly smaller alternative to NumberRecord
      * POI likes NumberRecord better
+     *
+     * @param rk the RK record to convert
+     * @return the NumberRecord
      */
     public static NumberRecord convertToNumberRecord(RKRecord rk) {
         NumberRecord num = new NumberRecord();
@@ -349,7 +363,10 @@ public final class RecordFactory {
     }
 
     /**
-     * Converts a {@link MulRKRecord} into an equivalent array of {@link NumberRecord}s
+     * Converts a {@link MulRKRecord} into an equivalent array of {@link NumberRecord NumberRecords}
+     *
+     * @param mrk the MulRKRecord to convert
+     * @return the equivalent array of {@link NumberRecord NumberRecords}
      */
     public static NumberRecord[] convertRKRecords(MulRKRecord mrk) {
         NumberRecord[] mulRecs = new NumberRecord[mrk.getNumColumns()];
@@ -366,7 +383,10 @@ public final class RecordFactory {
     }
 
     /**
-     * Converts a {@link MulBlankRecord} into an equivalent array of {@link BlankRecord}s
+     * Converts a {@link MulBlankRecord} into an equivalent array of {@link BlankRecord BlankRecords}
+     *
+     * @param mbk the MulBlankRecord to convert
+     * @return the equivalent array of {@link BlankRecord BlankRecords}
      */
     public static BlankRecord[] convertBlankRecords(MulBlankRecord mbk) {
         BlankRecord[] mulRecs = new BlankRecord[mbk.getNumColumns()];
@@ -389,9 +409,7 @@ public final class RecordFactory {
             short[] results = new short[ _recordCreatorsById.size() ];
             int i = 0;
 
-            for (Iterator<Integer> iterator = _recordCreatorsById.keySet().iterator(); iterator.hasNext(); ) {
-                Integer sid = iterator.next();
-
+            for (Integer sid : _recordCreatorsById.keySet()) {
                 results[i++] = sid.shortValue();
             }
             Arrays.sort(results);
@@ -407,12 +425,10 @@ public final class RecordFactory {
      * most of org.apache.poi.hssf.record.*
      */
     private static Map<Integer, I_RecordCreator> recordsToMap(Class<? extends Record> [] records) {
-        Map<Integer, I_RecordCreator> result = new HashMap<Integer, I_RecordCreator>();
-        Set<Class<?>> uniqueRecClasses = new HashSet<Class<?>>(records.length * 3 / 2);
+        Map<Integer, I_RecordCreator> result = new HashMap<>();
+        Set<Class<?>> uniqueRecClasses = new HashSet<>(records.length * 3 / 2);
 
-        for (int i = 0; i < records.length; i++) {
-
-            Class<? extends Record> recClass = records[ i ];
+        for (Class<? extends Record> recClass : records) {
             if(!Record.class.isAssignableFrom(recClass)) {
                 throw new RuntimeException("Invalid record sub-class (" + recClass.getName() + ")");
             }
@@ -427,13 +443,13 @@ public final class RecordFactory {
             try {
                 sid = recClass.getField("sid").getShort(null);
             } catch (Exception illegalArgumentException) {
-                throw new RecordFormatException(
+                throw new org.apache.poi.util.RecordFormatException(
                         "Unable to determine record types");
             }
             Integer key = Integer.valueOf(sid);
             if (result.containsKey(key)) {
                 Class<?> prevClass = result.get(key).getRecordClass();
-                throw new RuntimeException("duplicate record sid 0x" + 
+                throw new RuntimeException("duplicate record sid 0x" +
                         Integer.toHexString(sid).toUpperCase(Locale.ROOT)
                         + " for classes (" + recClass.getName() + ") and ("
                         + prevClass.getName() + ")");
@@ -466,11 +482,11 @@ public final class RecordFactory {
      *
      * @return an array of Records created from the InputStream
      *
-     * @exception RecordFormatException on error processing the InputStream
+     * @exception org.apache.poi.util.RecordFormatException on error processing the InputStream
      */
-    public static List<Record> createRecords(InputStream in) throws RecordFormatException {
+    public static List<Record> createRecords(InputStream in) throws org.apache.poi.util.RecordFormatException {
 
-        List<Record> records = new ArrayList<Record>(NUM_RECORDS);
+        List<Record> records = new ArrayList<>(NUM_RECORDS);
 
         RecordFactoryInputStream recStream = new RecordFactoryInputStream(in, true);
 

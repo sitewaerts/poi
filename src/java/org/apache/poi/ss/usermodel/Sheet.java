@@ -17,13 +17,14 @@
 
 package org.apache.poi.ss.usermodel;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.poi.hssf.util.PaneInformation;
 import org.apache.poi.ss.util.CellAddress;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.PaneInformation;
 
 /**
  * High level representation of a Excel worksheet.
@@ -90,7 +91,12 @@ public interface Sheet extends Iterable<Row> {
     int getPhysicalNumberOfRows();
 
     /**
-     * Gets the first row on the sheet
+     * Gets the first row on the sheet.
+     *
+     * Note: rows which had content before and were set to empty later might
+     * still be counted as rows by Excel and Apache POI, so the result of this
+     * method will include such rows and thus the returned value might be lower
+     * than expected!
      *
      * @return the number of the first logical row on the sheet (0-based)
      */
@@ -98,6 +104,11 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Gets the last row on the sheet
+     *
+     * Note: rows which had content before and were set to empty later might
+     * still be counted as rows by Excel and Apache POI, so the result of this
+     * method will include such rows and thus the returned value might be higher
+     * than expected!
      *
      * @return last row contained n this sheet (0-based)
      */
@@ -134,48 +145,43 @@ public interface Sheet extends Iterable<Row> {
     public boolean isRightToLeft();
 
     /**
-     * Set the width (in units of 1/256th of a character width)
+     * Set the width (in units of 1/256th of a character width)<p>
      *
-     * <p>
      * The maximum column width for an individual cell is 255 characters.
      * This value represents the number of characters that can be displayed
-     * in a cell that is formatted with the standard font (first font in the workbook).
-     * </p>
+     * in a cell that is formatted with the standard font (first font in the workbook).<p>
      *
-     * <p>
      * Character width is defined as the maximum digit width
      * of the numbers <code>0, 1, 2, ... 9</code> as rendered
-     * using the default font (first font in the workbook).
-     * <br/>
+     * using the default font (first font in the workbook).<p>
+     * 
      * Unless you are using a very special font, the default character is '0' (zero),
-     * this is true for Arial (default font font in HSSF) and Calibri (default font in XSSF)
-     * </p>
+     * this is true for Arial (default font font in HSSF) and Calibri (default font in XSSF)<p>
      *
-     * <p>
      * Please note, that the width set by this method includes 4 pixels of margin padding (two on each side),
      * plus 1 pixel padding for the gridlines (Section 3.3.1.12 of the OOXML spec).
-     * This results is a slightly less value of visible characters than passed to this method (approx. 1/2 of a character).
-     * </p>
-     * <p>
+     * This results is a slightly less value of visible characters than passed to this method (approx. 1/2 of a character).<p>
+     * 
      * To compute the actual number of visible characters,
-     *  Excel uses the following formula (Section 3.3.1.12 of the OOXML spec):
-     * </p>
+     * Excel uses the following formula (Section 3.3.1.12 of the OOXML spec):<p>
+     * 
      * <code>
      *     width = Truncate([{Number of Visible Characters} *
      *      {Maximum Digit Width} + {5 pixel padding}]/{Maximum Digit Width}*256)/256
      * </code>
-     * <p>Using the Calibri font as an example, the maximum digit width of 11 point font size is 7 pixels (at 96 dpi).
-     *  If you set a column width to be eight characters wide, e.g. <code>setColumnWidth(columnIndex, 8*256)</code>,
-     *  then the actual value of visible characters (the value shown in Excel) is derived from the following equation:
+     * 
+     * Using the Calibri font as an example, the maximum digit width of 11 point font size is 7 pixels (at 96 dpi).
+     * If you set a column width to be eight characters wide, e.g. <code>setColumnWidth(columnIndex, 8*256)</code>,
+     * then the actual value of visible characters (the value shown in Excel) is derived from the following equation:
      *  <code>
-            Truncate([numChars*7+5]/7*256)/256 = 8;
+     *      Truncate([numChars*7+5]/7*256)/256 = 8;
      *  </code>
      *
-     *  which gives <code>7.29</code>.
+     * which gives <code>7.29</code>.
      *
      * @param columnIndex - the column to set (0-based)
      * @param width - the width in units of 1/256th of a character width
-     * @throws IllegalArgumentException if width > 255*256 (the maximum column width in Excel is 255 characters)
+     * @throws IllegalArgumentException if width &gt; 255*256 (the maximum column width in Excel is 255 characters)
      */
     void setColumnWidth(int columnIndex, int width);
 
@@ -262,7 +268,7 @@ public interface Sheet extends Iterable<Row> {
      */
     public CellStyle getColumnStyle(int column);
 
-    /**
+    /*
      * Sets the CellStyle that applies to the given
      *  (0 based) column.
      */
@@ -275,6 +281,30 @@ public interface Sheet extends Iterable<Row> {
      * @return index of this region
      */
     int addMergedRegion(CellRangeAddress region);
+
+    /**
+     * Adds a merged region of cells (hence those cells form one).
+     * Skips validation. It is possible to create overlapping merged regions
+     * or create a merged region that intersects a multi-cell array formula
+     * with this formula, which may result in a corrupt workbook.
+     *
+     * To check for merged regions overlapping array formulas or other merged regions
+     * after addMergedRegionUnsafe has been called, call {@link #validateMergedRegions()}, which runs in O(n^2) time.
+     *
+     * @param region to merge
+     * @return index of this region
+     * @throws IllegalArgumentException if region contains fewer than 2 cells
+     */
+    int addMergedRegionUnsafe(CellRangeAddress region);
+
+    /**
+     * Verify that merged regions do not intersect multi-cell array formulas and
+     * no merged regions intersect another merged region in this sheet.
+     *
+     * @throws IllegalStateException if region intersects with a multi-cell array formula
+     * @throws IllegalStateException if at least one region intersects with another merged region in this sheet
+     */
+    void validateMergedRegions();
 
     /**
      * Determines whether the output is vertically centered on the page.
@@ -307,6 +337,13 @@ public interface Sheet extends Iterable<Row> {
      * @param index of the region to unmerge
      */
     void removeMergedRegion(int index);
+    
+    /**
+     * Removes a number of merged regions of cells (hence letting them free)
+     *
+     * @param indices A set of the regions to unmerge
+     */
+    void removeMergedRegions(Collection<Integer> indices);
 
     /**
      * Returns the number of merged regions
@@ -487,21 +524,35 @@ public interface Sheet extends Iterable<Row> {
      * Gets the flag indicating whether this sheet displays the lines
      * between rows and columns to make editing and reading easier.
      *
-     * @return <code>true</code> if this sheet displays gridlines.
-     * @see #isPrintGridlines() to check if printing of gridlines is turned on or off
+     * @return <code>true</code> if this sheet prints gridlines.
+     * @see #isDisplayGridlines() to check if gridlines are displayed on screen
      */
     boolean isPrintGridlines();
 
     /**
-     * Sets the flag indicating whether this sheet should display the lines
+     * Sets the flag indicating whether this sheet should print the lines
      * between rows and columns to make editing and reading easier.
-     * To turn printing of gridlines use {@link #setPrintGridlines(boolean)}
      *
-     *
-     * @param show <code>true</code> if this sheet should display gridlines.
-     * @see #setPrintGridlines(boolean)
+     * @param show <code>true</code> if this sheet should print gridlines.
+     * @see #setDisplayGridlines(boolean) to display gridlines on screen
      */
     void setPrintGridlines(boolean show);
+    
+    /**
+     * Gets the flag indicating whether this sheet prints the
+     * row and column headings when printing.
+     *
+     * @return <code>true</code> if this sheet prints row and column headings.
+     */
+    boolean isPrintRowAndColumnHeadings();
+
+    /**
+     * Sets the flag indicating whether this sheet should print
+     * row and columns headings when printing.
+     *
+     * @param show <code>true</code> if this sheet should print row and column headings.
+     */
+    void setPrintRowAndColumnHeadings(boolean show);
 
     /**
      * Gets the print setup object.
@@ -511,17 +562,17 @@ public interface Sheet extends Iterable<Row> {
     PrintSetup getPrintSetup();
 
     /**
-     * Gets the user model for the default document header.
-     * <p/>
+     * Gets the user model for the default document header.<p>
+     * 
      * Note that XSSF offers more kinds of document headers than HSSF does
-     * </p>
+     * 
      * @return the document header. Never <code>null</code>
      */
     Header getHeader();
 
     /**
-     * Gets the user model for the default document footer.
-     * <p/>
+     * Gets the user model for the default document footer.<p>
+     * 
      * Note that XSSF offers more kinds of document footers than HSSF does.
      *
      * @return the document footer. Never <code>null</code>
@@ -529,10 +580,10 @@ public interface Sheet extends Iterable<Row> {
     Footer getFooter();
 
     /**
-     * Sets a flag indicating whether this sheet is selected.
-     *<p>
+     * Sets a flag indicating whether this sheet is selected.<p>
+     * 
      * Note: multiple sheets can be selected, but only one sheet can be active at one time.
-     *</p>
+     *
      * @param value <code>true</code> if this sheet is selected
      * @see Workbook#setActiveSheet(int)
      */
@@ -557,7 +608,7 @@ public interface Sheet extends Iterable<Row> {
     /**
      * Answer whether protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true =&gt; protection enabled; false =&gt; protection disabled
      */
     boolean getProtect();
     
@@ -570,24 +621,13 @@ public interface Sheet extends Iterable<Row> {
     /**
      * Answer whether scenario protection is enabled or disabled
      *
-     * @return true => protection enabled; false => protection disabled
+     * @return true =&gt; protection enabled; false =&gt; protection disabled
      */
     boolean getScenarioProtect();
-
-    /**
-     * Sets the zoom magnication for the sheet.  The zoom is expressed as a
-     * fraction.  For example to express a zoom of 75% use 3 for the numerator
-     * and 4 for the denominator.
-     *
-     * @param numerator     The numerator for the zoom magnification.
-     * @param denominator   The denominator for the zoom magnification.
-     * @deprecated 2015-11-23 (circa POI 3.14beta1). Use {@link #setZoom(int)} instead.
-     */
-    void setZoom(int numerator, int denominator);
     
     /**
      * Window zoom magnification for current view representing percent values.
-     * Valid values range from 10 to 400. Horizontal & Vertical scale together.
+     * Valid values range from 10 to 400. Horizontal &amp; Vertical scale together.
      *
      * For example:
      * <pre>
@@ -652,7 +692,8 @@ public interface Sheet extends Iterable<Row> {
      *
      * <p>
      * Additionally shifts merged regions that are completely defined in these
-     * rows (ie. merged 2 cells on a row to be shifted).
+     * rows (ie. merged 2 cells on a row to be shifted). All merged regions that are
+     * completely overlaid by shifting will be deleted.
      * <p>
      * @param startRow the row to start shifting
      * @param endRow the row to end shifting
@@ -769,7 +810,7 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Removes the page break at the indicated row
-     * @param row
+     * @param row The 0-based index of the row.
      */
     void removeRowBreak(int row);
 
@@ -807,7 +848,7 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Removes a page break at the indicated column
-     * @param column
+     * @param column The 0-based index of the column.
      */
     void removeColumnBreak(int column);
 
@@ -896,14 +937,6 @@ public interface Sheet extends Iterable<Row> {
      * @param useMergedCells whether to use the contents of merged cells when calculating the width of the column
      */
     void autoSizeColumn(int column, boolean useMergedCells);
-
-    /**
-     * Returns cell comment for the specified row and column
-     *
-     * @return cell comment or <code>null</code> if not found
-     * @deprecated as of 2015-11-23 (circa POI 3.14beta1). Use {@link #getCellComment(CellAddress)} instead.
-     */
-    Comment getCellComment(int row, int column);
     
     /**
      * Returns cell comment for the specified location
@@ -926,7 +959,7 @@ public interface Sheet extends Iterable<Row> {
      *
      * @return a SpreadsheetML drawing
      */
-    Drawing getDrawingPatriarch();
+    Drawing<?> getDrawingPatriarch();
     
     /**
      * Creates the top-level drawing patriarch. 
@@ -936,7 +969,7 @@ public interface Sheet extends Iterable<Row> {
      *
      * @return  The new drawing patriarch.
      */
-    Drawing createDrawingPatriarch();
+    Drawing<?> createDrawingPatriarch();
 
 
     /**
@@ -1008,8 +1041,8 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Gets the repeating rows used when printing the sheet, as found in 
-     * File->PageSetup->Sheet.
-     * <p/>
+     * File-&gt;PageSetup-&gt;Sheet.<p>
+     * 
      * Repeating rows cover a range of contiguous rows, e.g.:
      * <pre>
      * Sheet1!$1:$1
@@ -1017,8 +1050,8 @@ public interface Sheet extends Iterable<Row> {
      * </pre>
      * The {@link CellRangeAddress} returned contains a column part which spans 
      * all columns, and a row part which specifies the contiguous range of 
-     * repeating rows.
-     * <p/>
+     * repeating rows.<p>
+     * 
      * If the Sheet does not have any repeating rows defined, null is returned.
      * 
      * @return an {@link CellRangeAddress} containing the repeating rows for the 
@@ -1029,8 +1062,8 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Gets the repeating columns used when printing the sheet, as found in 
-     * File->PageSetup->Sheet.
-     * <p/>
+     * File-&gt;PageSetup-&gt;Sheet.<p>
+     * 
      * Repeating columns cover a range of contiguous columns, e.g.:
      * <pre>
      * Sheet1!$A:$A
@@ -1038,8 +1071,8 @@ public interface Sheet extends Iterable<Row> {
      * </pre>
      * The {@link CellRangeAddress} returned contains a row part which spans all 
      * rows, and a column part which specifies the contiguous range of 
-     * repeating columns.
-     * <p/>
+     * repeating columns.<p>
+     * 
      * If the Sheet does not have any repeating columns defined, null is 
      * returned.
      * 
@@ -1051,8 +1084,8 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Sets the repeating rows used when printing the sheet, as found in 
-     * File->PageSetup->Sheet.
-     * <p/>
+     * File-&gt;PageSetup-&gt;Sheet.<p>
+     * 
      * Repeating rows cover a range of contiguous rows, e.g.:
      * <pre>
      * Sheet1!$1:$1
@@ -1075,8 +1108,8 @@ public interface Sheet extends Iterable<Row> {
 
     /**
      * Sets the repeating columns used when printing the sheet, as found in 
-     * File->PageSetup->Sheet.
-     * <p/>
+     * File-&gt;PageSetup-&gt;Sheet.<p>
+     * 
      * Repeating columns cover a range of contiguous columns, e.g.:
      * <pre>
      * Sheet1!$A:$A
@@ -1106,11 +1139,20 @@ public interface Sheet extends Iterable<Row> {
     /**
      * Get a Hyperlink in this sheet anchored at row, column
      *
-     * @param row
-     * @param column
+     * @param row The 0-based index of the row to look at.
+     * @param column The 0-based index of the column to look at.
      * @return hyperlink if there is a hyperlink anchored at row, column; otherwise returns null
      */
     public Hyperlink getHyperlink(int row, int column);
+    
+    /**
+     * Get a Hyperlink in this sheet located in a cell specified by {code addr}
+     *
+     * @param addr The address of the cell containing the hyperlink
+     * @return hyperlink if there is a hyperlink anchored at {@code addr}; otherwise returns {@code null}
+     * @since POI 3.15 beta 3
+     */
+    public Hyperlink getHyperlink(CellAddress addr);
     
     /**
      * Get a list of Hyperlinks in this sheet

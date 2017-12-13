@@ -18,10 +18,7 @@
 package org.apache.poi.util;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -43,7 +40,8 @@ import junit.framework.TestCase;
 
 import org.junit.Test;
 import org.junit.internal.TextListener;
-import org.junit.runner.JUnitCore;import org.junit.runner.Result;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
 
 /**
  * Build a 'lite' version of the ooxml-schemas.jar
@@ -51,6 +49,7 @@ import org.junit.runner.JUnitCore;import org.junit.runner.Result;
  * @author Yegor Kozlov
  */
 public final class OOXMLLite {
+    private static final Pattern SCHEMA_PATTERN = Pattern.compile("schemaorg_apache_xmlbeans/(system|element)/.*\\.xsb");
 
     /**
      * Destination directory to copy filtered classes
@@ -79,23 +78,69 @@ public final class OOXMLLite {
         String dest = null, test = null, ooxml = null;
 
         for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("-dest")) dest = args[++i];
-            else if (args[i].equals("-test")) test = args[++i];
-            else if (args[i].equals("-ooxml")) ooxml = args[++i];
+            switch (args[i]) {
+                case "-dest":
+                    dest = args[++i];
+                    break;
+                case "-test":
+                    test = args[++i];
+                    break;
+                case "-ooxml":
+                    ooxml = args[++i];
+                    break;
+            }
         }
         OOXMLLite builder = new OOXMLLite(dest, test, ooxml);
         builder.build();
     }
 
     void build() throws IOException, ClassNotFoundException {
-        List<Class<?>> lst = new ArrayList<Class<?>>();
+        List<Class<?>> lst = new ArrayList<>();
         //collect unit tests
+        String exclude = StringUtil.join("|",
+                "BaseTestXWorkbook",
+                "BaseTestXSheet",
+                "BaseTestXRow",
+                "BaseTestXCell",
+                "BaseTestXSSFPivotTable",
+                "TestSXSSFWorkbook\\$\\d",
+                "TestUnfixedBugs",
+                "MemoryUsage",
+                "TestDataProvider",
+                "TestDataSamples",
+                "All.+Tests",
+                "ZipFileAssert",
+                "AesZipFileZipEntrySource",
+                "TempFileRecordingSXSSFWorkbookWithCustomZipEntrySource",
+                "PkiTestUtils",
+                "TestCellFormatPart\\$\\d",
+                "TestSignatureInfo\\$\\d",
+                "TestCertificateEncryption\\$CertData",
+                "TestPOIXMLDocument\\$OPCParser",
+                "TestPOIXMLDocument\\$TestFactory",
+                "TestXSLFTextParagraph\\$DrawTextParagraphProxy",
+                "TestXSSFExportToXML\\$\\d",
+                "TestXSSFExportToXML\\$DummyEntityResolver",
+                "TestFormulaEvaluatorOnXSSF\\$Result",
+                "TestFormulaEvaluatorOnXSSF\\$SS",
+                "TestMultiSheetFormulaEvaluatorOnXSSF\\$Result",
+                "TestMultiSheetFormulaEvaluatorOnXSSF\\$SS",
+                "TestXSSFBugs\\$\\d",
+                "AddImageBench",
+                "AddImageBench_jmhType_B\\d",
+                "AddImageBench_benchCreatePicture_jmhTest",
+                "TestEvilUnclosedBRFixingInputStream\\$EvilUnclosedBRFixingInputStream",
+                "TempFileRecordingSXSSFWorkbookWithCustomZipEntrySource\\$TempFileRecordingSheetDataWriterWithDecorator",
+                "TestXSSFBReader\\$1",
+                "TestXSSFBReader\\$TestSheetHandler",
+                "TestFormulaEvaluatorOnXSSF\\$1",
+                "TestMultiSheetFormulaEvaluatorOnXSSF\\$1",
+                "TestZipPackagePropertiesMarshaller\\$1",
+                "SLCommonUtils",
+                "TestPPTX2PNG\\$1"
+        );
         System.out.println("Collecting unit tests from " + _testDir);
-        collectTests(_testDir, _testDir, lst, ".+.class$", 
-                ".+(BaseTestXCell|TestUnfixedBugs|MemoryUsage|TestDataProvider|TestDataSamples|All.+Tests|ZipFileAssert|PkiTestUtils|TestCellFormatPart\\$\\d|TestSignatureInfo\\$\\d|"
-                + "TestSXSSFWorkbook\\$\\d|TestCertificateEncryption\\$CertData|TestPOIXMLDocument\\$OPCParser|TestPOIXMLDocument\\$TestFactory|TestXSLFTextParagraph\\$DrawTextParagraphProxy|"
-                + "TestXSSFExportToXML\\$\\d|TestXSSFExportToXML\\$DummyEntityResolver|TestSXSSFWorkbook\\$NullOutputStream|TestFormulaEvaluatorOnXSSF\\$Result|TestFormulaEvaluatorOnXSSF\\$SS|"
-                + "TestMultiSheetFormulaEvaluatorOnXSSF\\$Result|TestMultiSheetFormulaEvaluatorOnXSSF\\$SS|TestXSSFBugs\\$\\d).class");
+        collectTests(_testDir, _testDir, lst, ".+.class$", ".+(" + exclude + ").class");
         System.out.println("Found " + lst.size() + " classes");
         
         //run tests
@@ -113,35 +158,29 @@ public final class OOXMLLite {
             String className = cls.getName();
             String classRef = className.replace('.', '/') + ".class";
             File destFile = new File(_destDest, classRef);
-            copyFile(cls.getResourceAsStream('/' + classRef), destFile);
+            IOUtils.copy(cls.getResourceAsStream('/' + classRef), destFile);
 
             if(cls.isInterface()){
-                /**
-                 * Copy classes and interfaces declared as members of this class
-                 */
+                /// Copy classes and interfaces declared as members of this class
                 for(Class<?> fc : cls.getDeclaredClasses()){
                     className = fc.getName();
                     classRef = className.replace('.', '/') + ".class";
                     destFile = new File(_destDest, classRef);
-                    copyFile(fc.getResourceAsStream('/' + classRef), destFile);
+                    IOUtils.copy(fc.getResourceAsStream('/' + classRef), destFile);
                 }
             }
         }
 
         //finally copy the compiled .xsb files
         System.out.println("Copying .xsb resources");
-        JarFile jar = new  JarFile(_ooxmlJar);
-        Pattern p = Pattern.compile("schemaorg_apache_xmlbeans/(system|element)/.*\\.xsb");
-        try {
-            for(Enumeration<JarEntry> e = jar.entries(); e.hasMoreElements(); ){
+        try (JarFile jar = new JarFile(_ooxmlJar)) {
+            for (Enumeration<JarEntry> e = jar.entries(); e.hasMoreElements(); ) {
                 JarEntry je = e.nextElement();
-                if(p.matcher(je.getName()).matches()) {
-                     File destFile = new File(_destDest, je.getName());
-                     copyFile(jar.getInputStream(je), destFile);
+                if (SCHEMA_PATTERN.matcher(je.getName()).matches()) {
+                    File destFile = new File(_destDest, je.getName());
+                    IOUtils.copy(jar.getInputStream(je), destFile);
                 }
             }
-        } finally {
-            jar.close();
         }
     }
 
@@ -180,8 +219,11 @@ public final class OOXMLLite {
     private static void collectTests(File root, File arg, List<Class<?>> out, String ptrn, String exclude)
     throws ClassNotFoundException {
         if (arg.isDirectory()) {
-            for (File f : arg.listFiles()) {
-                collectTests(root, f, out, ptrn, exclude);
+            File files[] = arg.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    collectTests(root, f, out, ptrn, exclude);
+                }
             }
         } else {
             String path = arg.getAbsolutePath();
@@ -197,11 +239,15 @@ public final class OOXMLLite {
 
             cls = cls.replace(".class", "");
 
-            Class<?> testclass = Class.forName(cls);
-            if (TestCase.class.isAssignableFrom(testclass)
-                || checkForTestAnnotation(testclass)) {
-                out.add(testclass);
-            };
+            try {
+                Class<?> testclass = Class.forName(cls);
+                if (TestCase.class.isAssignableFrom(testclass)
+                    || checkForTestAnnotation(testclass)) {
+                    out.add(testclass);
+                }
+            } catch (Throwable e) { // NOSONAR
+                System.out.println("Class " + cls + " is not in classpath");
+            }
         }
     }
 
@@ -232,7 +278,7 @@ public final class OOXMLLite {
         ClassLoader appLoader = ClassLoader.getSystemClassLoader();
         try {
             Vector<Class<?>> classes = (Vector<Class<?>>) _classes.get(appLoader);
-            Map<String, Class<?>> map = new HashMap<String, Class<?>>();
+            Map<String, Class<?>> map = new HashMap<>();
             for (Class<?> cls : classes) {
                 // e.g. proxy-classes, ...
                 ProtectionDomain pd = cls.getProtectionDomain();
@@ -243,23 +289,13 @@ public final class OOXMLLite {
                 if (loc == null) continue;
                 
                 String jar = loc.toString();
-                if(jar.indexOf(ptrn) != -1) map.put(cls.getName(), cls);
+                if (jar.contains(ptrn)) {
+                    map.put(cls.getName(), cls);
+                }
             }
             return map;
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }
-
-    private static void copyFile(InputStream srcStream, File destFile) throws IOException {
-        File destDirectory = destFile.getParentFile();
-        destDirectory.mkdirs();
-        OutputStream destStream = new FileOutputStream(destFile);
-        try {
-            IOUtils.copy(srcStream, destStream);
-        } finally {
-            destStream.close();
-        }
-    }
-
 }

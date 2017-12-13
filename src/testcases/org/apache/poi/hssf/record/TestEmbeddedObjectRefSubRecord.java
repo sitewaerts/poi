@@ -18,10 +18,12 @@
 package org.apache.poi.hssf.record;
 
 import static org.junit.Assert.assertArrayEquals;
-import junit.framework.AssertionFailedError;
-import junit.framework.TestCase;
 
 import org.apache.poi.util.HexRead;
+import org.apache.poi.util.RecordFormatException;
+
+import junit.framework.AssertionFailedError;
+import junit.framework.TestCase;
 
 /**
  * Tests the serialization and deserialization of the TestEmbeddedObjectRefSubRecord
@@ -143,7 +145,7 @@ public final class TestEmbeddedObjectRefSubRecord extends TestCase {
 
 	public void testVisioDrawing_bug46199() {
 		/**
-		 * taken from ftPictFmla sub-record in attachment 22860 (stream offset 0x768F).<br/>
+		 * taken from ftPictFmla sub-record in attachment 22860 (stream offset 0x768F).<br>
 		 * Note that the since the string length is zero, there is no unicode flag byte
 		 */
 		byte[] data46199 = hr(

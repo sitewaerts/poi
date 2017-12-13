@@ -96,9 +96,8 @@ public final class TestBATBlock extends TestCase {
         ByteArrayOutputStream stream = new ByteArrayOutputStream(512
                                            * blocks.length);
 
-        for (int j = 0; j < blocks.length; j++)
-        {
-            blocks[ j ].writeBlocks(stream);
+        for (BATBlock block : blocks) {
+            block.writeBlocks(stream);
         }
         byte[] actual = stream.toByteArray();
 
@@ -178,9 +177,8 @@ public final class TestBATBlock extends TestCase {
         ByteArrayOutputStream stream = new ByteArrayOutputStream(512
                                            * blocks.length);
 
-        for (int j = 0; j < blocks.length; j++)
-        {
-            blocks[ j ].writeBlocks(stream);
+        for (BATBlock block : blocks) {
+            block.writeBlocks(stream);
         }
         byte[] actual = stream.toByteArray();
 
@@ -339,7 +337,7 @@ public final class TestBATBlock extends TestCase {
     
     public void testGetBATBlockAndIndex() throws Exception {
        HeaderBlock header = new HeaderBlock(POIFSConstants.SMALLER_BIG_BLOCK_SIZE_DETAILS);
-       List<BATBlock> blocks = new ArrayList<BATBlock>();
+       List<BATBlock> blocks = new ArrayList<>();
        int offset;
        
        

@@ -32,10 +32,12 @@ import java.io.InputStream;
 import java.io.PrintStream;
 
 import org.apache.poi.EmptyFileException;
+import org.apache.poi.EncryptedDocumentException;
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.OfficeXmlFileException;
+import org.apache.poi.util.RecordFormatException;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -50,7 +52,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testSimpleExcel3() throws Exception {
+    public void testSimpleExcel3() throws IOException {
         OldExcelExtractor extractor = createExtractor("testEXCEL_3.xls");
 
         // Check we can call getText without error
@@ -76,7 +78,7 @@ public final class TestOldExcelExtractor {
     
 
     @Test
-    public void testSimpleExcel3NoReading() throws Exception {
+    public void testSimpleExcel3NoReading() throws IOException {
         OldExcelExtractor extractor = createExtractor("testEXCEL_3.xls");
         assertNotNull(extractor);
 
@@ -84,7 +86,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testSimpleExcel4() throws Exception {
+    public void testSimpleExcel4() throws IOException {
         OldExcelExtractor extractor = createExtractor("testEXCEL_4.xls");
 
         // Check we can call getText without error
@@ -106,7 +108,7 @@ public final class TestOldExcelExtractor {
     }
     
     @Test
-    public void testSimpleExcel5() throws Exception {
+    public void testSimpleExcel5() throws IOException {
         for (String ver : new String[] {"5", "95"}) {
             OldExcelExtractor extractor = createExtractor("testEXCEL_"+ver+".xls");
     
@@ -133,7 +135,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testStrings() throws Exception {
+    public void testStrings() throws IOException {
         OldExcelExtractor extractor = createExtractor("testEXCEL_4.xls");
         String text = extractor.getText();
 
@@ -154,7 +156,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testFormattedNumbersExcel4() throws Exception {
+    public void testFormattedNumbersExcel4() throws IOException {
         OldExcelExtractor extractor = createExtractor("testEXCEL_4.xls");
         String text = extractor.getText();
 
@@ -175,7 +177,7 @@ public final class TestOldExcelExtractor {
     }
     
     @Test
-    public void testFormattedNumbersExcel5() throws Exception {
+    public void testFormattedNumbersExcel5() throws IOException {
         for (String ver : new String[] {"5", "95"}) {
             OldExcelExtractor extractor = createExtractor("testEXCEL_"+ver+".xls");
             String text = extractor.getText();
@@ -202,7 +204,7 @@ public final class TestOldExcelExtractor {
     }
     
     @Test
-    public void testFromFile() throws Exception {
+    public void testFromFile() throws IOException {
         for (String ver : new String[] {"4", "5", "95"}) {
             String filename = "testEXCEL_"+ver+".xls";
             File f = HSSFTestDataSamples.getSampleFile(filename);
@@ -216,32 +218,39 @@ public final class TestOldExcelExtractor {
         }
     }
 
-    @Test
-    public void testOpenInvalidFile() throws Exception {
+    @Test(expected=OfficeXmlFileException.class)
+    public void testOpenInvalidFile1() throws IOException {
         // a file that exists, but is a different format
-        try {
-            createExtractor("WithVariousData.xlsx");
-            fail("Should catch Exception here");
-        } catch (OfficeXmlFileException e) {
-            // expected here
-        }
-        
+        createExtractor("WithVariousData.xlsx");
+    }
+    
+    
+    @Test(expected=RecordFormatException.class)
+    public void testOpenInvalidFile2() throws IOException {
+        // a completely different type of file
+        createExtractor("48936-strings.txt");
     }
 
-    @Test
-    public void testOpenNonExistingFile() throws Exception {
-        // a file that exists, but is a different format
+    @Test(expected=FileNotFoundException.class)
+    public void testOpenInvalidFile3() throws IOException {
+        // a POIFS file which is not a Workbook
+        InputStream is = POIDataSamples.getDocumentInstance().openResourceAsStream("47304.doc");
         try {
-            OldExcelExtractor extractor = new OldExcelExtractor(new File("notexistingfile.xls"));
-            extractor.close();
-            fail("Should catch Exception here");
-        } catch (EmptyFileException e) {
-            // expected here
+            new OldExcelExtractor(is).close();
+        } finally {
+            is.close();
         }
+    }
+
+    @Test(expected=EmptyFileException.class)
+    public void testOpenNonExistingFile() throws IOException {
+        // a file that exists, but is a different format
+        OldExcelExtractor extractor = new OldExcelExtractor(new File("notexistingfile.xls"));
+        extractor.close();
     }
     
     @Test
-    public void testInputStream() throws Exception {
+    public void testInputStream() throws IOException {
         File file = HSSFTestDataSamples.getSampleFile("testEXCEL_3.xls");
         InputStream stream = new FileInputStream(file);
         try {
@@ -255,7 +264,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testInputStreamNPOIHeader() throws Exception {
+    public void testInputStreamNPOIHeader() throws IOException {
         File file = HSSFTestDataSamples.getSampleFile("FormulaRefs.xls");
         InputStream stream = new FileInputStream(file);
         try {
@@ -267,7 +276,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testNPOIFSFileSystem() throws Exception {
+    public void testNPOIFSFileSystem() throws IOException {
         File file = HSSFTestDataSamples.getSampleFile("FormulaRefs.xls");
         NPOIFSFileSystem fs = new NPOIFSFileSystem(file);
         try {
@@ -279,7 +288,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testDirectoryNode() throws Exception {
+    public void testDirectoryNode() throws IOException {
         File file = HSSFTestDataSamples.getSampleFile("FormulaRefs.xls");
         NPOIFSFileSystem fs = new NPOIFSFileSystem(file);
         try {
@@ -291,7 +300,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testDirectoryNodeInvalidFile() throws Exception {
+    public void testDirectoryNodeInvalidFile() throws IOException {
         File file = POIDataSamples.getDocumentInstance().getFile("test.doc");
         NPOIFSFileSystem fs = new NPOIFSFileSystem(file);
         try {
@@ -307,7 +316,7 @@ public final class TestOldExcelExtractor {
 
     @Ignore("Calls System.exit()")
     @Test
-    public void testMainUsage() throws Exception {
+    public void testMainUsage() throws IOException {
         PrintStream save = System.err;
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -324,7 +333,7 @@ public final class TestOldExcelExtractor {
     }
 
     @Test
-    public void testMain() throws Exception {
+    public void testMain() throws IOException {
         File file = HSSFTestDataSamples.getSampleFile("testEXCEL_3.xls");
         PrintStream save = System.out;
         try {
@@ -337,10 +346,26 @@ public final class TestOldExcelExtractor {
                 out.close();
             }
             String string = new String(out.toByteArray(), "UTF-8");
-            assertTrue("Had: " + string, 
+            assertTrue("Had: " + string,
                     string.contains("Table C-13--Lemons"));
         } finally {
             System.setOut(save);
         }
+    }
+
+    @Test
+    public void testEncryptionException() throws IOException {
+        //test file derives from Common Crawl
+        File file = HSSFTestDataSamples.getSampleFile("60284.xls");
+        OldExcelExtractor ex = new OldExcelExtractor(file);
+        assertEquals(5, ex.getBiffVersion());
+        assertEquals(5, ex.getFileType());
+        try {
+            ex.getText();
+            fail();
+        } catch (EncryptedDocumentException e) {
+            assertTrue("correct exception thrown", true);
+        }
+        ex.close();
     }
 }

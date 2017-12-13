@@ -29,7 +29,7 @@ import org.junit.Test;
 public class HMEFFileHandler extends AbstractFileHandler {
 
 	@Override
-    public void handleFile(InputStream stream) throws Exception {
+    public void handleFile(InputStream stream, String path) throws Exception {
 		HMEFMessage msg = new HMEFMessage(stream);
 		
 		// list all properties
@@ -40,19 +40,20 @@ public class HMEFFileHandler extends AbstractFileHandler {
 		
 		// there are two test-files that have no body...
 		if(!msg.getSubject().equals("Testing TNEF Message") && !msg.getSubject().equals("TNEF test message with attachments")) {
-    		assertNotNull("Had: " + msg.getBody() + ", " + msg.getSubject() + ", " + msg.getAttachments() + ": " + props.toString(), 
+    		assertNotNull("Had: " + msg.getBody() + ", " + msg.getSubject() + ", " + msg.getAttachments() + ": " + props,
     				msg.getBody());
 		}
-		assertNotNull("Had: " + msg.getBody() + ", " + msg.getSubject() + ", " + msg.getAttachments() + ": " + props.toString(), 
+		assertNotNull("Had: " + msg.getBody() + ", " + msg.getSubject() + ", " + msg.getAttachments() + ": " + props,
 				msg.getSubject());
 	}
 	
 	// a test-case to test this locally without executing the full TestAllFiles
 	@Test
 	public void test() throws Exception {
-		InputStream stream = new FileInputStream("test-data/hmef/quick-winmail.dat");
+	    String path = "test-data/hmef/quick-winmail.dat";
+		InputStream stream = new FileInputStream(path);
 		try {
-			handleFile(stream);
+			handleFile(stream, path);
 		} finally {
 			stream.close();
 		}

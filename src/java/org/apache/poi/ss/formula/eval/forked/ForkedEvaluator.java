@@ -23,6 +23,9 @@ import org.apache.poi.ss.formula.eval.NumberEval;
 import org.apache.poi.ss.formula.eval.StringEval;
 import org.apache.poi.ss.formula.eval.ValueEval;
 import org.apache.poi.ss.formula.udf.UDFFinder;
+
+import java.lang.reflect.Method;
+
 import org.apache.poi.hssf.usermodel.HSSFEvaluationWorkbook;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.CollaboratingWorkbooksEnvironment;
@@ -30,7 +33,6 @@ import org.apache.poi.ss.formula.EvaluationCell;
 import org.apache.poi.ss.formula.EvaluationWorkbook;
 import org.apache.poi.ss.formula.IStabilityClassifier;
 import org.apache.poi.ss.formula.WorkbookEvaluator;
-import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Workbook;
 
 /**
@@ -40,8 +42,6 @@ import org.apache.poi.ss.usermodel.Workbook;
  * This class enables a 'master workbook' to be loaded just once and shared between many evaluation
  * clients.  Each evaluation client creates its own {@link ForkedEvaluator} and can set cell values
  * that will be used for local evaluations (and don't disturb evaluations on other evaluators).
- *
- * @author Josh Micich
  */
 public final class ForkedEvaluator {
 
@@ -55,19 +55,19 @@ public final class ForkedEvaluator {
 	private static EvaluationWorkbook createEvaluationWorkbook(Workbook wb) {
 		if (wb instanceof HSSFWorkbook) {
 			return HSSFEvaluationWorkbook.create((HSSFWorkbook) wb);
+		} else {
+		    try {
+		        // TODO: check if this is Java 9 compatible ...
+		        Class<?> evalWB = Class.forName("org.apache.poi.xssf.usermodel.XSSFEvaluationWorkbook");
+		        Class<?> xssfWB = Class.forName("org.apache.poi.xssf.usermodel.XSSFWorkbook");
+		        Method createM = evalWB.getDeclaredMethod("create", xssfWB);
+		        return (EvaluationWorkbook)createM.invoke(null, wb);
+		    } catch (Exception e) {
+		        throw new IllegalArgumentException("Unexpected workbook type (" + wb.getClass().getName() + ") - check for poi-ooxml and poi-ooxml schemas jar in the classpath", e);
+		    }
 		}
-// TODO rearrange POI build to allow this
-//		if (wb instanceof XSSFWorkbook) {
-//			return XSSFEvaluationWorkbook.create((XSSFWorkbook) wb);
-//		}
-		throw new IllegalArgumentException("Unexpected workbook type (" + wb.getClass().getName() + ")");
 	}
-	/**
-	 * @deprecated (Sep 2009) (reduce overloading) use {@link #create(Workbook, IStabilityClassifier, UDFFinder)}
-	 */
-	public static ForkedEvaluator create(Workbook wb, IStabilityClassifier stabilityClassifier) {
-		return create(wb, stabilityClassifier, null);
-	}
+
 	/**
 	 * @param udfFinder pass <code>null</code> for default (AnalysisToolPak only)
 	 */
@@ -89,7 +89,7 @@ public final class ForkedEvaluator {
 	}
 	/**
 	 * Copies the values of all updated cells (modified by calls to {@link
-	 * #updateCell(String, int, int, ValueEval)}) to the supplied <tt>workbook</tt>.<br/>
+	 * #updateCell(String, int, int, ValueEval)}) to the supplied <tt>workbook</tt>.<br>
 	 * Typically, the supplied <tt>workbook</tt> is a writable copy of the 'master workbook',
 	 * but at the very least it must contain sheets with the same names.
 	 */
@@ -113,20 +113,21 @@ public final class ForkedEvaluator {
 		EvaluationCell cell = _sewb.getEvaluationCell(sheetName, rowIndex, columnIndex);
 
 		switch (cell.getCellType()) {
-			case Cell.CELL_TYPE_BOOLEAN:
+			case BOOLEAN:
 				return BoolEval.valueOf(cell.getBooleanCellValue());
-			case Cell.CELL_TYPE_ERROR:
+			case ERROR:
 				return ErrorEval.valueOf(cell.getErrorCellValue());
-			case Cell.CELL_TYPE_FORMULA:
+			case FORMULA:
 				return _evaluator.evaluate(cell);
-			case Cell.CELL_TYPE_NUMERIC:
+			case NUMERIC:
 				return new NumberEval(cell.getNumericCellValue());
-			case Cell.CELL_TYPE_STRING:
+			case STRING:
 				return new StringEval(cell.getStringCellValue());
-			case Cell.CELL_TYPE_BLANK:
+			case BLANK:
 				return null;
+			default:
+				throw new IllegalStateException("Bad cell type (" + cell.getCellType() + ")");
 		}
-		throw new IllegalStateException("Bad cell type (" + cell.getCellType() + ")");
 	}
 	/**
 	 * Coordinates several formula evaluators together so that formulas that involve external

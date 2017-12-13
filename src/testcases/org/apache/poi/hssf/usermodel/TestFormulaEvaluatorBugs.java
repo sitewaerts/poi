@@ -40,6 +40,7 @@ import org.apache.poi.ss.formula.ptg.FuncVarPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
 import org.apache.poi.ss.formula.ptg.RefPtg;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.LocaleUtil;
@@ -50,7 +51,7 @@ import org.junit.Test;
  *
  */
 public final class TestFormulaEvaluatorBugs {
-    private static boolean OUTPUT_TEST_FILES = false;
+    private static boolean OUTPUT_TEST_FILES;
     private static String tmpDirName;
 
     @BeforeClass
@@ -90,7 +91,7 @@ public final class TestFormulaEvaluatorBugs {
             FileOutputStream out = new FileOutputStream(existing);
             wb.write(out);
             out.close();
-            System.err.println("Existing file for bug #44636 written to " + existing.toString());
+            System.err.println("Existing file for bug #44636 written to " + existing);
         }
         wb.close();
         
@@ -114,7 +115,7 @@ public final class TestFormulaEvaluatorBugs {
             FileOutputStream out = new FileOutputStream(scratch);
             wb.write(out);
             out.close();
-            System.err.println("New file for bug #44636 written to " + scratch.toString());
+            System.err.println("New file for bug #44636 written to " + scratch);
         }
         wb.close();
     }
@@ -374,9 +375,11 @@ public final class TestFormulaEvaluatorBugs {
             return _countCacheMisses;
         }
 
+        @Override
         public void onCacheHit(int sheetIndex, int srcRowNum, int srcColNum, ValueEval result) {
             _countCacheHits++;
         }
+        @Override
         public void onStartEvaluate(EvaluationCell cell, ICacheEntry entry) {
             _countCacheMisses++;
         }
@@ -565,7 +568,7 @@ public final class TestFormulaEvaluatorBugs {
         }
     }
     private Ptg[] getPtgs(HSSFCell cell) {
-        assertEquals(HSSFCell.CELL_TYPE_FORMULA, cell.getCellType());
+        assertEquals(CellType.FORMULA, cell.getCellType());
         assertEquals(FormulaRecordAggregate.class, cell.getCellValueRecord().getClass());
         FormulaRecordAggregate agg = (FormulaRecordAggregate)cell.getCellValueRecord();
         FormulaRecord rec = agg.getFormulaRecord();
@@ -576,6 +579,6 @@ public final class TestFormulaEvaluatorBugs {
         assertEquals(RefPtg.class, ptg.getClass());
         assertEquals(0,  ((RefPtg)ptg).getRow());
         assertEquals(0,  ((RefPtg)ptg).getColumn());
-        assertEquals(rv, ((RefPtg)ptg).getRVAType());
+        assertEquals(rv, ptg.getRVAType());
     }
 }

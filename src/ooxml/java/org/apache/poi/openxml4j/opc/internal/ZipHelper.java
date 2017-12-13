@@ -18,160 +18,228 @@
 package org.apache.poi.openxml4j.opc.internal;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 
+import org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException;
+import org.apache.poi.openxml4j.exceptions.OLE2NotOfficeXmlFileException;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
 import org.apache.poi.openxml4j.opc.ZipPackage;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
+import org.apache.poi.openxml4j.util.ZipSecureFile.ThresholdInputStream;
+import org.apache.poi.poifs.filesystem.FileMagic;
+import org.apache.poi.util.Internal;
+import org.apache.poi.util.Removal;
 
+@Internal
 public final class ZipHelper {
+    /**
+     * Forward slash use to convert part name between OPC and zip item naming
+     * conventions.
+     */
+    private final static String FORWARD_SLASH = "/";
 
-	/**
-	 * Forward slash use to convert part name between OPC and zip item naming
-	 * conventions.
-	 */
-	private final static String FORWARD_SLASH = "/";
+    /**
+     * Prevent this class to be instancied.
+     */
+    private ZipHelper() {
+        // Do nothing
+    }
 
-	/**
-	 * Buffer to read data from file. Use big buffer to improve performaces. the
-	 * InputStream class is reading only 8192 bytes per read call (default value
-	 * set by sun)
-	 */
-	public static final int READ_WRITE_FILE_BUFFER_SIZE = 8192;
+    /**
+     * Retrieve the zip entry of the core properties part.
+     *
+     * @throws OpenXML4JException
+     *             Throws if internal error occurs.
+     */
+    public static ZipEntry getCorePropertiesZipEntry(ZipPackage pkg) {
+        PackageRelationship corePropsRel = pkg.getRelationshipsByType(
+                PackageRelationshipTypes.CORE_PROPERTIES).getRelationship(0);
 
-	/**
-	 * Prevent this class to be instancied.
-	 */
-	private ZipHelper() {
-		// Do nothing
-	}
+        if (corePropsRel == null) {
+            return null;
+        }
 
-	/**
-	 * Retrieve the zip entry of the core properties part.
-	 *
-	 * @throws OpenXML4JException
-	 *             Throws if internal error occurs.
-	 */
-	public static ZipEntry getCorePropertiesZipEntry(ZipPackage pkg) {
-		PackageRelationship corePropsRel = pkg.getRelationshipsByType(
-				PackageRelationshipTypes.CORE_PROPERTIES).getRelationship(0);
+        return new ZipEntry(corePropsRel.getTargetURI().getPath());
+    }
 
-		if (corePropsRel == null)
-			return null;
+    /**
+     * Retrieve the Zip entry of the content types part.
+     */
+    public static ZipEntry getContentTypeZipEntry(ZipPackage pkg) {
+        Enumeration<? extends ZipEntry> entries = pkg.getZipArchive().getEntries();
 
-		return new ZipEntry(corePropsRel.getTargetURI().getPath());
-	}
+        // Enumerate through the Zip entries until we find the one named
+        // '[Content_Types].xml'.
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (entry.getName().equals(
+                    ContentTypeManager.CONTENT_TYPES_PART_NAME)) {
+                return entry;
+            }
+        }
+        return null;
+    }
 
-	/**
-	 * Retrieve the Zip entry of the content types part.
-	 */
-	public static ZipEntry getContentTypeZipEntry(ZipPackage pkg) {
-		Enumeration<? extends ZipEntry> entries = pkg.getZipArchive().getEntries();
-		
-		// Enumerate through the Zip entries until we find the one named
-		// '[Content_Types].xml'.
-		while (entries.hasMoreElements()) {
-			ZipEntry entry = entries.nextElement();
-			if (entry.getName().equals(
-					ContentTypeManager.CONTENT_TYPES_PART_NAME))
-				return entry;
-		}
-		return null;
-	}
+    /**
+     * Convert a zip name into an OPC name by adding a leading forward slash to
+     * the specified item name.
+     *
+     * @param zipItemName
+     *            Zip item name to convert.
+     * @return An OPC compliant name.
+     */
+    public static String getOPCNameFromZipItemName(String zipItemName) {
+        if (zipItemName == null) {
+            throw new IllegalArgumentException("zipItemName cannot be null");
+        }
+        if (zipItemName.startsWith(FORWARD_SLASH)) {
+            return zipItemName;
+        }
+        return FORWARD_SLASH + zipItemName;
+    }
 
-	/**
-	 * Convert a zip name into an OPC name by adding a leading forward slash to
-	 * the specified item name.
-	 *
-	 * @param zipItemName
-	 *            Zip item name to convert.
-	 * @return An OPC compliant name.
-	 */
-	public static String getOPCNameFromZipItemName(String zipItemName) {
-		if (zipItemName == null)
-			throw new IllegalArgumentException("zipItemName");
-		if (zipItemName.startsWith(FORWARD_SLASH)) {
-			return zipItemName;
-		}
-		return FORWARD_SLASH + zipItemName;
-	}
+    /**
+     * Convert an OPC item name into a zip item name by removing any leading
+     * forward slash if it exist.
+     *
+     * @param opcItemName
+     *            The OPC item name to convert.
+     * @return A zip item name without any leading slashes.
+     */
+    public static String getZipItemNameFromOPCName(String opcItemName) {
+        if (opcItemName == null) {
+            throw new IllegalArgumentException("opcItemName cannot be null");
+        }
 
-	/**
-	 * Convert an OPC item name into a zip item name by removing any leading
-	 * forward slash if it exist.
-	 *
-	 * @param opcItemName
-	 *            The OPC item name to convert.
-	 * @return A zip item name without any leading slashes.
-	 */
-	public static String getZipItemNameFromOPCName(String opcItemName) {
-		if (opcItemName == null)
-			throw new IllegalArgumentException("opcItemName");
+        String retVal = opcItemName;
+        while (retVal.startsWith(FORWARD_SLASH)) {
+            retVal = retVal.substring(1);
+        }
+        return retVal;
+    }
 
-		String retVal = opcItemName;
-		while (retVal.startsWith(FORWARD_SLASH))
-			retVal = retVal.substring(1);
-		return retVal;
-	}
+    /**
+     * Convert an OPC item name into a zip URI by removing any leading forward
+     * slash if it exist.
+     *
+     * @param opcItemName
+     *            The OPC item name to convert.
+     * @return A zip URI without any leading slashes.
+     */
+    public static URI getZipURIFromOPCName(String opcItemName) {
+        if (opcItemName == null) {
+            throw new IllegalArgumentException("opcItemName");
+        }
 
-	/**
-	 * Convert an OPC item name into a zip URI by removing any leading forward
-	 * slash if it exist.
-	 *
-	 * @param opcItemName
-	 *            The OPC item name to convert.
-	 * @return A zip URI without any leading slashes.
-	 */
-	public static URI getZipURIFromOPCName(String opcItemName) {
-		if (opcItemName == null)
-			throw new IllegalArgumentException("opcItemName");
+        String retVal = opcItemName;
+        while (retVal.startsWith(FORWARD_SLASH)) {
+            retVal = retVal.substring(1);
+        }
+        try {
+            return new URI(retVal);
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Verifies that the given stream starts with a Zip structure.
+     * 
+     * Warning - this will consume the first few bytes of the stream,
+     *  you should push-back or reset the stream after use!
+     */
+    public static void verifyZipHeader(InputStream stream) throws NotOfficeXmlFileException, IOException {
+        InputStream is = FileMagic.prepareToCheckMagic(stream);
+        FileMagic fm = FileMagic.valueOf(is);
 
-		String retVal = opcItemName;
-		while (retVal.startsWith(FORWARD_SLASH))
-			retVal = retVal.substring(1);
-		try {
-			return new URI(retVal);
-		} catch (URISyntaxException e) {
-			return null;
-		}
-	}
+        switch (fm) {
+        case OLE2:
+            throw new OLE2NotOfficeXmlFileException(
+                "The supplied data appears to be in the OLE2 Format. " +
+                "You are calling the part of POI that deals with OOXML "+
+                "(Office Open XML) Documents. You need to call a different " +
+                "part of POI to process this data (eg HSSF instead of XSSF)");
+        case XML:
+            throw new NotOfficeXmlFileException(
+                "The supplied data appears to be a raw XML file. " +
+                "Formats such as Office 2003 XML are not supported");
+        default:
+        case OOXML:
+        case UNKNOWN:
+            // Don't check for a Zip header, as to maintain backwards
+            //  compatibility we need to let them seek over junk at the
+            //  start before beginning processing.
+            break;
+        }
+    }
 
-   /**
-    * Opens the specified file as a zip, or returns null if no such file exists
-    *
-    * @param file
-    *            The file to open.
-    * @return The zip archive freshly open.
-    */
-   public static ZipFile openZipFile(File file) throws IOException {
-      if (!file.exists()) {
-         return null;
-      }
+    /**
+     * Opens the specified stream as a secure zip
+     *
+     * @param stream
+     *            The stream to open.
+     * @return The zip stream freshly open.
+     */
+    @SuppressWarnings("resource")
+    public static ThresholdInputStream openZipStream(InputStream stream) throws IOException {
+        // Peek at the first few bytes to sanity check
+        InputStream checkedStream = FileMagic.prepareToCheckMagic(stream);
+        verifyZipHeader(checkedStream);
+        
+        // Open as a proper zip stream
+        InputStream zis = new ZipInputStream(checkedStream);
+        return ZipSecureFile.addThreshold(zis);
+    }
 
-      return new ZipSecureFile(file);
-   }
+    /**
+     * Opens the specified file as a secure zip, or returns null if no 
+     *  such file exists
+     *
+     * @param file
+     *            The file to open.
+     * @return The zip archive freshly open.
+     * @throws IOException if the zip file cannot be opened or closed to read the header signature
+     * @throws NotOfficeXmlFileException if stream does not start with zip header signature
+     */
+    public static ZipFile openZipFile(File file) throws IOException, NotOfficeXmlFileException {
+        if (!file.exists()) {
+            throw new FileNotFoundException("File does not exist");
+        }
+        if (file.isDirectory()) {
+            throw new IOException("File is a directory");
+        }
+        
+        // Peek at the first few bytes to sanity check
+        FileInputStream input = new FileInputStream(file);
+        try {
+            verifyZipHeader(input);
+        } finally {
+            input.close();
+        }
 
-	/**
-	 * Retrieve and open a zip file with the specified path.
-	 *
-	 * @param path
-	 *            The file path.
-	 * @return The zip archive freshly open.
-	 */
-	public static ZipFile openZipFile(String path) throws IOException {
-		File f = new File(path);
+        // Open as a proper zip file
+        return new ZipSecureFile(file);
+    }
 
-		if (!f.exists()) {
-			return null;
-		}
-
-		return new ZipSecureFile(f);
-	}
+    /**
+     * Retrieve and open as a secure zip file with the specified path.
+     *
+     * @param path
+     *            The file path.
+     * @return The zip archive freshly open.
+     */
+    public static ZipFile openZipFile(String path) throws IOException {
+        return openZipFile(new File(path));
+    }
 }

@@ -21,11 +21,16 @@ import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
-import java.util.*;
+import java.util.Iterator;
 
-import org.apache.poi.sl.usermodel.*;
+import org.apache.poi.sl.usermodel.Insets2D;
+import org.apache.poi.sl.usermodel.PlaceableShape;
+import org.apache.poi.sl.usermodel.ShapeContainer;
+import org.apache.poi.sl.usermodel.TextParagraph;
 import org.apache.poi.sl.usermodel.TextParagraph.BulletStyle;
-import org.apache.poi.util.JvmBugs;
+import org.apache.poi.sl.usermodel.TextRun;
+import org.apache.poi.sl.usermodel.TextShape;
+import org.apache.poi.sl.usermodel.TextShape.TextDirection;
 
 public class DrawTextShape extends DrawSimpleShape {
 
@@ -35,7 +40,7 @@ public class DrawTextShape extends DrawSimpleShape {
 
     @Override
     public void drawContent(Graphics2D graphics) {
-        fixFonts(graphics);
+        DrawFactory.getInstance(graphics).fixFonts(graphics);
         
         TextShape<?,?> s = getShape();
         
@@ -46,7 +51,7 @@ public class DrawTextShape extends DrawSimpleShape {
 
         // remember the initial transform
         AffineTransform tx = graphics.getTransform();
-
+    
         // Transform of text in flipped shapes is special.
         // At this point the flip and rotation transform is already applied
         // (see DrawShape#applyTransform ), but we need to restore it to avoid painting "upside down".
@@ -65,20 +70,24 @@ public class DrawTextShape extends DrawSimpleShape {
         // Horizontal flipping applies only to shape outline and not to the text in the shape.
         // Applying flip second time restores the original not-flipped transform
         if (horzFlip ^ vertFlip) {
-            graphics.translate(anchor.getX() + anchor.getWidth(), anchor.getY());
+            final double ax = anchor.getX();
+            final double ay = anchor.getY();
+            graphics.translate(ax + anchor.getWidth(), ay);
             graphics.scale(-1, 1);
-            graphics.translate(-anchor.getX(), -anchor.getY());
-        }
-        
-        Double textRot = s.getTextRotation();
-        if (textRot != null) {
-            graphics.translate(anchor.getCenterX(), anchor.getCenterY());
-            graphics.rotate(Math.toRadians(textRot));
-            graphics.translate(-anchor.getCenterX(), -anchor.getCenterY());
+            graphics.translate(-ax, -ay);
         }
 
+        Double textRot = s.getTextRotation();
+        if (textRot != null && textRot != 0) {
+            final double cx = anchor.getCenterX();
+            final double cy = anchor.getCenterY();
+            graphics.translate(cx, cy);
+            graphics.rotate(Math.toRadians(textRot));
+            graphics.translate(-cx, -cy);
+        }
+        
         // first dry-run to calculate the total height of the text
-        double textHeight = s.getTextHeight();
+        double textHeight;
 
         switch (s.getVerticalAlignment()){
             default:
@@ -86,12 +95,31 @@ public class DrawTextShape extends DrawSimpleShape {
                 y += insets.top;
                 break;
             case BOTTOM:
+                textHeight = getTextHeight(graphics);
                 y += anchor.getHeight() - textHeight - insets.bottom;
                 break;
             case MIDDLE:
+                textHeight = getTextHeight(graphics);
                 double delta = anchor.getHeight() - textHeight - insets.top - insets.bottom;
                 y += insets.top + delta/2;
                 break;
+        }
+
+        TextDirection textDir = s.getTextDirection();
+        if (textDir == TextDirection.VERTICAL || textDir == TextDirection.VERTICAL_270) {
+            final double deg = (textDir == TextDirection.VERTICAL) ? 90 : 270;
+            final double cx = anchor.getCenterX();
+            final double cy = anchor.getCenterY();
+            graphics.translate(cx, cy);
+            graphics.rotate(Math.toRadians(deg));
+            graphics.translate(-cx, -cy);
+            
+            // old top/left edge is now bottom/left or top/right - as we operate on the already
+            // rotated drawing context, both verticals can be moved in the same direction
+            final double w = anchor.getWidth();
+            final double h = anchor.getHeight();
+            final double dx = (w-h)/2d;
+            graphics.translate(dx,-dx);
         }
 
         drawParagraphs(graphics, x, y);
@@ -109,9 +137,8 @@ public class DrawTextShape extends DrawSimpleShape {
         DrawFactory fact = DrawFactory.getInstance(graphics);
 
         double y0 = y;
-        //noinspection RedundantCast
-        Iterator<? extends TextParagraph<?,?,? extends TextRun>> paragraphs = (Iterator<? extends TextParagraph<?, ?, ? extends TextRun>>) getShape().iterator();
-
+        Iterator<? extends TextParagraph<?,?,? extends TextRun>> paragraphs = getShape().iterator();
+        
         boolean isFirstLine = true;
         for (int autoNbrIdx=0; paragraphs.hasNext(); autoNbrIdx++){
             TextParagraph<?,?,? extends TextRun> p = paragraphs.next();
@@ -128,7 +155,9 @@ public class DrawTextShape extends DrawSimpleShape {
             dp.setAutoNumberingIdx(autoNbrIdx);
             dp.breakText(graphics);
 
-            if (!isFirstLine) {
+            if (isFirstLine) {
+                y += dp.getFirstLineLeading();
+            } else {
                 // the amount of vertical white space before the paragraph
                 Double spaceBefore = p.getSpaceBefore();
                 if (spaceBefore == null) spaceBefore = 0d;
@@ -165,30 +194,33 @@ public class DrawTextShape extends DrawSimpleShape {
 
     /**
      * Compute the cumulative height occupied by the text
+     * 
+     * @return the height in points
      */
-    public double getTextHeight(){
+    public double getTextHeight() {
+        return getTextHeight(null);
+    }
+    
+    /**
+     * Compute the cumulative height occupied by the text
+     *
+     * @param oldGraphics the graphics context, which properties are to be copied, may be null
+     * @return the height in points
+     */
+    public double getTextHeight(Graphics2D oldGraphics) {
         // dry-run in a 1x1 image and return the vertical advance
         BufferedImage img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = img.createGraphics();
-        fixFonts(graphics);
+        if (oldGraphics != null) {
+            graphics.addRenderingHints(oldGraphics.getRenderingHints());
+            graphics.setTransform(oldGraphics.getTransform());
+        }
+        DrawFactory.getInstance(graphics).fixFonts(graphics);
         return drawParagraphs(graphics, 0, 0);
     }
     
-    @SuppressWarnings("unchecked")
-    private static void fixFonts(Graphics2D graphics) {
-        if (!JvmBugs.hasLineBreakMeasurerBug()) return;
-        Map<String,String> fontMap = (Map<String,String>)graphics.getRenderingHint(Drawable.FONT_MAP);
-        if (fontMap == null) {
-            fontMap = new HashMap<String,String>();
-            graphics.setRenderingHint(Drawable.FONT_MAP, fontMap);
-        }
-        
-        if (!fontMap.containsKey("Calibri")) fontMap.put("Calibri", "Lucida Sans");
-        if (!fontMap.containsKey("Cambria")) fontMap.put("Cambria", "Lucida Bright");
-    }
-
     @Override
-    protected TextShape<?,?> getShape() {
-        return (TextShape<?,?>)shape;
+    protected TextShape<?,? extends TextParagraph<?,?,? extends TextRun>> getShape() {
+        return (TextShape<?,? extends TextParagraph<?,?,? extends TextRun>>)shape;
     }
 }

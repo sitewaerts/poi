@@ -17,10 +17,8 @@
 
 package org.apache.poi.hpsf.extractor;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
 
 import org.apache.poi.POIDocument;
 import org.apache.poi.POIOLE2TextExtractor;
@@ -29,7 +27,7 @@ import org.apache.poi.hpsf.CustomProperties;
 import org.apache.poi.hpsf.DocumentSummaryInformation;
 import org.apache.poi.hpsf.HPSFPropertiesOnlyDocument;
 import org.apache.poi.hpsf.Property;
-import org.apache.poi.hpsf.SpecialPropertySet;
+import org.apache.poi.hpsf.PropertySet;
 import org.apache.poi.hpsf.SummaryInformation;
 import org.apache.poi.hpsf.wellknown.PropertyIDMap;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
@@ -41,8 +39,6 @@ import org.apache.poi.poifs.filesystem.POIFSFileSystem;
  *  textual form.
  */
 public class HPSFPropertiesExtractor extends POIOLE2TextExtractor {
-    private Closeable toClose;
-
     public HPSFPropertiesExtractor(POIOLE2TextExtractor mainExtractor) {
         super(mainExtractor);
     }
@@ -54,7 +50,6 @@ public class HPSFPropertiesExtractor extends POIOLE2TextExtractor {
     }
     public HPSFPropertiesExtractor(NPOIFSFileSystem fs) {
         super(new HPSFPropertiesOnlyDocument(fs));
-        this.toClose = fs;
     }
 
     public String getDocumentSummaryInformationText() {
@@ -63,7 +58,7 @@ public class HPSFPropertiesExtractor extends POIOLE2TextExtractor {
         }
 
         DocumentSummaryInformation dsi = document.getDocumentSummaryInformation();
-        StringBuffer text = new StringBuffer();
+        StringBuilder text = new StringBuilder();
 
         // Normal properties
         text.append( getPropertiesText(dsi) );
@@ -71,11 +66,9 @@ public class HPSFPropertiesExtractor extends POIOLE2TextExtractor {
         // Now custom ones
         CustomProperties cps = dsi == null ? null : dsi.getCustomProperties();
         if (cps != null) {
-            Iterator<String> keys = cps.nameSet().iterator();
-            while (keys.hasNext()) {
-                String key = keys.next();
-                String val = HelperPropertySet.getPropertyValueText( cps.get(key) );
-                text.append(key + " = " + val + "\n");
+            for (String key : cps.nameSet()) {
+                String val = getPropertyValueText(cps.get(key));
+                text.append(key).append(" = ").append(val).append("\n");
             }
         }
 
@@ -93,25 +86,25 @@ public class HPSFPropertiesExtractor extends POIOLE2TextExtractor {
         return getPropertiesText(si);
     }
 
-    private static String getPropertiesText(SpecialPropertySet ps) {
+    private static String getPropertiesText(PropertySet ps) {
         if (ps == null) {
             // Not defined, oh well
             return "";
         }
 
-        StringBuffer text = new StringBuffer();
+        StringBuilder text = new StringBuilder();
 
         PropertyIDMap idMap = ps.getPropertySetIDMap();
         Property[] props = ps.getProperties();
-        for (int i=0; i<props.length; i++) {
-            String type = Long.toString( props[i].getID() );
-            Object typeObj = idMap.get(props[i].getID());
-            if(typeObj != null) {
+        for (Property prop : props) {
+            String type = Long.toString(prop.getID());
+            Object typeObj = (idMap == null) ? null : idMap.get(prop.getID());
+            if (typeObj != null) {
                 type = typeObj.toString();
             }
 
-            String val = HelperPropertySet.getPropertyValueText( props[i].getValue() );
-            text.append(type + " = " + val + "\n");
+            String val = getPropertyValueText(prop.getValue());
+            text.append(type).append(" = ").append(val).append("\n");
         }
 
         return text.toString();
@@ -131,40 +124,28 @@ public class HPSFPropertiesExtractor extends POIOLE2TextExtractor {
     public POITextExtractor getMetadataTextExtractor() {
         throw new IllegalStateException("You already have the Metadata Text Extractor, not recursing!");
     }
+
+    private static String getPropertyValueText(Object val) {
+        return (val == null) 
+            ? "(not set)"
+            : PropertySet.getPropertyStringValue(val);
+    }
     
-    
-    
-    public void close() throws IOException {
-        super.close();
-        
-        if(toClose != null) {
-            toClose.close();
-            toClose = null;
-        }
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
     }
 
-
-
-    private static abstract class HelperPropertySet extends SpecialPropertySet {
-        public HelperPropertySet() {
-            super(null);
-        }
-        public static String getPropertyValueText(Object val) {
-            if (val == null) {
-                return "(not set)";
-            }
-            return SpecialPropertySet.getPropertyStringValue(val);
-        }
+    @Override
+    public int hashCode() {
+        return super.hashCode();
     }
 
     public static void main(String[] args) throws IOException {
         for (String file : args) {
-            HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(
-                    new NPOIFSFileSystem(new File(file)));
-            try {
+            try (HPSFPropertiesExtractor ext = new HPSFPropertiesExtractor(
+                    new NPOIFSFileSystem(new File(file)))) {
                 System.out.println(ext.getText());
-            } finally {
-                ext.close();
             }
         }
     }

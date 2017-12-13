@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Iterator;
 
 import org.apache.poi.ss.ITestDataProvider;
+import org.apache.poi.ss.usermodel.Row.MissingCellPolicy;
 import org.junit.Test;
 
 /**
@@ -36,7 +37,7 @@ import org.junit.Test;
  */
 public abstract class BaseTestRow {
 
-    private final ITestDataProvider _testDataProvider;
+    protected final ITestDataProvider _testDataProvider;
 
     protected BaseTestRow(ITestDataProvider testDataProvider) {
         _testDataProvider = testDataProvider;
@@ -72,6 +73,7 @@ public abstract class BaseTestRow {
      * Make sure that there is no cross-talk between rows especially with getFirstCellNum and getLastCellNum
      * This test was added in response to bug report 44987.
      */
+    @Test
     public void testBoundsInMultipleRows() throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet();
@@ -97,6 +99,7 @@ public abstract class BaseTestRow {
         workbook.close();
     }
 
+    @Test
     public void testRemoveCell() throws IOException {
         Workbook wb1 = _testDataProvider.createWorkbook();
         {
@@ -139,7 +142,7 @@ public abstract class BaseTestRow {
         wb2.close();
     }
 
-    public void baseTestRowBounds(int maxRowNum) throws IOException {
+    protected void baseTestRowBounds(int maxRowNum) throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet();
         //Test low row bound
@@ -168,7 +171,7 @@ public abstract class BaseTestRow {
         workbook.close();
     }
 
-    public void baseTestCellBounds(int maxCellNum) throws IOException {
+    protected void baseTestCellBounds(int maxCellNum) throws IOException {
         Workbook wb1 = _testDataProvider.createWorkbook();
         Sheet sheet = wb1.createSheet();
 
@@ -211,6 +214,7 @@ public abstract class BaseTestRow {
      * Prior to patch 43901, POI was producing files with the wrong last-column
      * number on the row
      */
+    @Test
     public void testLastCellNumIsCorrectAfterAddCell_bug43901() throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet("test");
@@ -234,6 +238,7 @@ public abstract class BaseTestRow {
     /**
      * Tests for the missing/blank cell policy stuff
      */
+    @Test
     public void testGetCellPolicy() throws IOException {
         Workbook workbook = _testDataProvider.createWorkbook();
         Sheet sheet = workbook.createSheet("test");
@@ -247,64 +252,65 @@ public abstract class BaseTestRow {
         // 5 -> num
         row.createCell(0).setCellValue("test");
         row.createCell(1).setCellValue(3.2);
-        row.createCell(4, Cell.CELL_TYPE_BLANK);
+        row.createCell(4, CellType.BLANK);
         row.createCell(5).setCellValue(4);
 
         // First up, no policy given, uses default
-        assertEquals(Cell.CELL_TYPE_STRING,  row.getCell(0).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(1).getCellType());
+        assertEquals(CellType.STRING,  row.getCell(0).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(1).getCellType());
         assertEquals(null, row.getCell(2));
         assertEquals(null, row.getCell(3));
-        assertEquals(Cell.CELL_TYPE_BLANK,   row.getCell(4).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(5).getCellType());
+        assertEquals(CellType.BLANK,   row.getCell(4).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(5).getCellType());
 
         // RETURN_NULL_AND_BLANK - same as default
-        assertEquals(Cell.CELL_TYPE_STRING,  row.getCell(0, Row.RETURN_NULL_AND_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(1, Row.RETURN_NULL_AND_BLANK).getCellType());
-        assertEquals(null, row.getCell(2, Row.RETURN_NULL_AND_BLANK));
-        assertEquals(null, row.getCell(3, Row.RETURN_NULL_AND_BLANK));
-        assertEquals(Cell.CELL_TYPE_BLANK,   row.getCell(4, Row.RETURN_NULL_AND_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(5, Row.RETURN_NULL_AND_BLANK).getCellType());
+        assertEquals(CellType.STRING,  row.getCell(0, MissingCellPolicy.RETURN_NULL_AND_BLANK).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(1, MissingCellPolicy.RETURN_NULL_AND_BLANK).getCellType());
+        assertEquals(null, row.getCell(2, MissingCellPolicy.RETURN_NULL_AND_BLANK));
+        assertEquals(null, row.getCell(3, MissingCellPolicy.RETURN_NULL_AND_BLANK));
+        assertEquals(CellType.BLANK,   row.getCell(4, MissingCellPolicy.RETURN_NULL_AND_BLANK).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(5, MissingCellPolicy.RETURN_NULL_AND_BLANK).getCellType());
 
         // RETURN_BLANK_AS_NULL - nearly the same
-        assertEquals(Cell.CELL_TYPE_STRING,  row.getCell(0, Row.RETURN_BLANK_AS_NULL).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(1, Row.RETURN_BLANK_AS_NULL).getCellType());
-        assertEquals(null, row.getCell(2, Row.RETURN_BLANK_AS_NULL));
-        assertEquals(null, row.getCell(3, Row.RETURN_BLANK_AS_NULL));
-        assertEquals(null, row.getCell(4, Row.RETURN_BLANK_AS_NULL));
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(5, Row.RETURN_BLANK_AS_NULL).getCellType());
+        assertEquals(CellType.STRING,  row.getCell(0, MissingCellPolicy.RETURN_BLANK_AS_NULL).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(1, MissingCellPolicy.RETURN_BLANK_AS_NULL).getCellType());
+        assertEquals(null, row.getCell(2, MissingCellPolicy.RETURN_BLANK_AS_NULL));
+        assertEquals(null, row.getCell(3, MissingCellPolicy.RETURN_BLANK_AS_NULL));
+        assertEquals(null, row.getCell(4, MissingCellPolicy.RETURN_BLANK_AS_NULL));
+        assertEquals(CellType.NUMERIC, row.getCell(5, MissingCellPolicy.RETURN_BLANK_AS_NULL).getCellType());
 
         // CREATE_NULL_AS_BLANK - creates as needed
-        assertEquals(Cell.CELL_TYPE_STRING,  row.getCell(0, Row.CREATE_NULL_AS_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(1, Row.CREATE_NULL_AS_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_BLANK,   row.getCell(2, Row.CREATE_NULL_AS_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_BLANK,   row.getCell(3, Row.CREATE_NULL_AS_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_BLANK,   row.getCell(4, Row.CREATE_NULL_AS_BLANK).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(5, Row.CREATE_NULL_AS_BLANK).getCellType());
+        assertEquals(CellType.STRING,  row.getCell(0, MissingCellPolicy.CREATE_NULL_AS_BLANK).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(1, MissingCellPolicy.CREATE_NULL_AS_BLANK).getCellType());
+        assertEquals(CellType.BLANK,   row.getCell(2, MissingCellPolicy.CREATE_NULL_AS_BLANK).getCellType());
+        assertEquals(CellType.BLANK,   row.getCell(3, MissingCellPolicy.CREATE_NULL_AS_BLANK).getCellType());
+        assertEquals(CellType.BLANK,   row.getCell(4, MissingCellPolicy.CREATE_NULL_AS_BLANK).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(5, MissingCellPolicy.CREATE_NULL_AS_BLANK).getCellType());
 
         // Check created ones get the right column
-        assertEquals(0, row.getCell(0, Row.CREATE_NULL_AS_BLANK).getColumnIndex());
-        assertEquals(1, row.getCell(1, Row.CREATE_NULL_AS_BLANK).getColumnIndex());
-        assertEquals(2, row.getCell(2, Row.CREATE_NULL_AS_BLANK).getColumnIndex());
-        assertEquals(3, row.getCell(3, Row.CREATE_NULL_AS_BLANK).getColumnIndex());
-        assertEquals(4, row.getCell(4, Row.CREATE_NULL_AS_BLANK).getColumnIndex());
-        assertEquals(5, row.getCell(5, Row.CREATE_NULL_AS_BLANK).getColumnIndex());
+        assertEquals(0, row.getCell(0, MissingCellPolicy.CREATE_NULL_AS_BLANK).getColumnIndex());
+        assertEquals(1, row.getCell(1, MissingCellPolicy.CREATE_NULL_AS_BLANK).getColumnIndex());
+        assertEquals(2, row.getCell(2, MissingCellPolicy.CREATE_NULL_AS_BLANK).getColumnIndex());
+        assertEquals(3, row.getCell(3, MissingCellPolicy.CREATE_NULL_AS_BLANK).getColumnIndex());
+        assertEquals(4, row.getCell(4, MissingCellPolicy.CREATE_NULL_AS_BLANK).getColumnIndex());
+        assertEquals(5, row.getCell(5, MissingCellPolicy.CREATE_NULL_AS_BLANK).getColumnIndex());
 
 
         // Now change the cell policy on the workbook, check
         //  that that is now used if no policy given
-        workbook.setMissingCellPolicy(Row.RETURN_BLANK_AS_NULL);
+        workbook.setMissingCellPolicy(MissingCellPolicy.RETURN_BLANK_AS_NULL);
 
-        assertEquals(Cell.CELL_TYPE_STRING,  row.getCell(0).getCellType());
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(1).getCellType());
+        assertEquals(CellType.STRING,  row.getCell(0).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(1).getCellType());
         assertEquals(null, row.getCell(2));
         assertEquals(null, row.getCell(3));
         assertEquals(null, row.getCell(4));
-        assertEquals(Cell.CELL_TYPE_NUMERIC, row.getCell(5).getCellType());
+        assertEquals(CellType.NUMERIC, row.getCell(5).getCellType());
         
         workbook.close();
     }
 
+    @Test
     public void testRowHeight() throws IOException {
         Workbook wb1 = _testDataProvider.createWorkbook();
         Sheet sheet = wb1.createSheet();
@@ -360,6 +366,7 @@ public abstract class BaseTestRow {
     /**
      * Test adding cells to a row in various places and see if we can find them again.
      */
+    @Test
     public void testCellIterator() throws IOException {
         Workbook wb = _testDataProvider.createWorkbook();
         Sheet sheet = wb.createSheet();
@@ -402,7 +409,7 @@ public abstract class BaseTestRow {
         assertFalse(it.hasNext());
 
         // Add another cell, specifying the cellType
-        Cell cell5 = row.createCell(2, Cell.CELL_TYPE_STRING);
+        Cell cell5 = row.createCell(2, CellType.STRING);
         it = row.cellIterator();
         assertNotNull(cell5);
         assertTrue(it.hasNext());
@@ -413,10 +420,11 @@ public abstract class BaseTestRow {
         assertTrue(cell5 == it.next());
         assertTrue(it.hasNext());
         assertTrue(cell2 == it.next());
-        assertEquals(Cell.CELL_TYPE_STRING, cell5.getCellType());
+        assertEquals(CellType.STRING, cell5.getCellType());
         wb.close();
     }
 
+    @Test
     public void testRowStyle() throws IOException {
        Workbook wb1 = _testDataProvider.createWorkbook();
        Sheet sheet = wb1.createSheet("test");

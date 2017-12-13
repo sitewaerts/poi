@@ -33,6 +33,7 @@ import org.apache.poi.xwpf.usermodel.XWPFHyperlink;
 import org.apache.poi.xwpf.usermodel.XWPFHyperlinkRun;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRelation;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.poi.xwpf.usermodel.XWPFSDT;
 import org.apache.poi.xwpf.usermodel.XWPFSDTCell;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
@@ -45,14 +46,15 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
  * Helper class to extract text from an OOXML Word file
  */
 public class XWPFWordExtractor extends POIXMLTextExtractor {
-    public static final XWPFRelation[] SUPPORTED_TYPES = new XWPFRelation[]{
+    public static final XWPFRelation[] SUPPORTED_TYPES = {
             XWPFRelation.DOCUMENT, XWPFRelation.TEMPLATE,
             XWPFRelation.MACRO_DOCUMENT,
             XWPFRelation.MACRO_TEMPLATE_DOCUMENT
     };
 
     private XWPFDocument document;
-    private boolean fetchHyperlinks = false;
+    private boolean fetchHyperlinks;
+    private boolean concatenatePhoneticRuns = true;
 
     public XWPFWordExtractor(OPCPackage container) throws XmlException, OpenXML4JException, IOException {
         this(new XWPFDocument(container));
@@ -86,8 +88,16 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         fetchHyperlinks = fetch;
     }
 
+    /**
+     * Should we concatenate phonetic runs in extraction.  Default is <code>true</code>
+     * @param concatenatePhoneticRuns
+     */
+    public void setConcatenatePhoneticRuns(boolean concatenatePhoneticRuns) {
+        this.concatenatePhoneticRuns = concatenatePhoneticRuns;
+    }
+
     public String getText() {
-        StringBuffer text = new StringBuffer();
+        StringBuilder text = new StringBuilder(64);
         XWPFHeaderFooterPolicy hfPolicy = document.getHeaderFooterPolicy();
 
         // Start out with all headers
@@ -105,7 +115,7 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         return text.toString();
     }
 
-    public void appendBodyElementText(StringBuffer text, IBodyElement e) {
+    public void appendBodyElementText(StringBuilder text, IBodyElement e) {
         if (e instanceof XWPFParagraph) {
             appendParagraphText(text, (XWPFParagraph) e);
         } else if (e instanceof XWPFTable) {
@@ -115,7 +125,7 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         }
     }
 
-    public void appendParagraphText(StringBuffer text, XWPFParagraph paragraph) {
+    public void appendParagraphText(StringBuilder text, XWPFParagraph paragraph) {
         CTSectPr ctSectPr = null;
         if (paragraph.getCTP().getPPr() != null) {
             ctSectPr = paragraph.getCTP().getPPr().getSectPr();
@@ -130,11 +140,15 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
 
 
         for (IRunElement run : paragraph.getRuns()) {
-            text.append(run.toString());
+            if (! concatenatePhoneticRuns && run instanceof XWPFRun) {
+                text.append(((XWPFRun)run).text());
+            } else {
+                text.append(run);
+            }
             if (run instanceof XWPFHyperlinkRun && fetchHyperlinks) {
                 XWPFHyperlink link = ((XWPFHyperlinkRun) run).getHyperlink(document);
                 if (link != null)
-                    text.append(" <" + link.getURL() + ">");
+                    text.append(" <").append(link.getURL()).append(">");
             }
         }
 
@@ -148,7 +162,7 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         // Do endnotes and footnotes
         String footnameText = paragraph.getFootnoteText();
         if (footnameText != null && footnameText.length() > 0) {
-            text.append(footnameText + '\n');
+            text.append(footnameText).append('\n');
         }
 
         if (ctSectPr != null) {
@@ -156,7 +170,7 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         }
     }
 
-    private void appendTableText(StringBuffer text, XWPFTable table) {
+    private void appendTableText(StringBuilder text, XWPFTable table) {
         //this works recursively to pull embedded tables from tables
         for (XWPFTableRow row : table.getRows()) {
             List<ICell> cells = row.getTableICells();
@@ -175,7 +189,7 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         }
     }
 
-    private void extractFooters(StringBuffer text, XWPFHeaderFooterPolicy hfPolicy) {
+    private void extractFooters(StringBuilder text, XWPFHeaderFooterPolicy hfPolicy) {
         if (hfPolicy == null) return;
 
         if (hfPolicy.getFirstPageFooter() != null) {
@@ -189,7 +203,7 @@ public class XWPFWordExtractor extends POIXMLTextExtractor {
         }
     }
 
-    private void extractHeaders(StringBuffer text, XWPFHeaderFooterPolicy hfPolicy) {
+    private void extractHeaders(StringBuilder text, XWPFHeaderFooterPolicy hfPolicy) {
         if (hfPolicy == null) return;
 
         if (hfPolicy.getFirstPageHeader() != null) {

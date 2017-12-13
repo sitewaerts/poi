@@ -63,6 +63,9 @@ public class LittleEndian implements LittleEndianConsts
      * @param size
      *            Number of bytes to copy.
      * @return The byteArray value
+     *
+     * @see #getByteArray(byte[], int, int, int) if size is not a constant
+     *
      * @throws IndexOutOfBoundsException
      *             - if copying would cause access of data outside array bounds.
      */
@@ -73,6 +76,31 @@ public class LittleEndian implements LittleEndianConsts
 
         return copy;
     }
+
+    /**
+     * Copy a portion of a byte array
+     *
+     * @param data
+     *            the original byte array
+     * @param offset
+     *            Where to start copying from.
+     * @param size
+     *            Number of bytes to copy.
+     * @param maxSize
+     *            Size must be <= maxSize or an exception is thrown.
+     *            Use this to avoid potential OOMs on corrupt data.
+     * @return The byteArray value
+     * @throws IndexOutOfBoundsException
+     *             - if copying would cause access of data outside array bounds.
+     */
+    public static byte[] getByteArray( byte[] data, int offset, int size, int maxSize)
+    {
+        byte[] copy = IOUtils.safelyAllocate(size, maxSize);
+        System.arraycopy( data, offset, copy, 0, size );
+
+        return copy;
+    }
+
 
     /**
      * get a double value from a byte array, reads it in little endian format
@@ -302,22 +330,6 @@ public class LittleEndian implements LittleEndianConsts
     }
 
     /**
-     * get the unsigned value of a byte.
-     * 
-     * @param data
-     *            the byte array.
-     * @param offset
-     *            a starting offset into the byte array.
-     * @return the unsigned value of the byte as a 32 bit integer
-     * @deprecated Use {@link #getUByte(byte[], int)} instead
-     */
-    @Deprecated
-    public static int getUnsignedByte( byte[] data, int offset )
-    {
-        return data[offset] & 0xFF;
-    }
-
-    /**
      * get an unsigned short value from the beginning of a byte array
      * 
      * @param data
@@ -347,7 +359,7 @@ public class LittleEndian implements LittleEndianConsts
 
     /**
      * executes:
-     * <p/>
+     * <p>
      * <code>
      * data[offset] = (byte)value;
      * </code>
@@ -419,21 +431,6 @@ public class LittleEndian implements LittleEndianConsts
             throws IOException
     {
         putInt( Float.floatToIntBits( value ), outputStream );
-    }
-
-    /**
-     * put an int value into beginning of a byte array
-     * 
-     * @param data
-     *            the byte array
-     * @param value
-     *            the int (32-bit) value
-     * @deprecated Use {@link #putInt(byte[], int, int)} instead
-     */
-    @Deprecated
-    public static void putInt( byte[] data, int value )
-    {
-        putInt( data, 0, value );
     }
 
     /**
@@ -537,21 +534,6 @@ public class LittleEndian implements LittleEndianConsts
     }
 
     /**
-     * put a short value into beginning of a byte array
-     * 
-     * @param data
-     *            the byte array
-     * @param value
-     *            the short (16-bit) value
-     * @deprecated Use {@link #putShort(byte[], int, short)} instead
-     */
-    @Deprecated
-    public static void putShort( byte[] data, short value )
-    {
-        putShort( data, 0, value );
-    }
-
-    /**
      * Put signed short into output stream
      * 
      * @param value
@@ -627,21 +609,6 @@ public class LittleEndian implements LittleEndianConsts
         data[i++] = (byte) ( ( value >>> 8 ) & 0xFF );
         data[i++] = (byte) ( ( value >>> 16 ) & 0xFF );
         data[i++] = (byte) ( ( value >>> 24 ) & 0xFF );
-    }
-
-    /**
-     * put an unsigned int value into beginning of a byte array
-     * 
-     * @param data
-     *            the byte array
-     * @param value
-     *            the int (32-bit) value
-     * @deprecated Use {@link #putUInt(byte[], int, long)} instead
-     */
-    @Deprecated
-    public static void putUInt( byte[] data, long value )
-    {
-        putUInt( data, 0, value );
     }
 
     /**

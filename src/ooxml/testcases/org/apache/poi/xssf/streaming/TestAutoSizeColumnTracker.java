@@ -55,7 +55,7 @@ public class TestAutoSizeColumnTracker {
     private AutoSizeColumnTracker tracker;
     private static final SortedSet<Integer> columns;
     static {
-        SortedSet<Integer>_columns = new TreeSet<Integer>();
+        SortedSet<Integer>_columns = new TreeSet<>();
         _columns.add(0);
         _columns.add(1);
         _columns.add(3);
@@ -85,7 +85,7 @@ public class TestAutoSizeColumnTracker {
     public void trackAndUntrackColumn() {
         assumeTrue(tracker.getTrackedColumns().isEmpty());
         tracker.trackColumn(0);
-        Set<Integer> expected = new HashSet<Integer>();
+        Set<Integer> expected = new HashSet<>();
         expected.add(0);
         assertEquals(expected, tracker.getTrackedColumns());
         tracker.untrackColumn(0);
@@ -211,8 +211,6 @@ public class TestAutoSizeColumnTracker {
     private static void assumeRequiredFontsAreInstalled(final Workbook workbook, final Cell cell) {
         // autoSize will fail if required fonts are not installed, skip this test then
         Font font = workbook.getFontAt(cell.getCellStyle().getFontIndex());
-        System.out.println(font.getFontHeightInPoints());
-        System.out.println(font.getFontName());
         Assume.assumeTrue("Cannot verify autoSizeColumn() because the necessary Fonts are not installed on this machine: " + font,
                           SheetUtil.canComputeColumnWidth(font));
     }

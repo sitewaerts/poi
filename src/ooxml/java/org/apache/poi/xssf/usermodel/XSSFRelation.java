@@ -16,24 +16,13 @@
 ==================================================================== */
 package org.apache.poi.xssf.usermodel;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.poi.POIXMLDocument;
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLRelation;
-import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
-import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackagePartName;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
-import org.apache.poi.openxml4j.opc.PackageRelationshipCollection;
 import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
-import org.apache.poi.openxml4j.opc.PackagingURIHelper;
-import org.apache.poi.util.POILogFactory;
-import org.apache.poi.util.POILogger;
 import org.apache.poi.xssf.model.CalculationChain;
 import org.apache.poi.xssf.model.CommentsTable;
 import org.apache.poi.xssf.model.ExternalLinksTable;
@@ -44,16 +33,15 @@ import org.apache.poi.xssf.model.StylesTable;
 import org.apache.poi.xssf.model.ThemesTable;
 
 /**
- *
+ * Defines namespaces, content types and normal file names / naming
+ *  patterns, for the well-known XSSF format parts. 
  */
 public final class XSSFRelation extends POIXMLRelation {
-
-    private static final POILogger log = POILogFactory.getLogger(XSSFRelation.class);
 
     /**
      * A map to lookup POIXMLRelation by its relation type
      */
-    protected static final Map<String, XSSFRelation> _table = new HashMap<String, XSSFRelation>();
+    private static final Map<String, XSSFRelation> _table = new HashMap<>();
 
 
     public static final XSSFRelation WORKBOOK = new XSSFRelation(
@@ -298,6 +286,27 @@ public final class XSSFRelation extends POIXMLRelation {
         null
     );
 
+    public static final XSSFRelation MACRO_SHEET_BIN = new XSSFRelation(
+            null,//TODO: figure out what this should be?
+            "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet",
+            "/xl/macroSheets/sheet#.bin",
+            null
+    );
+
+    public static final XSSFRelation INTL_MACRO_SHEET_BIN = new XSSFRelation(
+            null,//TODO: figure out what this should be?
+            "http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet",
+            "/xl/macroSheets/sheet#.bin",
+            null
+    );
+
+    public static final XSSFRelation DIALOG_SHEET_BIN = new XSSFRelation(
+            null,//TODO: figure out what this should be?
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/dialogsheet",
+            "/xl/dialogSheets/sheet#.bin",
+            null
+    );
+
     public static final XSSFRelation THEME = new XSSFRelation(
         "application/vnd.openxmlformats-officedocument.theme+xml",
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
@@ -351,28 +360,20 @@ public final class XSSFRelation extends POIXMLRelation {
             null
     );
 
+    public static final XSSFRelation CUSTOM_PROPERTIES = new XSSFRelation(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.customProperty",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customProperty",
+            "/xl/customProperty#.bin",
+            null
+    );
+
+    public static final String NS_SPREADSHEETML = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+    public static final String NS_DRAWINGML = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    public static final String NS_CHART = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
     private XSSFRelation(String type, String rel, String defaultName, Class<? extends POIXMLDocumentPart> cls) {
         super(type, rel, defaultName, cls);
         _table.put(rel, this);
-    }
-
-    /**
-     *  Fetches the InputStream to read the contents, based
-     *  of the specified core part, for which we are defined
-     *  as a suitable relationship
-     */
-    public InputStream getContents(PackagePart corePart) throws IOException, InvalidFormatException {
-        PackageRelationshipCollection prc =
-            corePart.getRelationshipsByType(_relation);
-        Iterator<PackageRelationship> it = prc.iterator();
-        if(it.hasNext()) {
-            PackageRelationship rel = it.next();
-            PackagePartName relName = PackagingURIHelper.createPartName(rel.getTargetURI());
-            PackagePart part = corePart.getPackage().getPart(relName);
-            return part.getInputStream();
-        }
-        log.log(POILogger.WARN, "No part " + _defaultName + " found");
-        return null;
     }
 
     /**
@@ -382,7 +383,7 @@ public final class XSSFRelation extends POIXMLRelation {
      *    <code>http://schemas.openxmlformats.org/officeDocument/2006/relationships/image</code>
      * @return registered POIXMLRelation or null if not found
      */
-    public static XSSFRelation getInstance(String rel){
+    public static XSSFRelation getInstance(String rel) {
         return _table.get(rel);
     }
 }

@@ -33,13 +33,13 @@ public class TestXWPFDecorators extends TestCase {
     private XWPFDocument hyperlink;
     private XWPFDocument comments;
 
+    @Override
     protected void setUp() throws IOException {
         simple = XWPFTestDataSamples.openSampleDocument("SampleDoc.docx");
         hyperlink = XWPFTestDataSamples.openSampleDocument("TestDocument.docx");
         comments = XWPFTestDataSamples.openSampleDocument("WordWithAttachments.docx");
     }
 
-    @SuppressWarnings("deprecation")
     public void testHyperlink() {
         XWPFParagraph ps;
         XWPFParagraph ph;
@@ -64,27 +64,6 @@ public class TestXWPFDecorators extends TestCase {
 
         XWPFHyperlinkRun link = (XWPFHyperlinkRun) ph.getRuns().get(1);
         assertEquals("http://poi.apache.org/", link.getHyperlink(hyperlink).getURL());
-
-
-        // Test the old style decorator
-        // You probably don't want to still be using it...
-        assertEquals(
-                "I am a test document",
-                (new XWPFHyperlinkDecorator(ps, null, false)).getText()
-        );
-        assertEquals(
-                "I am a test document",
-                (new XWPFHyperlinkDecorator(ps, null, true)).getText()
-        );
-
-        assertEquals(
-                "We have a hyperlink here, and another.hyperlink",
-                (new XWPFHyperlinkDecorator(ph, null, false)).getText()
-        );
-        assertEquals(
-                "We have a hyperlink here, and another.hyperlink <http://poi.apache.org/>",
-                (new XWPFHyperlinkDecorator(ph, null, true)).getText()
-        );
     }
 
     public void testComments() {

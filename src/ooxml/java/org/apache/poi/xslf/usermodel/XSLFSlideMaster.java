@@ -25,7 +25,6 @@ import java.util.Map;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.openxml4j.opc.PackagePart;
-import org.apache.poi.openxml4j.opc.PackageRelationship;
 import org.apache.poi.sl.usermodel.MasterSheet;
 import org.apache.poi.sl.usermodel.Placeholder;
 import org.apache.poi.util.Beta;
@@ -77,15 +76,6 @@ import org.openxmlformats.schemas.presentationml.x2006.main.SldMasterDocument;
         SldMasterDocument doc =
             SldMasterDocument.Factory.parse(getPackagePart().getInputStream(), DEFAULT_XML_OPTIONS);
         _slide = doc.getSldMaster();
-        setCommonSlideData(_slide.getCSld());
-    }
-
-    /**
-     * @deprecated in POI 3.14, scheduled for removal in POI 3.16
-     */
-    @Deprecated
-    protected XSLFSlideMaster(PackagePart part, PackageRelationship rel) throws IOException, XmlException {
-        this(part);
     }
     
     @Override
@@ -105,7 +95,7 @@ import org.openxmlformats.schemas.presentationml.x2006.main.SldMasterDocument;
 
     private Map<String, XSLFSlideLayout> getLayouts(){
         if(_layouts == null){
-            _layouts = new HashMap<String, XSLFSlideLayout>();
+            _layouts = new HashMap<>();
             for (POIXMLDocumentPart p : getRelations()) {
                 if (p instanceof XSLFSlideLayout){
                     XSLFSlideLayout layout = (XSLFSlideLayout)p;

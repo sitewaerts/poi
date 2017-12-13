@@ -33,13 +33,13 @@ import org.junit.Test;
 public final class TestFileHelper {
 
 	/**
-	 * TODO - use simple JDK methods on {@link File} instead:<br/>
+	 * TODO - use simple JDK methods on {@link File} instead:<br>
 	 * {@link File#getParentFile()} instead of {@link FileHelper#getDirectory(File)
 	 * {@link File#getName()} instead of {@link FileHelper#getFilename(File)
 	 */
     @Test
 	public void testGetDirectory() {
-		TreeMap<String, String> expectedValue = new TreeMap<String, String>();
+		TreeMap<String, String> expectedValue = new TreeMap<>();
 		expectedValue.put("/dir1/test.doc", "/dir1");
 		expectedValue.put("/dir1/dir2/test.doc.xml", "/dir1/dir2");
 

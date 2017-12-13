@@ -18,6 +18,7 @@
 package org.apache.poi.hslf.record;
 
 import org.apache.poi.ddf.*;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 
 import java.io.OutputStream;
@@ -35,6 +36,10 @@ import java.util.Iterator;
  */
 public final class PPDrawingGroup extends RecordAtom {
 
+    //arbitrarily selected; may need to increase
+    private static final int MAX_RECORD_LENGTH = 10_485_760;
+
+
     private byte[] _header;
     private EscherContainerRecord dggContainer;
     //cached dgg
@@ -46,7 +51,7 @@ public final class PPDrawingGroup extends RecordAtom {
         System.arraycopy(source,start,_header,0,8);
 
         // Get the contents for now
-        byte[] contents = new byte[len];
+        byte[] contents = IOUtils.safelyAllocate(len, MAX_RECORD_LENGTH);
         System.arraycopy(source,start,contents,0,len);
 
         DefaultEscherRecordFactory erf = new HSLFEscherRecordFactory();
@@ -71,17 +76,14 @@ public final class PPDrawingGroup extends RecordAtom {
 
     public void writeOut(OutputStream out) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        Iterator<EscherRecord> iter = dggContainer.getChildIterator();
-        while (iter.hasNext()) {
-        	EscherRecord r = iter.next();
+        for (EscherRecord r : dggContainer) {
             if (r.getRecordId() == EscherContainerRecord.BSTORE_CONTAINER){
                 EscherContainerRecord bstore = (EscherContainerRecord)r;
 
                 ByteArrayOutputStream b2 = new ByteArrayOutputStream();
-                for (Iterator<EscherRecord> it= bstore.getChildIterator(); it.hasNext();) {
-                    EscherBSERecord bse = (EscherBSERecord)it.next();
+                for (EscherRecord br : bstore) {
                     byte[] b = new byte[36+8];
-                    bse.serialize(0, b);
+                    br.serialize(0, b);
                     b2.write(b);
                 }
                 byte[] bstorehead = new byte[8];
@@ -120,8 +122,7 @@ public final class PPDrawingGroup extends RecordAtom {
 
     public EscherDggRecord getEscherDggRecord(){
         if(dgg == null){
-            for(Iterator<EscherRecord> it = dggContainer.getChildIterator(); it.hasNext();){
-                EscherRecord r = it.next();
+            for(EscherRecord r : dggContainer){
                 if(r instanceof EscherDggRecord){
                     dgg = (EscherDggRecord)r;
                     break;

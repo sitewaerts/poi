@@ -38,7 +38,7 @@ public class HSSFRequest {
 
 	/** Creates a new instance of HSSFRequest */
 	public HSSFRequest() {
-		_records = new HashMap<Short, List<HSSFListener>>(50); // most folks won't listen for too many of these
+		_records = new HashMap<>(50); // most folks won't listen for too many of these
 	}
 
 	/**
@@ -58,7 +58,7 @@ public class HSSFRequest {
 		List<HSSFListener> list = _records.get(Short.valueOf(sid));
 
 		if (list == null) {
-			list = new ArrayList<HSSFListener>(1); // probably most people will use one listener
+			list = new ArrayList<>(1); // probably most people will use one listener
 			_records.put(Short.valueOf(sid), list);
 		}
 		list.add(lsnr);
@@ -77,16 +77,16 @@ public class HSSFRequest {
 	public void addListenerForAllRecords(HSSFListener lsnr) {
 		short[] rectypes = RecordFactory.getAllKnownRecordSIDs();
 
-		for (int k = 0; k < rectypes.length; k++) {
-			addListener(lsnr, rectypes[k]);
+		for (short rectype : rectypes) {
+			addListener(lsnr, rectype);
 		}
 	}
 
 	/**
 	 * Called by HSSFEventFactory, passes the Record to each listener associated with
 	 * a record.sid.
-	 *
-	 * Exception and return value added 2002-04-19 by Carey Sublette
+	 * 
+	 * @param rec the record to be processed
 	 *
 	 * @return numeric user-specified result code. If zero continue processing.
 	 * @throws HSSFUserException User exception condition

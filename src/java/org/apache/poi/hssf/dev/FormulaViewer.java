@@ -30,7 +30,6 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.ss.formula.ptg.ExpPtg;
 import org.apache.poi.ss.formula.ptg.FuncPtg;
-import org.apache.poi.ss.formula.ptg.OperationPtg;
 import org.apache.poi.ss.formula.ptg.Ptg;
 
 /**
@@ -43,7 +42,7 @@ import org.apache.poi.ss.formula.ptg.Ptg;
 public class FormulaViewer
 {
     private String file;
-    private boolean list=false;
+    private boolean list;
 
     /** Creates new FormulaViewer */
 
@@ -53,33 +52,31 @@ public class FormulaViewer
 
     /**
      * Method run
-     * @throws IOException 
-     *
-     *
-     * @exception Exception
-     *
+     * 
+     * @throws IOException if the file contained errors 
      */
-
     public void run() throws IOException {
         NPOIFSFileSystem fs  = new NPOIFSFileSystem(new File(file), true);
-        InputStream is = BiffViewer.getPOIFSInputStream(fs);
-        List<Record> records = RecordFactory.createRecords(is);
+        try {
+            InputStream is = BiffViewer.getPOIFSInputStream(fs);
+            try {
+                List<Record> records = RecordFactory.createRecords(is);
 
-        for (int k = 0; k < records.size(); k++)
-        {
-            Record record = records.get(k);
-
-            if (record.getSid() == FormulaRecord.sid)
-            {
-               if (list) {
-                    listFormula((FormulaRecord) record);
-               }else {
-                    parseFormulaRecord(( FormulaRecord ) record);
-               }
+                for (Record record : records) {
+                    if (record.getSid() == FormulaRecord.sid) {
+                        if (list) {
+                            listFormula((FormulaRecord) record);
+                        } else {
+                            parseFormulaRecord((FormulaRecord) record);
+                        }
+                    }
+                }
+            } finally {
+                is.close();
             }
+        } finally {
+            fs.close();
         }
-        is.close();
-        fs.close();
     }
     
     private void listFormula(FormulaRecord record) {
@@ -95,10 +92,10 @@ public class FormulaViewer
             	numArg = String.valueOf(-1);
             }
             
-            StringBuffer buf = new StringBuffer();
+            StringBuilder buf = new StringBuilder();
             
             if (token instanceof ExpPtg) return;
-            buf.append(((OperationPtg) token).toFormulaString());
+            buf.append(token.toFormulaString());
             buf.append(sep);
             switch (token.getPtgClass()) {
                 case Ptg.CLASS_REF :
@@ -110,6 +107,8 @@ public class FormulaViewer
                 case Ptg.CLASS_ARRAY :
                     buf.append("ARRAY");
                     break;
+                default:
+                    throwInvalidRVAToken(token);
             }
             
             buf.append(sep);
@@ -125,23 +124,22 @@ public class FormulaViewer
                     case Ptg.CLASS_ARRAY :
                         buf.append("ARRAY");
                         break;
+                    default:
+                        throwInvalidRVAToken(token);
                 }
             }else {
                 buf.append("VALUE");
             }
             buf.append(sep);
             buf.append(numArg);
-            System.out.println(buf.toString());
+            System.out.println(buf);
     }
 
     /**
      * Method parseFormulaRecord
      *
-     *
-     * @param record
-     *
+     * @param record the record to be parsed
      */
-
     public void parseFormulaRecord(FormulaRecord record)
     {
         System.out.println("==============================");
@@ -158,11 +156,10 @@ public class FormulaViewer
 
     private String formulaString(FormulaRecord record) {
 
-        StringBuffer buf = new StringBuffer();
+        StringBuilder buf = new StringBuilder();
 		Ptg[] tokens = record.getParsedExpression();
-		for (int i = 0; i < tokens.length; i++) {
-			Ptg token = tokens[i];
-            buf.append( token.toFormulaString());
+		for (Ptg token : tokens) {
+			buf.append( token.toFormulaString());
             switch (token.getPtgClass()) {
                 case Ptg.CLASS_REF :
                     buf.append("(R)");
@@ -173,24 +170,28 @@ public class FormulaViewer
                 case Ptg.CLASS_ARRAY :
                     buf.append("(A)");
                     break;
+                default:
+                    throwInvalidRVAToken(token);
             }
             buf.append(' ');
         } 
         return buf.toString();
     }
     
+    private static void throwInvalidRVAToken(Ptg token) {
+        throw new IllegalStateException("Invalid RVA type (" + token.getPtgClass() + "). This should never happen.");
+    }
+    
     
     private static String composeFormula(FormulaRecord record)
     {
-       return  HSSFFormulaParser.toFormulaString((HSSFWorkbook)null, record.getParsedExpression());
+       return  HSSFFormulaParser.toFormulaString(null, record.getParsedExpression());
     }
 
     /**
      * Method setFile
      *
-     *
-     * @param file
-     *
+     * @param file the file to process
      */
 
     public void setFile(String file)
@@ -208,11 +209,8 @@ public class FormulaViewer
      * pass me a filename and I'll try and parse the formulas from it
      *
      * @param args pass one argument with the filename or --help
-     * @throws IOException 
-     * @throws Exception 
-     *
+     * @throws IOException if the file can't be read or contained errors
      */
-
     public static void main(String args[]) throws IOException
     {
         if ((args == null) || (args.length >2 )

@@ -45,7 +45,7 @@ public final class SXSSFITestDataProvider implements ITestDataProvider {
 
     // an instance of all SXSSFWorkbooks opened by this TestDataProvider,
     // so that the temporary files created can be disposed up by cleanup() 
-    private final Collection<SXSSFWorkbook> instances = new ArrayList<SXSSFWorkbook>();
+    private final Collection<SXSSFWorkbook> instances = new ArrayList<>();
 
     private SXSSFITestDataProvider() {
         // enforce singleton
@@ -64,7 +64,10 @@ public final class SXSSFITestDataProvider implements ITestDataProvider {
      */
     @Override
     public XSSFWorkbook writeOutAndReadBack(Workbook wb) {
-        if(!(wb instanceof SXSSFWorkbook)) {
+        // wb is usually an SXSSFWorkbook, but must also work on an XSSFWorkbook
+        // since workbooks must be able to be written out and read back
+        // several times in succession
+        if(!(wb instanceof SXSSFWorkbook || wb instanceof XSSFWorkbook)) {
             throw new IllegalArgumentException("Expected an instance of SXSSFWorkbook");
         }
 
@@ -87,12 +90,19 @@ public final class SXSSFITestDataProvider implements ITestDataProvider {
         return wb;
     }
     
+    //************ SXSSF-specific methods ***************//
     @Override
-    public void trackColumnsForAutosizing(Sheet sheet, int...columns) {
-        for (int cn : columns) {
-            ((SXSSFSheet)sheet).trackColumnForAutoSizing(cn);
-        }
+    public SXSSFWorkbook createWorkbook(int rowAccessWindowSize) {
+        SXSSFWorkbook wb = new SXSSFWorkbook(rowAccessWindowSize);
+        instances.add(wb);
+        return wb;
     }
+    
+    @Override
+    public void trackAllColumnsForAutosizing(Sheet sheet) {
+        ((SXSSFSheet)sheet).trackAllColumnsForAutoSizing();
+    }
+    //************ End SXSSF-specific methods ***************//
     
     @Override
     public FormulaEvaluator createFormulaEvaluator(Workbook wb) {

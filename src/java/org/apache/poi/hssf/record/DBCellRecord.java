@@ -21,11 +21,9 @@ import org.apache.poi.util.HexDump;
 import org.apache.poi.util.LittleEndianOutput;
 
 /**
- * Title:        DBCell Record (0x00D7)<p/>
+ * Title:        DBCell Record (0x00D7)<p>
  * Description:  Used by Excel and other MS apps to quickly find rows in the sheets.<P>
- * REFERENCE:  PG 299/440 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)<P>
- * @author Andrew C. Oliver (acoliver at apache dot org)
- * @author Jason Height
+ * REFERENCE:  PG 299/440 Microsoft Excel 97 Developer's Kit (ISBN: 1-57231-498-2)
  */
 public final class DBCellRecord extends StandardRecord implements Cloneable {
     public final static short sid = 0x00D7;
@@ -99,17 +97,6 @@ public final class DBCellRecord extends StandardRecord implements Cloneable {
     }
     protected int getDataSize() {
         return 4 + field_2_cell_offsets.length * 2;
-    }
-    
-    /**
-     *  @return the size of the group of <tt>DBCellRecord</tt>s needed to encode
-     *  the specified number of blocks and rows
-     */
-    public static int calculateSizeOfRecords(int nBlocks, int nRows) {
-        // One DBCell per block.
-        // 8 bytes per DBCell (non variable section)
-        // 2 bytes per row reference
-        return nBlocks * 8 + nRows * 2;
     }
 
     public short getSid() {

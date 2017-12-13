@@ -190,10 +190,10 @@ public final class TestRawDataBlock extends TestCase {
 	 *  not to have any data
 	 */
 	public static class SlowInputStream extends InputStream {
-		private Random rnd = new Random();
-		private byte[] data;
-		private int chunkSize;
-		private int pos = 0;
+		private final Random rnd = new Random();
+		private final byte[] data;
+		private final int chunkSize;
+		private int pos;
 
 		public SlowInputStream(byte[] data, int chunkSize) {
 			this.chunkSize = chunkSize;
@@ -210,7 +210,8 @@ public final class TestRawDataBlock extends TestCase {
 			return true;
 		}
 
-		public int read() {
+		@Override
+        public int read() {
 			if(pos >= data.length) {
 				return -1;
 			}
@@ -226,7 +227,8 @@ public final class TestRawDataBlock extends TestCase {
 		 *  size, whichever is lower.
 		 * Quite often will simply claim to have no data
 		 */
-		public int read(byte[] b, int off, int len) {
+		@Override
+        public int read(byte[] b, int off, int len) {
 			// Keep the length within the chunk size
 			if(len > chunkSize) {
 				len = chunkSize;
@@ -252,7 +254,8 @@ public final class TestRawDataBlock extends TestCase {
 			return len;
 		}
 
-		public int read(byte[] b) {
+		@Override
+        public int read(byte[] b) {
 			return read(b, 0, b.length);
 		}
 	}

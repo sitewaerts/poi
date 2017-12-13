@@ -67,10 +67,11 @@ public final class TestChartTitleFormatRecord {
 		private final List<ChartTitleFormatRecord> chartTitleFormatRecords;
 		
 		public ChartTitleFormatRecordGrabber() {
-			chartTitleFormatRecords = new ArrayList<ChartTitleFormatRecord>();
+			chartTitleFormatRecords = new ArrayList<>();
 		}
 
-		public void processRecord(Record record) {
+		@Override
+        public void processRecord(Record record) {
 			if(record instanceof ChartTitleFormatRecord) {
 				chartTitleFormatRecords.add((ChartTitleFormatRecord)record);
 			}

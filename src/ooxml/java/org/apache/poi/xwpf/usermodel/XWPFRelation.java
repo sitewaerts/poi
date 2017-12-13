@@ -22,6 +22,7 @@ import java.util.Map;
 
 import org.apache.poi.POIXMLDocumentPart;
 import org.apache.poi.POIXMLRelation;
+import org.apache.poi.openxml4j.opc.PackageRelationshipTypes;
 
 /**
  * @author Yegor Kozlov
@@ -31,29 +32,29 @@ public final class XWPFRelation extends POIXMLRelation {
     /**
      * A map to lookup POIXMLRelation by its relation type
      */
-    protected static final Map<String, XWPFRelation> _table = new HashMap<String, XWPFRelation>();
+    private static final Map<String, XWPFRelation> _table = new HashMap<>();
 
     public static final XWPFRelation DOCUMENT = new XWPFRelation(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            PackageRelationshipTypes.CORE_DOCUMENT,
             "/word/document.xml",
             null
     );
     public static final XWPFRelation TEMPLATE = new XWPFRelation(
             "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml",
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            PackageRelationshipTypes.CORE_DOCUMENT,
             "/word/document.xml",
             null
     );
     public static final XWPFRelation MACRO_DOCUMENT = new XWPFRelation(
             "application/vnd.ms-word.document.macroEnabled.main+xml",
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            PackageRelationshipTypes.CORE_DOCUMENT,
             "/word/document.xml",
             null
     );
     public static final XWPFRelation MACRO_TEMPLATE_DOCUMENT = new XWPFRelation(
             "application/vnd.ms-word.template.macroEnabledTemplate.main+xml",
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+            PackageRelationshipTypes.CORE_DOCUMENT,
             "/word/document.xml",
             null
     );
@@ -110,6 +111,12 @@ public final class XWPFRelation extends POIXMLRelation {
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
             "/word/theme/theme#.xml",
             null
+    );
+    public static final XWPFRelation CHART = new XWPFRelation(
+            "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+            "/word/charts/chart#.xml",
+            XWPFChart.class
     );
     public static final XWPFRelation HYPERLINK = new XWPFRelation(
             null,

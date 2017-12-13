@@ -17,12 +17,16 @@
 
 package org.apache.poi.xssf.usermodel;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 
 import org.apache.poi.xssf.XSSFTestDataSamples;
 import org.junit.Test;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTColors;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRgbColor;
 
 public final class TestXSSFColor {
     
@@ -43,6 +47,8 @@ public final class TestXSSFColor {
       assertEquals(null, indexed.getRGB());
       assertEquals(null, indexed.getRGBWithTint());
       assertEquals(null, indexed.getARGBHex());
+      assertFalse(indexed.hasAlpha());
+      assertFalse(indexed.hasTint());
 
       // Now move to one with indexed rgb values
       indexed.setIndexed(59);
@@ -87,6 +93,8 @@ public final class TestXSSFColor {
       // Now check the XSSFColor
       assertEquals(0, rgb3.getIndexed());
       assertEquals(-0.34999, rgb3.getTint(), 0.00001);
+      assertFalse(rgb3.hasAlpha());
+      assertTrue(rgb3.hasTint());
 
       assertEquals("FFFFFFFF", rgb3.getARGBHex());
       assertEquals(3, rgb3.getRGB().length);
@@ -118,6 +126,7 @@ public final class TestXSSFColor {
 
       // Set another, is fine
       rgb3.setRGB(new byte[] {16,17,18});
+      assertFalse(rgb3.hasAlpha());
       assertEquals("FF101112", rgb3.getARGBHex());
       assertEquals(0x10, rgb3.getCTColor().getRgb()[0]);
       assertEquals(0x11, rgb3.getCTColor().getRgb()[1]);
@@ -140,6 +149,8 @@ public final class TestXSSFColor {
       // Now check the XSSFColor
       assertEquals(0, rgb4.getIndexed());
       assertEquals(0.0, rgb4.getTint(), 0);
+      assertFalse(rgb4.hasTint());
+      assertTrue(rgb4.hasAlpha());
 
       assertEquals("FFFF0000", rgb4.getARGBHex());
       assertEquals(3, rgb4.getRGB().length);
@@ -163,6 +174,7 @@ public final class TestXSSFColor {
       // Turn on tinting, and check it behaves
       // TODO These values are suspected to be wrong...
       rgb4.setTint(0.4);
+      assertTrue(rgb4.hasTint());
       assertEquals(0.4, rgb4.getTint(), 0);
 
       assertEquals(3, rgb4.getRGBWithTint().length);
@@ -171,5 +183,22 @@ public final class TestXSSFColor {
       assertEquals(102,  rgb4.getRGBWithTint()[2]);
       
       wb.close();
+   }
+   
+   @Test
+   public void testCustomIndexedColour() throws Exception {
+       XSSFWorkbook wb = XSSFTestDataSamples.openSampleWorkbook("customIndexedColors.xlsx");
+       XSSFCell cell = wb.getSheetAt(1).getRow(0).getCell(0);
+       XSSFColor color = cell.getCellStyle().getFillForegroundColorColor();
+       CTColors ctColors = wb.getStylesSource().getCTStylesheet().getColors();
+
+       CTRgbColor ctRgbColor = ctColors.getIndexedColors()
+               .getRgbColorList()
+               .get(color.getIndex());
+
+       String hexRgb = ctRgbColor.getDomNode().getAttributes().getNamedItem("rgb").getNodeValue();
+
+       assertEquals(hexRgb, color.getARGBHex());
+      
    }
 }

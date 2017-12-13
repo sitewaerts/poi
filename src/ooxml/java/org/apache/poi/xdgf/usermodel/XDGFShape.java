@@ -49,58 +49,58 @@ public class XDGFShape extends XDGFSheet {
     XDGFBaseContents _parentPage;
     XDGFShape _parent; // only non-null if a subshape
 
-    XDGFMaster _master = null;
-    XDGFShape _masterShape = null;
+    XDGFMaster _master;
+    XDGFShape _masterShape;
 
-    XDGFText _text = null;
+    XDGFText _text;
 
     // subshapes if they exist
-    List<XDGFShape> _shapes = null;
+    List<XDGFShape> _shapes;
 
     // properties specific to shapes
 
     // center of rotation relative to origin of parent
-    Double _pinX = null;
-    Double _pinY = null;
+    Double _pinX;
+    Double _pinY;
 
-    Double _width = null;
-    Double _height = null;
+    Double _width;
+    Double _height;
 
     // center of rotation relative to self
-    Double _locPinX = null;
-    Double _locPinY = null;
+    Double _locPinX;
+    Double _locPinY;
 
     // start x coordinate, relative to parent
     // -> one dimensional shapes only
-    Double _beginX = null;
-    Double _beginY = null;
+    Double _beginX;
+    Double _beginY;
 
     // end x coordinate, relative to parent
     // -> one dimensional shapes only
-    Double _endX = null;
-    Double _endY = null;
+    Double _endX;
+    Double _endY;
 
-    Double _angle = null;
-    Double _rotationXAngle = null;
-    Double _rotationYAngle = null;
-    Double _rotationZAngle = null;
+    Double _angle;
+    Double _rotationXAngle;
+    Double _rotationYAngle;
+    Double _rotationZAngle;
 
     // end x coordinate, relative to parent
-    Boolean _flipX = null;
-    Boolean _flipY = null;
+    Boolean _flipX;
+    Boolean _flipY;
 
     // center of text relative to this shape
-    Double _txtPinX = null;
-    Double _txtPinY = null;
+    Double _txtPinX;
+    Double _txtPinY;
 
     // center of text relative to text block
-    Double _txtLocPinX = null;
-    Double _txtLocPinY = null;
+    Double _txtLocPinX;
+    Double _txtLocPinY;
 
-    Double _txtAngle = null;
+    Double _txtAngle;
 
-    Double _txtWidth = null;
-    Double _txtHeight = null;
+    Double _txtWidth;
+    Double _txtHeight;
 
     public XDGFShape(ShapeSheetType shapeSheet, XDGFBaseContents parentPage,
             XDGFDocument document) {
@@ -120,7 +120,7 @@ public class XDGFShape extends XDGFSheet {
             _text = new XDGFText(text, this);
 
         if (shapeSheet.isSetShapes()) {
-            _shapes = new ArrayList<XDGFShape>();
+            _shapes = new ArrayList<>();
             for (ShapeSheetType shape : shapeSheet.getShapes().getShapeArray())
                 _shapes.add(new XDGFShape(this, shape, parentPage, document));
         }
@@ -582,11 +582,7 @@ public class XDGFShape extends XDGFSheet {
         }
 
         // get default
-        XDGFStyleSheet style = _document.getDefaultLineStyle();
-        if (style != null)
-            return style.getLineCap();
-
-        return null;
+        return _document.getDefaultLineStyle().getLineCap();
     }
 
     @Override
@@ -602,11 +598,7 @@ public class XDGFShape extends XDGFSheet {
         }
 
         // get default
-        XDGFStyleSheet style = _document.getDefaultLineStyle();
-        if (style != null)
-            return style.getLineColor();
-
-        return null;
+        return _document.getDefaultLineStyle().getLineColor();
     }
 
     @Override
@@ -622,11 +614,7 @@ public class XDGFShape extends XDGFSheet {
         }
 
         // get default
-        XDGFStyleSheet style = _document.getDefaultLineStyle();
-        if (style != null)
-            return style.getLinePattern();
-
-        return null;
+        return _document.getDefaultLineStyle().getLinePattern();
     }
 
     @Override
@@ -642,11 +630,7 @@ public class XDGFShape extends XDGFSheet {
         }
 
         // get default
-        XDGFStyleSheet style = _document.getDefaultLineStyle();
-        if (style != null)
-            return style.getLineWeight();
-
-        return null;
+        return _document.getDefaultLineStyle().getLineWeight();
     }
 
     @Override
@@ -662,11 +646,7 @@ public class XDGFShape extends XDGFSheet {
         }
 
         // get default
-        XDGFStyleSheet style = _document.getDefaultTextStyle();
-        if (style != null)
-            return style.getFontColor();
-
-        return null;
+        return _document.getDefaultTextStyle().getFontColor();
     }
 
     @Override
@@ -682,11 +662,7 @@ public class XDGFShape extends XDGFSheet {
         }
 
         // get default
-        XDGFStyleSheet style = _document.getDefaultTextStyle();
-        if (style != null)
-            return style.getFontSize();
-
-        return null;
+        return _document.getDefaultTextStyle().getFontSize();
     }
 
     public Stroke getStroke() {
@@ -805,7 +781,7 @@ public class XDGFShape extends XDGFSheet {
     //
 
     public Iterable<GeometrySection> getGeometrySections() {
-        return new CombinedIterable<GeometrySection>(_geometry,
+        return new CombinedIterable<>(_geometry,
                 _masterShape != null ? _masterShape._geometry : null);
     }
 
@@ -843,7 +819,7 @@ public class XDGFShape extends XDGFSheet {
      */
     public Path2D.Double getPath() {
         for (GeometrySection geoSection : getGeometrySections()) {
-            if (geoSection.getNoShow() == true)
+            if (geoSection.getNoShow())
                 continue;
 
             return geoSection.getPath(this);
@@ -857,7 +833,7 @@ public class XDGFShape extends XDGFSheet {
      */
     public boolean hasGeometry() {
         for (GeometrySection geoSection : getGeometrySections()) {
-            if (geoSection.getNoShow() == false)
+            if (!geoSection.getNoShow())
                 return true;
         }
         return false;

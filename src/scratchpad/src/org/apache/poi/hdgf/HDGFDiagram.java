@@ -19,9 +19,9 @@ package org.apache.poi.hdgf;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.InputStream;
 
-import org.apache.poi.POIDocument;
+import org.apache.poi.POIReadOnlyDocument;
 import org.apache.poi.hdgf.chunks.ChunkFactory;
 import org.apache.poi.hdgf.pointers.Pointer;
 import org.apache.poi.hdgf.pointers.PointerFactory;
@@ -30,9 +30,9 @@ import org.apache.poi.hdgf.streams.Stream;
 import org.apache.poi.hdgf.streams.StringsStream;
 import org.apache.poi.hdgf.streams.TrailerStream;
 import org.apache.poi.poifs.filesystem.DirectoryNode;
-import org.apache.poi.poifs.filesystem.DocumentEntry;
 import org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LittleEndian;
 import org.apache.poi.util.LocaleUtil;
 
@@ -43,7 +43,7 @@ import org.apache.poi.util.LocaleUtil;
  *  http://www.gnome.ru/projects/docs/slide1.png
  *  http://www.gnome.ru/projects/docs/slide2.png
  */
-public final class HDGFDiagram extends POIDocument {
+public final class HDGFDiagram extends POIReadOnlyDocument {
 	private static final String VISIO_HEADER = "Visio (TM) Drawing\r\n";
 
 	private byte[] _docstream;
@@ -60,25 +60,16 @@ public final class HDGFDiagram extends POIDocument {
 	public HDGFDiagram(POIFSFileSystem fs) throws IOException {
 		this(fs.getRoot());
 	}
-   public HDGFDiagram(NPOIFSFileSystem fs) throws IOException {
-      this(fs.getRoot());
-   }
-   /**
-    * @deprecated Use {@link #HDGFDiagram(DirectoryNode)} instead 
-    */
-   @Deprecated
-   public HDGFDiagram(DirectoryNode dir, POIFSFileSystem fs) throws IOException {
-      this(dir);
-   }
+	public HDGFDiagram(NPOIFSFileSystem fs) throws IOException {
+		this(fs.getRoot());
+	}
 	public HDGFDiagram(DirectoryNode dir) throws IOException {
 		super(dir);
 
-		DocumentEntry docProps =
-			(DocumentEntry)dir.getEntry("VisioDocument");
-
 		// Grab the document stream
-		_docstream = new byte[docProps.getSize()];
-		dir.createDocumentInputStream("VisioDocument").read(_docstream);
+		InputStream is = dir.createDocumentInputStream("VisioDocument");
+		_docstream = IOUtils.toByteArray(is);
+		is.close();
 
 		// Check it's really visio
 		String typeString = new String(_docstream, 0, 20, LocaleUtil.CHARSET_1252 );
@@ -164,17 +155,14 @@ public final class HDGFDiagram extends POIDocument {
 		}
 	}
 
-	public void write(OutputStream out) {
-		throw new IllegalStateException("Writing is not yet implemented, see http://poi.apache.org/hdgf/");
-	}
-
 	/**
 	 * For testing only
 	 */
 	public static void main(String args[]) throws Exception {
-	    NPOIFSFileSystem pfs = new NPOIFSFileSystem(new File(args[0]));
+		NPOIFSFileSystem pfs = new NPOIFSFileSystem(new File(args[0]));
 		HDGFDiagram hdgf = new HDGFDiagram(pfs);
 		hdgf.debug();
+		hdgf.close();
 		pfs.close();
 	}
 }

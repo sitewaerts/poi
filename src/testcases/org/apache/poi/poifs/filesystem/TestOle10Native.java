@@ -20,6 +20,9 @@ package org.apache.poi.poifs.filesystem;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.apache.poi.POITestCase.assertContains;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -31,6 +34,7 @@ import java.util.List;
 
 import org.apache.poi.POIDataSamples;
 import org.apache.poi.util.IOUtils;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestOle10Native {
@@ -60,7 +64,7 @@ public class TestOle10Native {
         
         for (File f : files) {
             NPOIFSFileSystem fs = new NPOIFSFileSystem(f, true);
-            List<Entry> entries = new ArrayList<Entry>();
+            List<Entry> entries = new ArrayList<>();
             findOle10(entries, fs.getRoot(), "/", "");
             
             for (Entry e : entries) {
@@ -107,4 +111,16 @@ public class TestOle10Native {
             }
         }
     }
+
+    @Test
+    public void testOleNativeOOM() throws IOException, Ole10NativeException {
+        POIFSFileSystem fs = new POIFSFileSystem(dataSamples.openResourceAsStream("60256.bin"));
+        try {
+            Ole10Native.createFromEmbeddedOleObject(fs);
+            fail("Should have thrown exception because OLENative lacks a length parameter");
+        } catch (Ole10NativeException e) {
+            assertContains(e.getMessage(), "declared data length");
+        }
+    }
+
 }

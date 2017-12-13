@@ -24,8 +24,9 @@ import org.apache.poi.util.LittleEndian;
  * An OfficeArtCOLORREF structure entry which also handles color extension opid data
  */
 public class EscherColorRef {
-    int opid = -1;
-    int colorRef = 0;
+    @SuppressWarnings("unused")
+    private int opid = -1;
+    private int colorRef;
 
     public enum SysIndexSource {
         /** Use the fill color of the shape. */
@@ -45,7 +46,7 @@ public class EscherColorRef {
         /** If the shape contains a fill, use the fill color of the shape. Otherwise, use the line color. */
         FILL_OR_LINE_COLOR(0xF7)
         ;
-        int value;
+        private int value;
         SysIndexSource(int value) { this.value = value; }
     }
 
@@ -102,7 +103,7 @@ public class EscherColorRef {
          */
         INVERT_HIGHBIT_AFTER(0x40)
         ;
-        BitField mask;
+        private BitField mask;
         SysIndexProcedure(int mask) {
             this.mask = new BitField(mask);
         }
@@ -181,7 +182,7 @@ public class EscherColorRef {
     }
     
     public void setSysIndexFlag(boolean flag) {
-        FLAG_SYS_INDEX.setBoolean(colorRef, flag);
+        colorRef = FLAG_SYS_INDEX.setBoolean(colorRef, flag);
     }
     
     public boolean hasSchemeIndexFlag() {
@@ -189,7 +190,7 @@ public class EscherColorRef {
     }
     
     public void setSchemeIndexFlag(boolean flag) {
-        FLAG_SCHEME_INDEX.setBoolean(colorRef, flag);
+        colorRef = FLAG_SCHEME_INDEX.setBoolean(colorRef, flag);
     }
     
     public boolean hasSystemRGBFlag() {
@@ -197,7 +198,7 @@ public class EscherColorRef {
     }
     
     public void setSystemRGBFlag(boolean flag) {
-        FLAG_SYSTEM_RGB.setBoolean(colorRef, flag);
+        colorRef = FLAG_SYSTEM_RGB.setBoolean(colorRef, flag);
     }
     
     public boolean hasPaletteRGBFlag() {
@@ -205,7 +206,7 @@ public class EscherColorRef {
     }
     
     public void setPaletteRGBFlag(boolean flag) {
-        FLAG_PALETTE_RGB.setBoolean(colorRef, flag);
+        colorRef = FLAG_PALETTE_RGB.setBoolean(colorRef, flag);
     }
     
     public boolean hasPaletteIndexFlag() {
@@ -213,26 +214,29 @@ public class EscherColorRef {
     }
     
     public void setPaletteIndexFlag(boolean flag) {
-        FLAG_PALETTE_INDEX.setBoolean(colorRef, flag);
+        colorRef = FLAG_PALETTE_INDEX.setBoolean(colorRef, flag);
     }
 
     public int[] getRGB() {
-        int rgb[] = {
+        return new int[]{
             FLAG_RED.getValue(colorRef),
             FLAG_GREEN.getValue(colorRef),
             FLAG_BLUE.getValue(colorRef)
         };
-        return rgb;
     }
     
     /**
      * @return {@link SysIndexSource} if {@link #hasSysIndexFlag()} is {@code true}, otherwise null
      */
     public SysIndexSource getSysIndexSource() {
-        if (!hasSysIndexFlag()) return null;
+        if (!hasSysIndexFlag()) {
+            return null;
+        }
         int val = FLAG_RED.getValue(colorRef);
         for (SysIndexSource sis : SysIndexSource.values()) {
-            if (sis.value == val) return sis;
+            if (sis.value == val) {
+                return sis;
+            }
         }
         return null;
     }
@@ -242,11 +246,17 @@ public class EscherColorRef {
      * @return {@link SysIndexProcedure} if {@link #hasSysIndexFlag()} is {@code true}, otherwise null
      */
     public SysIndexProcedure getSysIndexProcedure() {
-        if (!hasSysIndexFlag()) return null;
-        int val = FLAG_RED.getValue(colorRef);
+        if (!hasSysIndexFlag()) {
+            return null;
+        }
+        int val = FLAG_GREEN.getValue(colorRef);
         for (SysIndexProcedure sip : SysIndexProcedure.values()) {
-            if (sip == SysIndexProcedure.INVERT_AFTER || sip == SysIndexProcedure.INVERT_HIGHBIT_AFTER) continue;
-            if (sip.mask.isSet(val)) return sip;
+            if (sip == SysIndexProcedure.INVERT_AFTER || sip == SysIndexProcedure.INVERT_HIGHBIT_AFTER) {
+                continue;
+            }
+            if (sip.mask.isSet(val)) {
+                return sip;
+            }
         }
         return null;
     }
@@ -256,10 +266,16 @@ public class EscherColorRef {
      * 2 for {@link SysIndexProcedure#INVERT_HIGHBIT_AFTER} 
      */
     public int getSysIndexInvert() {
-        if (!hasSysIndexFlag()) return 0;
+        if (!hasSysIndexFlag()) {
+            return 0;
+        }
         int val = FLAG_GREEN.getValue(colorRef);
-        if ((SysIndexProcedure.INVERT_AFTER.mask.isSet(val))) return 1;
-        if ((SysIndexProcedure.INVERT_HIGHBIT_AFTER.mask.isSet(val))) return 2;
+        if ((SysIndexProcedure.INVERT_AFTER.mask.isSet(val))) {
+            return 1;
+        }
+        if ((SysIndexProcedure.INVERT_HIGHBIT_AFTER.mask.isSet(val))) {
+            return 2;
+        }
         return 0;
     }
     
@@ -269,7 +285,9 @@ public class EscherColorRef {
      * @see org.apache.poi.hslf.record.ColorSchemeAtom#getColor(int)
      */
     public int getSchemeIndex() {
-        if (!hasSchemeIndexFlag()) return -1;
+        if (!hasSchemeIndexFlag()) {
+            return -1;
+        }
         return FLAG_RED.getValue(colorRef);
     }
     
@@ -277,7 +295,19 @@ public class EscherColorRef {
      * @return index of current palette (color) or -1 if {@link #hasPaletteIndexFlag()} is {@code false}
      */
     public int getPaletteIndex() {
-        if (!hasPaletteIndexFlag()) return -1;
-        return (FLAG_GREEN.getValue(colorRef) << 8) & FLAG_RED.getValue(colorRef);
+        return (hasPaletteIndexFlag()) ? getIndex() : -1;
+    }
+
+    /**
+     * @return index of system color table or -1 if {@link #hasSysIndexFlag()} is {@code false}
+     * 
+     * @see org.apache.poi.sl.usermodel.PresetColor
+     */
+    public int getSysIndex() {
+        return (hasSysIndexFlag()) ? getIndex() : -1;
+    }
+    
+    private int getIndex() {
+        return (FLAG_GREEN.getValue(colorRef) << 8) | FLAG_RED.getValue(colorRef);
     }
 }

@@ -17,17 +17,34 @@
 
 package org.apache.poi.xssf.usermodel.examples;
 
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.util.Calendar;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.poi.openxml4j.opc.internal.ZipHelper;
 import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.util.CellReference;
-import org.apache.poi.xssf.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFDataFormat;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 /**
  * Demonstrates a workaround you can use to generate large workbooks and avoid OutOfMemory exception.
@@ -69,54 +86,55 @@ public class BigGridDemo {
         // Step 1. Create a template file. Setup sheets and workbook-level objects such as
         // cell styles, number formats, etc.
 
-        XSSFWorkbook wb = new XSSFWorkbook();
-        XSSFSheet sheet = wb.createSheet("Big Grid");
+        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+            XSSFSheet sheet = wb.createSheet("Big Grid");
 
-        Map<String, XSSFCellStyle> styles = createStyles(wb);
-        //name of the zip entry holding sheet data, e.g. /xl/worksheets/sheet1.xml
-        String sheetRef = sheet.getPackagePart().getPartName().getName();
+            Map<String, XSSFCellStyle> styles = createStyles(wb);
+            //name of the zip entry holding sheet data, e.g. /xl/worksheets/sheet1.xml
+            String sheetRef = sheet.getPackagePart().getPartName().getName();
 
-        //save the template
-        FileOutputStream os = new FileOutputStream("template.xlsx");
-        wb.write(os);
-        os.close();
+            //save the template
+            try (FileOutputStream os = new FileOutputStream("template.xlsx")) {
+                wb.write(os);
+            }
 
-        //Step 2. Generate XML file.
-        File tmp = File.createTempFile("sheet", ".xml");
-        Writer fw = new OutputStreamWriter(new FileOutputStream(tmp), XML_ENCODING);
-        generate(fw, styles);
-        fw.close();
+            //Step 2. Generate XML file.
+            File tmp = File.createTempFile("sheet", ".xml");
+            try (Writer fw = new OutputStreamWriter(new FileOutputStream(tmp), XML_ENCODING)) {
+                generate(fw, styles);
+            }
 
-        //Step 3. Substitute the template entry with the generated data
-        FileOutputStream out = new FileOutputStream("big-grid.xlsx");
-        substitute(new File("template.xlsx"), tmp, sheetRef.substring(1), out);
-        out.close();
+            //Step 3. Substitute the template entry with the generated data
+            try (FileOutputStream out = new FileOutputStream("big-grid.xlsx")) {
+                substitute(new File("template.xlsx"), tmp, sheetRef.substring(1), out);
+            }
+        }
     }
 
     /**
      * Create a library of cell styles.
      */
     private static Map<String, XSSFCellStyle> createStyles(XSSFWorkbook wb){
-        Map<String, XSSFCellStyle> styles = new HashMap<String, XSSFCellStyle>();
+        Map<String, XSSFCellStyle> styles = new HashMap<>();
         XSSFDataFormat fmt = wb.createDataFormat();
 
         XSSFCellStyle style1 = wb.createCellStyle();
-        style1.setAlignment(XSSFCellStyle.ALIGN_RIGHT);
+        style1.setAlignment(HorizontalAlignment.RIGHT);
         style1.setDataFormat(fmt.getFormat("0.0%"));
         styles.put("percent", style1);
 
         XSSFCellStyle style2 = wb.createCellStyle();
-        style2.setAlignment(XSSFCellStyle.ALIGN_CENTER);
+        style2.setAlignment(HorizontalAlignment.CENTER);
         style2.setDataFormat(fmt.getFormat("0.0X"));
         styles.put("coeff", style2);
 
         XSSFCellStyle style3 = wb.createCellStyle();
-        style3.setAlignment(XSSFCellStyle.ALIGN_RIGHT);
+        style3.setAlignment(HorizontalAlignment.RIGHT);
         style3.setDataFormat(fmt.getFormat("$#,##0.00"));
         styles.put("currency", style3);
 
         XSSFCellStyle style4 = wb.createCellStyle();
-        style4.setAlignment(XSSFCellStyle.ALIGN_RIGHT);
+        style4.setAlignment(HorizontalAlignment.RIGHT);
         style4.setDataFormat(fmt.getFormat("mmm dd"));
         styles.put("date", style4);
 
@@ -124,7 +142,7 @@ public class BigGridDemo {
         XSSFFont headerFont = wb.createFont();
         headerFont.setBold(true);
         style5.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-        style5.setFillPattern(XSSFCellStyle.SOLID_FOREGROUND);
+        style5.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         style5.setFont(headerFont);
         styles.put("header", style5);
 
@@ -175,28 +193,23 @@ public class BigGridDemo {
      * @param out the stream to write the result to
      */
     private static void substitute(File zipfile, File tmpfile, String entry, OutputStream out) throws IOException {
-        ZipFile zip = ZipHelper.openZipFile(zipfile);
-        try {
-            ZipOutputStream zos = new ZipOutputStream(out);
-    
-            Enumeration<? extends ZipEntry> en = zip.entries();
-            while (en.hasMoreElements()) {
-                ZipEntry ze = en.nextElement();
-                if(!ze.getName().equals(entry)){
-                    zos.putNextEntry(new ZipEntry(ze.getName()));
-                    InputStream is = zip.getInputStream(ze);
+        try (ZipFile zip = ZipHelper.openZipFile(zipfile)) {
+            try (ZipOutputStream zos = new ZipOutputStream(out)) {
+                Enumeration<? extends ZipEntry> en = zip.entries();
+                while (en.hasMoreElements()) {
+                    ZipEntry ze = en.nextElement();
+                    if (!ze.getName().equals(entry)) {
+                        zos.putNextEntry(new ZipEntry(ze.getName()));
+                        try (InputStream is = zip.getInputStream(ze)) {
+                            copyStream(is, zos);
+                        }
+                    }
+                }
+                zos.putNextEntry(new ZipEntry(entry));
+                try (InputStream is = new FileInputStream(tmpfile)) {
                     copyStream(is, zos);
-                    is.close();
                 }
             }
-            zos.putNextEntry(new ZipEntry(entry));
-            InputStream is = new FileInputStream(tmpfile);
-            copyStream(is, zos);
-            is.close();
-    
-            zos.close();
-        } finally {
-            zip.close();
         }
     }
 

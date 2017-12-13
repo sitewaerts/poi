@@ -17,21 +17,48 @@
 
 package org.apache.poi.ss.usermodel;
 
+import org.apache.poi.ss.util.CellAddress;
+
 public interface Comment {
 
     /**
-     * Returns whether this comment is visible.
+     * Sets whether this comment is visible.
      *
      * @param visible <code>true</code> if the comment is visible, <code>false</code> otherwise
      */
     void setVisible(boolean visible);
 
     /**
-     * Sets whether this comment is visible.
+     * Returns whether this comment is visible.
      *
      * @return <code>true</code> if the comment is visible, <code>false</code> otherwise
      */
     boolean isVisible();
+    
+    /**
+     * Get the address of the cell that this comment is attached to
+     *
+     * @return comment cell address
+     * @since 3.15-beta1
+     */
+    CellAddress getAddress();
+    
+    /**
+     * Set the address of the cell that this comment is attached to
+     *
+     * @param addr
+     * @since 3.15-beta1
+     */
+    void setAddress(CellAddress addr);
+    
+    /**
+     * Set the address of the cell that this comment is attached to
+     *
+     * @param row
+     * @param col
+     * @since 3.15-beta1
+     */
+    void setAddress(int row, int col);
 
     /**
      * Return the row of the cell that contains the comment
@@ -89,6 +116,10 @@ public interface Comment {
 
     /**
      * Return defines position of this anchor in the sheet.
+     * The anchor is the yellow box/balloon that is rendered on top of the sheets
+     * when the comment is visible.
+     * 
+     * To associate a comment with a different cell, use {@link #setAddress}.
      *
      * @return defines position of this anchor in the sheet
      */

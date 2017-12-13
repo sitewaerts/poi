@@ -17,25 +17,25 @@
 
 package org.apache.poi.util;
 
-import java.nio.charset.Charset;
-import java.text.NumberFormat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-import junit.framework.TestCase;
+import java.nio.charset.Charset;
 
 import org.apache.poi.util.StringUtil.StringsIterator;
+import org.junit.Test;
 
 /**
  * Unit test for StringUtil
- *
- * @author  Marc Johnson (mjohnson at apache dot org
- * @author  Glen Stampoultzis (glens at apache.org)
- * @author  Sergei Kozello (sergeikozello at mail.ru)
  */
-public final class TestStringUtil extends TestCase {
+public class TestStringUtil {
 
     /**
      * test getFromUnicodeHigh for symbols with code below and more 127
      */
+    @Test
     public void testGetFromUnicodeHighSymbolsWithCodesMoreThan127() {
         byte[] test_data = new byte[]{0x22, 0x04,
                                       0x35, 0x04,
@@ -53,6 +53,7 @@ public final class TestStringUtil extends TestCase {
                 StringUtil.getFromUnicodeLE( test_data ) );
     }
 
+    @Test
     public void testPutCompressedUnicode() {
         byte[] output = new byte[100];
         byte[] expected_output =
@@ -88,6 +89,7 @@ public final class TestStringUtil extends TestCase {
         }
     }
 
+    @Test
     public void testPutUncompressedUnicode() {
         byte[] output = new byte[100];
         String input = "Hello World";
@@ -125,37 +127,7 @@ public final class TestStringUtil extends TestCase {
         }
     }
 
-    public void testFormat() {
-
-        confirm("This is a test " + fmt(1.2345, 2, 2), "This is a test %2.2", new Double(1.2345));
-        confirm("This is a test " + fmt(1.2345, -1, 3), "This is a test %.3", new Double(1.2345));
-        confirm("This is a great test " + fmt(1.2345, -1, 3),
-                "This is a % test %.3", "great", new Double(1.2345));
-        confirm("This is a test 1", "This is a test %", Integer.valueOf(1));
-        confirm("This is a test 1", "This is a test %", Integer.valueOf(1), Integer.valueOf(1));
-        confirm("This is a test 1.x", "This is a test %1.x", Integer.valueOf(1));
-        confirm("This is a test ?missing data?1.x", "This is a test %1.x");
-        confirm("This is a test %1.x", "This is a test \\%1.x");
-    }
-
-    private static void confirm(String expectedResult, String fmtString, Object ... params) {
-        String actualResult = StringUtil.format(fmtString, params);
-        assertEquals(expectedResult, actualResult);
-    }
-
-    private static String fmt(double num, int minIntDigits, int maxFracDigitis) {
-        NumberFormat nf = NumberFormat.getInstance(LocaleUtil.getUserLocale());
-
-        if (minIntDigits != -1) {
-            nf.setMinimumIntegerDigits(minIntDigits);
-        }
-        if (maxFracDigitis != -1) {
-            nf.setMaximumFractionDigits(maxFracDigitis);
-        }
-
-        return nf.format( num );
-    }
-    
+    @Test
     public void testStringsIterator() {
        StringsIterator i;
 
@@ -165,7 +137,9 @@ public final class TestStringUtil extends TestCase {
        try {
           i.next();
           fail();
-       } catch(ArrayIndexOutOfBoundsException e) {}
+       } catch(ArrayIndexOutOfBoundsException e) {
+           // expected here
+       }
 
        
        i = new StringsIterator(new String[] {"1"});
@@ -176,7 +150,9 @@ public final class TestStringUtil extends TestCase {
        try {
           i.next();
           fail();
-       } catch(ArrayIndexOutOfBoundsException e) {}
+       } catch(ArrayIndexOutOfBoundsException e) {
+           // expected here
+       }
 
        
        i = new StringsIterator(new String[] {"1","2","3"});
@@ -191,7 +167,59 @@ public final class TestStringUtil extends TestCase {
        try {
           i.next();
           fail();
-       } catch(ArrayIndexOutOfBoundsException e) {}
+       } catch(ArrayIndexOutOfBoundsException e) {
+           // expected here
+       }
+    }
+    
+
+    @Test
+    public void startsWithIgnoreCase() {
+        assertTrue("same string", StringUtil.startsWithIgnoreCase("Apache POI", "Apache POI"));
+        assertTrue("longer string", StringUtil.startsWithIgnoreCase("Apache POI project", "Apache POI"));
+        assertTrue("different case", StringUtil.startsWithIgnoreCase("APACHE POI", "Apache POI"));
+        assertFalse("leading whitespace should not be ignored", StringUtil.startsWithIgnoreCase(" Apache POI project", "Apache POI"));
+        assertFalse("shorter string", StringUtil.startsWithIgnoreCase("Apache", "Apache POI"));
+    }
+    
+    @Test
+    public void endsWithIgnoreCase() {
+        assertTrue("same string", StringUtil.endsWithIgnoreCase("Apache POI", "Apache POI"));
+        assertTrue("longer string", StringUtil.endsWithIgnoreCase("Project Apache POI", "Apache POI"));
+        assertTrue("different case", StringUtil.endsWithIgnoreCase("APACHE POI", "Apache POI"));
+        assertFalse("trailing whitespace should not be ignored", StringUtil.endsWithIgnoreCase("Apache POI project ", "Apache POI"));
+        assertFalse("shorter string", StringUtil.endsWithIgnoreCase("Apache", "Apache POI"));
+    }
+    
+    @Test
+    public void join() {
+        assertEquals("", StringUtil.join(",")); // degenerate case: nothing to join
+        assertEquals("abc", StringUtil.join(",", "abc")); // degenerate case: one thing to join, no trailing comma
+        assertEquals("abc|def|ghi", StringUtil.join("|", "abc", "def", "ghi"));
+        assertEquals("5|8.5|true|string", StringUtil.join("|", 5, 8.5, true, "string")); //assumes Locale prints number decimal point as a period rather than a comma
+        
+        String[] arr = new String[] { "Apache", "POI", "project" };
+        assertEquals("no separator", "ApachePOIproject", StringUtil.join(arr));
+        assertEquals("separator", "Apache POI project", StringUtil.join(arr, " "));
+    }
+    
+    @Test
+    public void count() {
+        String test = "Apache POI project\n\u00a9 Copyright 2016";
+        // supports search in null or empty string
+        assertEquals("null", 0, StringUtil.countMatches(null, 'A'));
+        assertEquals("empty string", 0, StringUtil.countMatches("", 'A'));
+        
+        assertEquals("normal", 2, StringUtil.countMatches(test, 'e'));
+        assertEquals("normal, should not find a in escaped copyright", 1, StringUtil.countMatches(test, 'a'));
+        
+        // search for non-printable characters
+        assertEquals("null character", 0, StringUtil.countMatches(test, '\0'));
+        assertEquals("CR", 0, StringUtil.countMatches(test, '\r'));
+        assertEquals("LF", 1, StringUtil.countMatches(test, '\n'));
+        
+        // search for unicode characters
+        assertEquals("Unicode", 1, StringUtil.countMatches(test, '\u00a9'));
     }
 }
 

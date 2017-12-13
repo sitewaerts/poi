@@ -25,7 +25,7 @@ import org.apache.poi.util.LittleEndian;
 public final class TestPlexOfCps
   extends TestCase
 {
-  private PlexOfCps _plexOfCps = null;
+  private PlexOfCps _plexOfCps;
   private HWPFDocFixture _hWPFDocFixture;
 
   public void testWriteRead() {
@@ -36,7 +36,7 @@ public final class TestPlexOfCps
     {
       byte[] intHolder = new byte[4];
       int span = (int)(110.0f * Math.random());
-      LittleEndian.putInt(intHolder, span);
+      LittleEndian.putInt(intHolder, 0, span);
       _plexOfCps.addProperty(new GenericPropertyNode(last, last + span, intHolder));
       last += span;
     }
@@ -56,7 +56,8 @@ public final class TestPlexOfCps
       assertEquals(node.getEnd()-node.getStart(), span);
     }
   }
-  protected void setUp()
+  @Override
+protected void setUp()
     throws Exception
   {
     super.setUp();
@@ -66,7 +67,8 @@ public final class TestPlexOfCps
     _hWPFDocFixture.setUp();
   }
 
-  protected void tearDown()
+  @Override
+protected void tearDown()
     throws Exception
   {
     _plexOfCps = null;

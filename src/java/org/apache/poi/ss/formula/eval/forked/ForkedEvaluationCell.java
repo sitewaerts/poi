@@ -17,15 +17,19 @@
 
 package org.apache.poi.ss.formula.eval.forked;
 
+import org.apache.poi.ss.formula.EvaluationCell;
+import org.apache.poi.ss.formula.EvaluationSheet;
 import org.apache.poi.ss.formula.eval.BlankEval;
 import org.apache.poi.ss.formula.eval.BoolEval;
 import org.apache.poi.ss.formula.eval.ErrorEval;
 import org.apache.poi.ss.formula.eval.NumberEval;
 import org.apache.poi.ss.formula.eval.StringEval;
 import org.apache.poi.ss.formula.eval.ValueEval;
-import org.apache.poi.ss.formula.EvaluationCell;
-import org.apache.poi.ss.formula.EvaluationSheet;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.Removal;
+
 
 /**
  * Represents a cell being used for forked evaluation that has had a value set different from the
@@ -39,7 +43,7 @@ final class ForkedEvaluationCell implements EvaluationCell {
 	/** corresponding cell from master workbook */
 	private final EvaluationCell _masterCell;
 	private boolean _booleanValue;
-	private int _cellType;
+	private CellType _cellType;
 	private int _errorValue;
 	private double _numberValue;
 	private String _stringValue;
@@ -51,6 +55,7 @@ final class ForkedEvaluationCell implements EvaluationCell {
 		setValue(BlankEval.instance); // followed by a proper call to setValue()
 	}
 
+	@Override
 	public Object getIdentityKey() {
 		return _masterCell.getIdentityKey();
 	}
@@ -59,77 +64,123 @@ final class ForkedEvaluationCell implements EvaluationCell {
 		Class<? extends ValueEval> cls = value.getClass();
 
 		if (cls == NumberEval.class) {
-			_cellType = Cell.CELL_TYPE_NUMERIC;
+			_cellType = CellType.NUMERIC;
 			_numberValue = ((NumberEval)value).getNumberValue();
 			return;
 		}
 		if (cls == StringEval.class) {
-			_cellType = Cell.CELL_TYPE_STRING;
+			_cellType = CellType.STRING;
 			_stringValue = ((StringEval)value).getStringValue();
 			return;
 		}
 		if (cls == BoolEval.class) {
-			_cellType = Cell.CELL_TYPE_BOOLEAN;
+			_cellType = CellType.BOOLEAN;
 			_booleanValue = ((BoolEval)value).getBooleanValue();
 			return;
 		}
 		if (cls == ErrorEval.class) {
-			_cellType = Cell.CELL_TYPE_ERROR;
+			_cellType = CellType.ERROR;
 			_errorValue = ((ErrorEval)value).getErrorCode();
 			return;
 		}
 		if (cls == BlankEval.class) {
-			_cellType = Cell.CELL_TYPE_BLANK;
+			_cellType = CellType.BLANK;
 			return;
 		}
 		throw new IllegalArgumentException("Unexpected value class (" + cls.getName() + ")");
 	}
 	public void copyValue(Cell destCell) {
 		switch (_cellType) {
-			case Cell.CELL_TYPE_BLANK:   destCell.setCellType(Cell.CELL_TYPE_BLANK);    return;
-			case Cell.CELL_TYPE_NUMERIC: destCell.setCellValue(_numberValue);           return;
-			case Cell.CELL_TYPE_BOOLEAN: destCell.setCellValue(_booleanValue);          return;
-			case Cell.CELL_TYPE_STRING:  destCell.setCellValue(_stringValue);           return;
-			case Cell.CELL_TYPE_ERROR:   destCell.setCellErrorValue((byte)_errorValue); return;
+			case BLANK:   destCell.setCellType(CellType.BLANK);          return;
+			case NUMERIC: destCell.setCellValue(_numberValue);           return;
+			case BOOLEAN: destCell.setCellValue(_booleanValue);          return;
+			case STRING:  destCell.setCellValue(_stringValue);           return;
+			case ERROR:   destCell.setCellErrorValue((byte)_errorValue); return;
+			default: throw new IllegalStateException("Unexpected data type (" + _cellType + ")");
 		}
-		throw new IllegalStateException("Unexpected data type (" + _cellType + ")");
 	}
 
-	private void checkCellType(int expectedCellType) {
+	private void checkCellType(CellType expectedCellType) {
 		if (_cellType != expectedCellType) {
 			throw new RuntimeException("Wrong data type (" + _cellType + ")");
 		}
 	}
-	public int getCellType() {
+
+	@Override
+	public CellType getCellType() {
 		return _cellType;
 	}
+	/**
+	 * @since POI 3.15 beta 3
+	 * @deprecated POI 3.15 beta 3.
+	 * Will be deleted when we make the CellType enum transition. See bug 59791.
+	 */
+	@Deprecated
+    @Removal(version = "4.2")
+	@Override
+	public CellType getCellTypeEnum() {
+		return getCellType();
+	}
+	@Override
 	public boolean getBooleanCellValue() {
-		checkCellType(Cell.CELL_TYPE_BOOLEAN);
+		checkCellType(CellType.BOOLEAN);
 		return _booleanValue;
 	}
+	@Override
 	public int getErrorCellValue() {
-		checkCellType(Cell.CELL_TYPE_ERROR);
+		checkCellType(CellType.ERROR);
 		return _errorValue;
 	}
+	@Override
 	public double getNumericCellValue() {
-		checkCellType(Cell.CELL_TYPE_NUMERIC);
+		checkCellType(CellType.NUMERIC);
 		return _numberValue;
 	}
+	@Override
 	public String getStringCellValue() {
-		checkCellType(Cell.CELL_TYPE_STRING);
+		checkCellType(CellType.STRING);
 		return _stringValue;
 	}
+	@Override
 	public EvaluationSheet getSheet() {
 		return _sheet;
 	}
+	@Override
 	public int getRowIndex() {
 		return _masterCell.getRowIndex();
 	}
+	@Override
 	public int getColumnIndex() {
 		return _masterCell.getColumnIndex();
 	}
-    public int getCachedFormulaResultType() {
-        return _masterCell.getCachedFormulaResultType();
-    }
+	
+	@Override
+	public CellRangeAddress getArrayFormulaRange() {
+		return _masterCell.getArrayFormulaRange();
+	}
+	
+	@Override
+	public boolean isPartOfArrayFormulaGroup() {
+		return _masterCell.isPartOfArrayFormulaGroup();
+	}
+	/**
+	 * @return cell type of cached formula result
+	 */
+	@Override
+	public CellType getCachedFormulaResultType() {
+		return _masterCell.getCachedFormulaResultType();
+	}
+
+	/**
+	 * @since POI 3.15 beta 3
+	 * @deprecated POI 3.15 beta 3.
+	 * Will be deleted when we make the CellType enum transition. See bug 59791.
+	 */
+	@Deprecated
+	@Removal(version = "4.2")
+	@Override
+	public CellType getCachedFormulaResultTypeEnum() {
+		return getCachedFormulaResultType();
+	}
 
 }

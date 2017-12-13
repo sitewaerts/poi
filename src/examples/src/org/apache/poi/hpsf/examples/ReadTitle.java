@@ -32,9 +32,6 @@ import org.apache.poi.poifs.eventfilesystem.POIFSReaderListener;
  * parameter.</p>
  *
  * <p>Explanations can be found in the HPSF HOW-TO.</p>
- *
- * @author Rainer Klute <a
- * href="mailto:klute@rainer-klute.de">&lt;klute@rainer-klute.de&gt;</a>
  */
 public class ReadTitle
 {
@@ -57,9 +54,10 @@ public class ReadTitle
 
     static class MyPOIFSReaderListener implements POIFSReaderListener
     {
+        @Override
         public void processPOIFSReaderEvent(final POIFSReaderEvent event)
         {
-            SummaryInformation si = null;
+            SummaryInformation si;
             try
             {
                 si = (SummaryInformation)

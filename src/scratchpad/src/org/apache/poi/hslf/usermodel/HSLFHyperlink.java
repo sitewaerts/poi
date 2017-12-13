@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.hslf.record.ExHyperlink;
 import org.apache.poi.hslf.record.ExHyperlinkAtom;
 import org.apache.poi.hslf.record.ExObjList;
@@ -32,6 +33,7 @@ import org.apache.poi.hslf.record.Record;
 import org.apache.poi.hslf.record.TxInteractiveInfoAtom;
 import org.apache.poi.sl.usermodel.Hyperlink;
 import org.apache.poi.sl.usermodel.Slide;
+import org.apache.poi.util.Removal;
 
 /**
  * Represents a hyperlink in a PowerPoint document
@@ -69,7 +71,7 @@ public final class HSLFHyperlink implements Hyperlink<HSLFShape,HSLFTextParagrap
      * @param shape the shape which receives the hyperlink
      * @return the new hyperlink
      * 
-     * @see HSLFShape#createHyperlink()
+     * @see HSLFSimpleShape#createHyperlink()
      */
     /* package */ static HSLFHyperlink createHyperlink(HSLFSimpleShape shape) {
         // TODO: check if a hyperlink already exists
@@ -129,24 +131,39 @@ public final class HSLFHyperlink implements Hyperlink<HSLFShape,HSLFTextParagrap
      * @see InteractiveInfoAtom
      */
     @Override
-    public int getType() {
+    public HyperlinkType getType() {
         switch (info.getInteractiveInfoAtom().getHyperlinkType()) {
-        case InteractiveInfoAtom.LINK_Url:
-            return (exHyper.getLinkURL().startsWith("mailto:")) ? LINK_EMAIL : LINK_URL;
-        case InteractiveInfoAtom.LINK_NextSlide:
-        case InteractiveInfoAtom.LINK_PreviousSlide:
-        case InteractiveInfoAtom.LINK_FirstSlide:
-        case InteractiveInfoAtom.LINK_LastSlide:
-        case InteractiveInfoAtom.LINK_SlideNumber:
-            return LINK_DOCUMENT;
-        case InteractiveInfoAtom.LINK_CustomShow:
-        case InteractiveInfoAtom.LINK_OtherPresentation:
-        case InteractiveInfoAtom.LINK_OtherFile:
-            return LINK_FILE;
-        default:
-        case InteractiveInfoAtom.LINK_NULL:
-            return -1;
+            case InteractiveInfoAtom.LINK_Url:
+                return (exHyper.getLinkURL().startsWith("mailto:")) ? HyperlinkType.EMAIL : HyperlinkType.URL;
+            case InteractiveInfoAtom.LINK_NextSlide:
+            case InteractiveInfoAtom.LINK_PreviousSlide:
+            case InteractiveInfoAtom.LINK_FirstSlide:
+            case InteractiveInfoAtom.LINK_LastSlide:
+            case InteractiveInfoAtom.LINK_SlideNumber:
+                return HyperlinkType.DOCUMENT;
+            case InteractiveInfoAtom.LINK_CustomShow:
+            case InteractiveInfoAtom.LINK_OtherPresentation:
+            case InteractiveInfoAtom.LINK_OtherFile:
+                return HyperlinkType.FILE;
+            default:
+            case InteractiveInfoAtom.LINK_NULL:
+                return HyperlinkType.NONE;
         }
+    }
+    
+    /**
+     * Gets the type of the hyperlink action.
+     * Must be a <code>LINK_*</code>  constant</code>
+     *
+     * @return the hyperlink URL
+     * @see InteractiveInfoAtom
+     * @deprecated use <code>getType</code> instead
+     */
+    @Deprecated
+    @Removal(version = "4.2")
+    @Override
+    public HyperlinkType getTypeEnum() {
+        return getType();
     }
 
     @Override
@@ -314,7 +331,7 @@ public final class HSLFHyperlink implements Hyperlink<HSLFShape,HSLFTextParagrap
      */
     @SuppressWarnings("resource")
     protected static List<HSLFHyperlink> find(List<HSLFTextParagraph> paragraphs){
-        List<HSLFHyperlink> lst = new ArrayList<HSLFHyperlink>();
+        List<HSLFHyperlink> lst = new ArrayList<>();
         if (paragraphs == null || paragraphs.isEmpty()) return lst;
 
         HSLFTextParagraph firstPara = paragraphs.get(0);
@@ -344,9 +361,9 @@ public final class HSLFHyperlink implements Hyperlink<HSLFShape,HSLFTextParagrap
         HSLFEscherClientDataRecord cldata = shape.getClientData(false);
 
         if (exobj != null && cldata != null) {
-            List<HSLFHyperlink> lst = new ArrayList<HSLFHyperlink>();
+            List<HSLFHyperlink> lst = new ArrayList<>();
             find(cldata.getHSLFChildRecords(), exobj, lst);
-            return lst.isEmpty() ? null : (HSLFHyperlink)lst.get(0);
+            return lst.isEmpty() ? null : lst.get(0);
         }
 
         return null;
@@ -363,6 +380,9 @@ public final class HSLFHyperlink implements Hyperlink<HSLFShape,HSLFTextParagrap
 
             InteractiveInfo hldr = (InteractiveInfo)r;
             InteractiveInfoAtom info = hldr.getInteractiveInfoAtom();
+            if (info == null) {
+                continue;
+            }
             int id = info.getHyperlinkID();
             ExHyperlink exHyper = exobj.get(id);
             if (exHyper == null) {

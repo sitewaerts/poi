@@ -104,7 +104,7 @@ public interface TextParagraph<
          * This is different than BASELINE because of letters such as "g", "q", and "y".
          * Also known as "UpholdFixed"
          */
-        BOTTOM; 
+        BOTTOM
     }
     
     public interface BulletStyle {
@@ -364,4 +364,14 @@ public interface TextParagraph<
      * Fetch the text runs that are contained within this block of text
      */
     List<T> getTextRuns();
+
+    /**
+     * Convenience method to determine if this text paragraph is part of
+     * the slide header or footer
+     * 
+     * @return true if this paragraph is part of a header or footer placeholder
+     * 
+     * @since POI 3.15-beta2
+     */
+    boolean isHeaderOrFooter();
 }

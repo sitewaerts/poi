@@ -17,9 +17,9 @@
 
 package org.apache.poi.hssf.record;
 
-import org.apache.poi.hssf.record.cf.CellRangeUtil;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
+import org.apache.poi.ss.util.CellRangeUtil;
 import org.apache.poi.util.LittleEndianOutput;
 
 /**
@@ -36,8 +36,7 @@ public abstract class CFHeaderBase extends StandardRecord implements Cloneable {
     protected CFHeaderBase() {
     }
     protected CFHeaderBase(CellRangeAddress[] regions, int nRules) {
-        CellRangeAddress[] unmergedRanges = regions;
-        CellRangeAddress[] mergeCellRanges = CellRangeUtil.mergeCellRanges(unmergedRanges);
+        CellRangeAddress[] mergeCellRanges = CellRangeUtil.mergeCellRanges(regions);
         setCellRanges(mergeCellRanges);
         field_1_numcf = nRules;
     }
@@ -68,7 +67,9 @@ public abstract class CFHeaderBase extends StandardRecord implements Cloneable {
         // held on the first bit
         if (b == getNeedRecalculation()) {
             return;
-        } else if (b) {
+        }
+
+        if (b) {
             field_2_need_recalculation_and_id++;
         } else {
             field_2_need_recalculation_and_id--;
@@ -106,8 +107,7 @@ public abstract class CFHeaderBase extends StandardRecord implements Cloneable {
         }
         CellRangeAddressList cral = new CellRangeAddressList();
         CellRangeAddress enclosingRange = null;
-        for (int i = 0; i < cellRanges.length; i++) {
-            CellRangeAddress cr = cellRanges[i];
+        for (CellRangeAddress cr : cellRanges) {
             enclosingRange = CellRangeUtil.createEnclosingCellRange(cr, enclosingRange);
             cral.addCellRangeAddress(cr);
         }
@@ -120,8 +120,9 @@ public abstract class CFHeaderBase extends StandardRecord implements Cloneable {
     }
 
     protected abstract String getRecordName();
+
     public String toString() {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
 
         buffer.append("[").append(getRecordName()).append("]\n");
         buffer.append("\t.numCF             = ").append(getNumberOfConditionalFormats()).append("\n");
@@ -130,7 +131,7 @@ public abstract class CFHeaderBase extends StandardRecord implements Cloneable {
         buffer.append("\t.enclosingCellRange= ").append(getEnclosingCellRange()).append("\n");
         buffer.append("\t.cfranges=[");
         for( int i=0; i<field_4_cell_ranges.countRanges(); i++) {
-            buffer.append(i==0?"":",").append(field_4_cell_ranges.getCellRangeAddress(i).toString());
+            buffer.append(i==0?"":",").append(field_4_cell_ranges.getCellRangeAddress(i));
         }
         buffer.append("]\n");
         buffer.append("[/").append(getRecordName()).append("]\n");

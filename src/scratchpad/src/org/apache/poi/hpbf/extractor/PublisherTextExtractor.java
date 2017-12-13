@@ -35,7 +35,7 @@ import org.apache.poi.poifs.filesystem.POIFSFileSystem;
  */
 public final class PublisherTextExtractor extends POIOLE2TextExtractor {
    private HPBFDocument doc;
-   private boolean hyperlinksByDefault = false;
+   private boolean hyperlinksByDefault;
 
    public PublisherTextExtractor(HPBFDocument doc) {
       super(doc);
@@ -108,10 +108,14 @@ public final class PublisherTextExtractor extends POIOLE2TextExtractor {
 		}
 
 		for(int i=0; i<args.length; i++) {
-			PublisherTextExtractor te = new PublisherTextExtractor(
-					new FileInputStream(args[i])
-			);
-			System.out.println(te.getText());
+		    FileInputStream fis = new FileInputStream(args[i]);
+		    try {
+		        PublisherTextExtractor te = new PublisherTextExtractor(fis);
+		        System.out.println(te.getText());
+		        te.close();
+		    } finally {
+		        fis.close();
+		    }
 		}
 	}
 }

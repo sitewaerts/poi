@@ -22,7 +22,6 @@ package org.apache.poi.xssf.usermodel;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.poi.hssf.record.cf.CellRangeUtil;
 import org.apache.poi.ss.SpreadsheetVersion;
 import org.apache.poi.ss.usermodel.ComparisonOperator;
 import org.apache.poi.ss.usermodel.ConditionalFormatting;
@@ -31,6 +30,7 @@ import org.apache.poi.ss.usermodel.ExtendedColor;
 import org.apache.poi.ss.usermodel.IconMultiStateFormatting.IconSet;
 import org.apache.poi.ss.usermodel.SheetConditionalFormatting;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.CellRangeUtil;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTCfRule;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTConditionalFormatting;
 import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTWorksheet;
@@ -52,7 +52,7 @@ public class XSSFSheetConditionalFormatting implements SheetConditionalFormattin
 
     /**
      * A factory method allowing to create a conditional formatting rule
-     * with a cell comparison operator<p/>
+     * with a cell comparison operator<p>
      * TODO - formulas containing cell references are currently not parsed properly
      *
      * @param comparisonOperation - a constant value from
@@ -200,7 +200,7 @@ public class XSSFSheetConditionalFormatting implements SheetConditionalFormattin
 
         CellRangeAddress[] mergeCellRanges = CellRangeUtil.mergeCellRanges(regions);
         CTConditionalFormatting cf = _sheet.getCTWorksheet().addNewConditionalFormatting();
-        List<String> refs = new ArrayList<String>();
+        List<String> refs = new ArrayList<>();
         for(CellRangeAddress a : mergeCellRanges) refs.add(a.formatAsString());
         cf.setSqref(refs);
 

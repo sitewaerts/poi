@@ -324,7 +324,7 @@ public final class HWPFLister
 
     private void buildParagraphs()
     {
-        paragraphs = new LinkedHashMap<Integer, String>();
+        paragraphs = new LinkedHashMap<>();
 
         StringBuilder part = new StringBuilder();
         String text = _doc.getDocumentText();
@@ -376,31 +376,27 @@ public final class HWPFLister
                 while ( sprmIt.hasNext() )
                 {
                     SprmOperation sprm = sprmIt.next();
-                    System.out.println( "\t" + sprm.toString() );
+                    System.out.println( "\t" + sprm);
                 }
             }
 
-            if ( true )
+            String text = new Range( chpx.getStart(), chpx.getEnd(),
+                    _doc.getOverallRange() )
             {
-                String text = new Range( chpx.getStart(), chpx.getEnd(),
-                        _doc.getOverallRange() )
+                public String toString()
                 {
-                    public String toString()
-                    {
-                        return "CHPX range (" + super.toString() + ")";
-                    }
-                }.text();
-                StringBuilder stringBuilder = new StringBuilder();
-                for ( char c : text.toCharArray() )
-                {
-                    if ( c < 30 )
-                        stringBuilder
-                                .append( "\\0x" + Integer.toHexString( c ) );
-                    else
-                        stringBuilder.append( c );
+                    return "CHPX range (" + super.toString() + ")";
                 }
-                System.out.println( stringBuilder );
+            }.text();
+            StringBuilder stringBuilder = new StringBuilder();
+            for ( char c : text.toCharArray() )
+            {
+                if ( c < 30 )
+                    stringBuilder.append("\\0x").append(Integer.toHexString(c));
+                else
+                    stringBuilder.append( c );
             }
+            System.out.println( stringBuilder );
         }
     }
 
@@ -529,7 +525,7 @@ public final class HWPFLister
                     .getFileInformationBlock().getFcPlcfbtePapx(), doc
                     .getFileInformationBlock().getLcbPlcfbtePapx(), 4 );
 
-            List<PAPX> papxs = new ArrayList<PAPX>();
+            List<PAPX> papxs = new ArrayList<>();
 
             int length = binTable.length();
             for ( int x = 0; x < length; x++ )
@@ -584,11 +580,8 @@ public final class HWPFLister
                 System.out.println( paragraph.getProps() );
             }
 
-            if ( true )
-            {
-                SprmIterator sprmIt = new SprmIterator( papx.getGrpprl(), 2 );
-                dumpSprms( sprmIt, "\t" );
-            }
+            SprmIterator sprmIt = new SprmIterator( papx.getGrpprl(), 2 );
+            dumpSprms( sprmIt, "\t" );
         }
     }
 
@@ -631,7 +624,7 @@ public final class HWPFLister
         while ( sprmIt.hasNext() )
         {
             SprmOperation sprm = sprmIt.next();
-            System.out.println( linePrefix + sprm.toString() );
+            System.out.println( linePrefix + sprm);
         }
     }
 
@@ -641,7 +634,7 @@ public final class HWPFLister
         for ( int p = 0; p < range.numParagraphs(); p++ )
         {
             Paragraph paragraph = range.getParagraph( p );
-            System.out.println( p + ":\t" + paragraph.toString() );
+            System.out.println( p + ":\t" + paragraph);
 
             if ( withText )
                 System.out.println( paragraph.text() );
@@ -660,7 +653,7 @@ public final class HWPFLister
                 .getAllPictures();
         for ( Picture picture : allPictures )
         {
-            System.out.println( picture.toString() );
+            System.out.println(picture);
         }
     }
 

@@ -20,9 +20,7 @@ package org.apache.poi.ddf;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 
@@ -30,29 +28,38 @@ import org.apache.poi.POIDataSamples;
 import org.apache.poi.hssf.HSSFTestDataSamples;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.LocaleUtil;
+import org.apache.poi.util.NullOutputStream;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestEscherDump {
+    static NullPrinterStream nullPS;
+    
+    @BeforeClass
+    public static void init() throws UnsupportedEncodingException {
+        nullPS = new NullPrinterStream();
+    }
+    
     @Test
     public void testSimple() throws Exception {
         // simple test to at least cover some parts of the class
-        EscherDump.main(new String[] {}, new NullPrinterStream());
+        EscherDump.main(new String[] {}, nullPS);
         
-        new EscherDump().dump(0, new byte[] {}, new NullPrinterStream());
-        new EscherDump().dump(new byte[] {}, 0, 0, new NullPrinterStream());
-        new EscherDump().dumpOld(0, new ByteArrayInputStream(new byte[] {}), new NullPrinterStream());
+        new EscherDump().dump(0, new byte[] {}, nullPS);
+        new EscherDump().dump(new byte[] {}, 0, 0, nullPS);
+        new EscherDump().dumpOld(0, new ByteArrayInputStream(new byte[] {}), nullPS);
     }
 
     @Test
     public void testWithData() throws Exception {
-        new EscherDump().dumpOld(8, new ByteArrayInputStream(new byte[] { 00, 00, 00, 00, 00, 00, 00, 00 }), new NullPrinterStream());
+        new EscherDump().dumpOld(8, new ByteArrayInputStream(new byte[] { 00, 00, 00, 00, 00, 00, 00, 00 }), nullPS);
     }
 
     @Test
     public  void testWithSamplefile() throws Exception {
         //InputStream stream = HSSFTestDataSamples.openSampleFileStream(")
         byte[] data = POIDataSamples.getDDFInstance().readFile("Container.dat");
-        new EscherDump().dump(data.length, data, new NullPrinterStream());
+        new EscherDump().dump(data.length, data, nullPS);
         //new EscherDump().dumpOld(data.length, new ByteArrayInputStream(data), System.out);
         
         data = new byte[2586114];
@@ -72,25 +79,9 @@ public class TestEscherDump {
      * to redirect stdout to avoid spamming the console with output
      */
     private static class NullPrinterStream extends PrintStream {
+        @SuppressWarnings("resource")
         private NullPrinterStream() throws UnsupportedEncodingException {
             super(new NullOutputStream(),true,LocaleUtil.CHARSET_1252.name());
-        }
-        /**
-         * Implementation of an OutputStream which does nothing, used
-         * to redirect stdout to avoid spamming the console with output
-         */
-        private static class NullOutputStream extends OutputStream {
-            @Override
-            public void write(byte[] b, int off, int len) {
-            }
-
-            @Override
-            public void write(int b) {
-            }
-
-            @Override
-            public void write(byte[] b) throws IOException {
-            }
-        }        
+        }      
     }    
 }

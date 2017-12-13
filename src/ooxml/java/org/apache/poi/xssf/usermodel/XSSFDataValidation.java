@@ -35,23 +35,23 @@ import org.openxmlformats.schemas.spreadsheetml.x2006.main.STDataValidationOpera
  *
  */
 public class XSSFDataValidation implements DataValidation {
+	private static final int MAX_TEXT_LENGTH = 255;
+
 	private CTDataValidation ctDdataValidation;
 	private XSSFDataValidationConstraint validationConstraint;
 	private CellRangeAddressList regions;
 
-    static Map<Integer,STDataValidationOperator.Enum> operatorTypeMappings = new HashMap<Integer,STDataValidationOperator.Enum>();
-	static Map<STDataValidationOperator.Enum,Integer> operatorTypeReverseMappings = new HashMap<STDataValidationOperator.Enum,Integer>();
-	static Map<Integer,STDataValidationType.Enum> validationTypeMappings = new HashMap<Integer,STDataValidationType.Enum>();
-	static Map<STDataValidationType.Enum,Integer> validationTypeReverseMappings = new HashMap<STDataValidationType.Enum,Integer>();
-    static Map<Integer,STDataValidationErrorStyle.Enum> errorStyleMappings = new HashMap<Integer,STDataValidationErrorStyle.Enum>();
+    static Map<Integer,STDataValidationOperator.Enum> operatorTypeMappings = new HashMap<>();
+	static Map<STDataValidationOperator.Enum,Integer> operatorTypeReverseMappings = new HashMap<>();
+	static Map<Integer,STDataValidationType.Enum> validationTypeMappings = new HashMap<>();
+	static Map<STDataValidationType.Enum,Integer> validationTypeReverseMappings = new HashMap<>();
+	static Map<Integer,STDataValidationErrorStyle.Enum> errorStyleMappings = new HashMap<>();
+
     static {
 		errorStyleMappings.put(DataValidation.ErrorStyle.INFO, STDataValidationErrorStyle.INFORMATION);
 		errorStyleMappings.put(DataValidation.ErrorStyle.STOP, STDataValidationErrorStyle.STOP);
 		errorStyleMappings.put(DataValidation.ErrorStyle.WARNING, STDataValidationErrorStyle.WARNING);
-    }
-	
-    
-	static {
+
 		operatorTypeMappings.put(DataValidationConstraint.OperatorType.BETWEEN,STDataValidationOperator.BETWEEN);
 		operatorTypeMappings.put(DataValidationConstraint.OperatorType.NOT_BETWEEN,STDataValidationOperator.NOT_BETWEEN);
 		operatorTypeMappings.put(DataValidationConstraint.OperatorType.EQUAL,STDataValidationOperator.EQUAL);
@@ -64,9 +64,7 @@ public class XSSFDataValidation implements DataValidation {
 		for( Map.Entry<Integer,STDataValidationOperator.Enum> entry : operatorTypeMappings.entrySet() ) {
 			operatorTypeReverseMappings.put(entry.getValue(),entry.getKey());
 		}
-	}
 
-	static {
 		validationTypeMappings.put(DataValidationConstraint.ValidationType.FORMULA,STDataValidationType.CUSTOM);
 		validationTypeMappings.put(DataValidationConstraint.ValidationType.DATE,STDataValidationType.DATE);
 		validationTypeMappings.put(DataValidationConstraint.ValidationType.DECIMAL,STDataValidationType.DECIMAL);    	
@@ -81,7 +79,6 @@ public class XSSFDataValidation implements DataValidation {
 		}
 	}
 
-	
 	XSSFDataValidation(CellRangeAddressList regions,CTDataValidation ctDataValidation) {
 	    this(getConstraint(ctDataValidation), regions, ctDataValidation);
 	}	
@@ -103,16 +100,61 @@ public class XSSFDataValidation implements DataValidation {
 	 * @see org.apache.poi.ss.usermodel.DataValidation#createErrorBox(java.lang.String, java.lang.String)
 	 */
 	public void createErrorBox(String title, String text) {
-		ctDdataValidation.setErrorTitle(title);
-		ctDdataValidation.setError(text);
+		// the spec does not specify a length-limit, however Excel reports files as "corrupt" if they exceed 255 bytes for these texts...
+		if(title != null && title.length() > MAX_TEXT_LENGTH) {
+			throw new IllegalStateException("Error-title cannot be longer than 32 characters, but had: " + title);
+		}
+		if(text != null && text.length() > MAX_TEXT_LENGTH) {
+			throw new IllegalStateException("Error-text cannot be longer than 255 characters, but had: " + text);
+		}
+		ctDdataValidation.setErrorTitle(encodeUtf(title));
+		ctDdataValidation.setError(encodeUtf(text));
 	}
 
 	/* (non-Javadoc)
 	 * @see org.apache.poi.ss.usermodel.DataValidation#createPromptBox(java.lang.String, java.lang.String)
 	 */
 	public void createPromptBox(String title, String text) {
-		ctDdataValidation.setPromptTitle(title);
-		ctDdataValidation.setPrompt(text);
+		// the spec does not specify a length-limit, however Excel reports files as "corrupt" if they exceed 255 bytes for these texts...
+		if(title != null && title.length() > MAX_TEXT_LENGTH) {
+			throw new IllegalStateException("Error-title cannot be longer than 32 characters, but had: " + title);
+		}
+		if(text != null && text.length() > MAX_TEXT_LENGTH) {
+			throw new IllegalStateException("Error-text cannot be longer than 255 characters, but had: " + text);
+		}
+		ctDdataValidation.setPromptTitle(encodeUtf(title));
+		ctDdataValidation.setPrompt(encodeUtf(text));
+	}
+
+	/**
+	 * For all characters which cannot be represented in XML as defined by the XML 1.0 specification,
+	 * the characters are escaped using the Unicode numerical character representation escape character
+	 * format _xHHHH_, where H represents a hexadecimal character in the character's value.
+	 * <p>
+	 * Example: The Unicode character 0D is invalid in an XML 1.0 document,
+	 * so it shall be escaped as <code>_x000D_</code>.
+	 * </p>
+	 * See section 3.18.9 in the OOXML spec.
+	 *
+	 * @param   text the string to encode
+	 * @return  the encoded string
+	 */
+	private String encodeUtf(String text) {
+		if(text == null) {
+			return null;
+		}
+
+		StringBuilder builder = new StringBuilder();
+		for(char c : text.toCharArray()) {
+			// for now only encode characters below 32, we can add more here if needed
+			if(c < 32) {
+				builder.append("_x").append(c < 16 ? "000" : "00").append(Integer.toHexString(c)).append("_");
+			} else {
+				builder.append(c);
+			}
+		}
+
+		return builder.toString();
 	}
 
 	/* (non-Javadoc)
@@ -237,14 +279,12 @@ public class XSSFDataValidation implements DataValidation {
 	}
 	
     private static XSSFDataValidationConstraint getConstraint(CTDataValidation ctDataValidation) {
-    	XSSFDataValidationConstraint constraint = null;
     	String formula1 = ctDataValidation.getFormula1();
     	String formula2 = ctDataValidation.getFormula2();
     	Enum operator = ctDataValidation.getOperator();
     	org.openxmlformats.schemas.spreadsheetml.x2006.main.STDataValidationType.Enum type = ctDataValidation.getType();
 		Integer validationType = XSSFDataValidation.validationTypeReverseMappings.get(type);
 		Integer operatorType = XSSFDataValidation.operatorTypeReverseMappings.get(operator);
-		constraint = new XSSFDataValidationConstraint(validationType,operatorType, formula1,formula2);
-    	return constraint;
+		return new XSSFDataValidationConstraint(validationType,operatorType, formula1,formula2);
     }
 }
