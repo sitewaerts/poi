@@ -366,6 +366,12 @@ public final class ZipPackage extends OPCPackage {
              )) {
                 return null;
             }
+
+            // avoid unnecessary exception logging on zip entries which
+            // point to a directory instead of a file
+            if(entry.getName().endsWith("/"))
+                return null;
+
             return PackagingURIHelper.createPartName(ZipHelper
                     .getOPCNameFromZipItemName(entry.getName()));
         } catch (Exception e) {
